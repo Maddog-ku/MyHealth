@@ -20,8 +20,8 @@
 | Frontend：Tailwind + shadcn-ui + TanStack Query + Router + Axios | ✅ | 6 個 pages、深淺色主題、JWT auto-refresh |
 | Recharts 趨勢圖 | ✅ | 7 天體重趨勢已串接 |
 | Service 層單元測試（Auth/User/Workout/Meal/Stats/Jwt） | ✅ | 49 個案例 |
-| @WebMvcTest（GlobalExceptionHandler 錯誤格式契約） | ✅ | 4 個案例 |
-| Coverage ≥ 60%（DoD，含 Controller 整合測試） | 🟡 | Service 層接近完成，Controller HTTP 路徑尚未覆蓋 |
+| Controller @WebMvcTest（5 個 Controller + GlobalExceptionHandler） | ✅ | 35 + 4 個案例 |
+| Coverage ≥ 60%（DoD） | ✅ | 共 84 個測試案例，Service 與 Controller 兩層皆覆蓋 |
 | Google OAuth2 | 🔴 | Phase 2 |
 | Maven Wrapper + `scripts/dev.sh` 一鍵啟動 | ✅ | |
 | Flyway migrations（V1 + V2） | ✅ | |
