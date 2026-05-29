@@ -10,8 +10,10 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
@@ -28,6 +30,22 @@ public class GlobalExceptionHandler {
                 .toList();
         return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Request validation failed",
                 request.getRequestURI(), details);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    ResponseEntity<ApiErrorResponse> handleMissingParam(MissingServletRequestParameterException ex, HttpServletRequest request) {
+        ApiErrorResponse.FieldErrorDetail detail = new ApiErrorResponse.FieldErrorDetail(
+                ex.getParameterName(), "required", "Required parameter is missing");
+        return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Missing required parameter: " + ex.getParameterName(),
+                request.getRequestURI(), List.of(detail));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<ApiErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        ApiErrorResponse.FieldErrorDetail detail = new ApiErrorResponse.FieldErrorDetail(
+                ex.getName(), "typeMismatch", "Parameter has the wrong type");
+        return build(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "Invalid parameter: " + ex.getName(),
+                request.getRequestURI(), List.of(detail));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
