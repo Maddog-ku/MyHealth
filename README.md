@@ -9,7 +9,7 @@
 
 | 模組 | 狀態 | 備註 |
 |---|---|---|
-| Auth（註冊/登入/JWT/Refresh rotation） | ✅ | 含 12 個 Service 單元測試 |
+| Auth（註冊/登入/JWT/Refresh rotation） | ✅ | 含 12 個 AuthService + 5 個 JwtService 單元測試 |
 | User profile + body measurements | ✅ | |
 | Workouts CRUD + complete | ✅ | AI 內容為 stub |
 | Meals CRUD（文字 + 圖片 multipart） | ✅ | AI 內容為 stub |
@@ -19,8 +19,9 @@
 | OpenAI / Anthropic Provider | 🔴 | Phase 2 |
 | Frontend：Tailwind + shadcn-ui + TanStack Query + Router + Axios | ✅ | 6 個 pages、深淺色主題、JWT auto-refresh |
 | Recharts 趨勢圖 | ✅ | 7 天體重趨勢已串接 |
-| Backend 整合測試（@SpringBootTest / @WebMvcTest） | 🔴 | 僅 AuthService 單元測試完成 |
-| Coverage ≥ 60%（DoD） | 🔴 | 目前約 Auth Service 100%，整體 ~15% |
+| Service 層單元測試（Auth/User/Workout/Meal/Stats/Jwt） | ✅ | 49 個案例 |
+| @WebMvcTest（GlobalExceptionHandler 錯誤格式契約） | ✅ | 4 個案例 |
+| Coverage ≥ 60%（DoD，含 Controller 整合測試） | 🟡 | Service 層接近完成，Controller HTTP 路徑尚未覆蓋 |
 | Google OAuth2 | 🔴 | Phase 2 |
 | Maven Wrapper + `scripts/dev.sh` 一鍵啟動 | ✅ | |
 | Flyway migrations（V1 + V2） | ✅ | |
