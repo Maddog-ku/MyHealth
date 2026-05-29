@@ -1,0 +1,17 @@
+package com.myhealth.common;
+
+public enum ErrorCode {
+    VALIDATION_ERROR,
+    BAD_REQUEST,
+    UNAUTHORIZED,
+    TOKEN_EXPIRED,
+    INVALID_REFRESH_TOKEN,
+    FORBIDDEN,
+    NOT_FOUND,
+    CONFLICT,
+    PAYLOAD_TOO_LARGE,
+    UNSUPPORTED_MEDIA_TYPE,
+    RATE_LIMITED,
+    AI_UNAVAILABLE,
+    INTERNAL_ERROR
+}
