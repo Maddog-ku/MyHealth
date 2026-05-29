@@ -457,7 +457,7 @@ Content-Type：`multipart/form-data`
   "date": "2026-05-25",
   "slot": "lunch",
   "description": "雞胸肉沙拉 + 半碗糙米飯",
-  "imageUrl": "/uploads/2026/05/25/abc123.jpg",
+  "imageUrl": "/api/v1/meals/88/image",
   "items": [
     { "name": "雞胸肉", "grams": 150, "kcal": 248, "protein": 46.5, "fat": 5.4, "carb": 0, "confidence": 0.92 },
     { "name": "糙米飯", "grams": 100, "kcal": 112, "protein": 2.6, "fat": 0.9, "carb": 23.5, "confidence": 0.88 }

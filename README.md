@@ -1,7 +1,30 @@
 # MyHealth — AI 健身與飲食管理平台
 
-> **文件狀態：產品與技術企劃（v0.1，規劃階段）**
-> 本文件描述 MyHealth 的產品願景、技術架構與 API 規格，**尚未進入實作**。所有資料庫 schema、API 端點、技術選型皆為規劃草案，將於 M1 啟動後依實作驗證調整。任何標示「規劃中／預留」之功能均不保證進入最終版本。
+> **文件狀態：產品與技術企劃 + M1 實作中（v0.3）**
+> 本文件描述 MyHealth 的產品願景、技術架構與 API 規格。下面 §0「目前實作狀態」標示每個模組目前是 ✅ 已實裝 / 🟡 stub / 🔴 未實作 / 📋 規劃中。所有資料庫 schema、API 端點、技術選型仍會依實作驗證調整；任何標示「規劃中／Phase 2」之功能均不保證進入最終版本。
+
+---
+
+## 〇、目前實作狀態（last updated 2026-05-30）
+
+| 模組 | 狀態 | 備註 |
+|---|---|---|
+| Auth（註冊/登入/JWT/Refresh rotation） | ✅ | 含 12 個 Service 單元測試 |
+| User profile + body measurements | ✅ | |
+| Workouts CRUD + complete | ✅ | AI 內容為 stub |
+| Meals CRUD（文字 + 圖片 multipart） | ✅ | AI 內容為 stub |
+| Stats `/daily`、`/range` | ✅ | 即時計算，無彙總表 |
+| AI Provider 介面 + IdleWatcher | ✅ | 介面 + 排程到位 |
+| **LocalAiProvider 真實串接 Ollama** | 🟡 stub | 目前回固定模板；`HttpClient` → `/api/chat` 尚未串接 |
+| OpenAI / Anthropic Provider | 🔴 | Phase 2 |
+| Frontend：Tailwind + shadcn-ui + TanStack Query + Router + Axios | ✅ | 6 個 pages、深淺色主題、JWT auto-refresh |
+| Recharts 趨勢圖 | ✅ | 7 天體重趨勢已串接 |
+| Backend 整合測試（@SpringBootTest / @WebMvcTest） | 🔴 | 僅 AuthService 單元測試完成 |
+| Coverage ≥ 60%（DoD） | 🔴 | 目前約 Auth Service 100%，整體 ~15% |
+| Google OAuth2 | 🔴 | Phase 2 |
+| Maven Wrapper + `scripts/dev.sh` 一鍵啟動 | ✅ | |
+| Flyway migrations（V1 + V2） | ✅ | |
+| ErrorBoundary + 全域錯誤格式 | ✅ | |
 
 一個整合「每日運動菜單規劃」與「三餐飲食紀錄／熱量分析」的 Web 平台。
 **架構為前後端分離**：前端 React（SPA），後端 Java（Spring Boot），資料庫 PostgreSQL；所有功能透過 REST API 串接。
@@ -82,11 +105,11 @@
 ### 3.1 技術選型
 | 層級 | 選擇 | 備註 |
 |------|------|------|
-| Frontend | React 18 + Vite + TypeScript | SPA，與後端完全解耦 |
-| 前端路由 | React Router v6 | |
-| 前端資料層 | TanStack Query (React Query) + Axios | API 快取／重試／樂觀更新 |
-| UI | Tailwind CSS + shadcn/ui | |
-| 圖表 | Recharts | 趨勢圖 |
+| Frontend | React 18 + Vite + TypeScript | ✅ 已實裝 |
+| 前端路由 | React Router v6 | ✅ |
+| 前端資料層 | TanStack Query v5 + Axios | ✅ JWT auto-refresh interceptor 已串接 |
+| UI | Tailwind CSS + shadcn/ui 風格元件 | ✅ 自建在 `src/components/ui/`（Radix UI primitives）|
+| 圖表 | Recharts | ✅ 7 天體重趨勢已串接 |
 | Backend | Java 21 + Spring Boot 3 | |
 | Web | Spring Web (MVC) | RESTful Controller |
 | 安全性 | Spring Security 6 + JWT (jjwt) | Stateless，Bearer Token |
@@ -103,18 +126,21 @@
 ### 3.2 AI Provider 抽象介面（Java）
 ```java
 public interface AiProvider {
-    String name();
-    ChatResult chat(List<Message> messages, ChatOptions opts);
-    VisionResult vision(byte[] image, String prompt);
-    void warmup();
-    void unload();          // 釋放本地模型
-    boolean isLoaded();
+    String provider();
+    String textModel();
+    String visionModel();
+    List<ExerciseItem> generateWorkout(String category, int durationMin, String intensity);
+    MealAnalysis analyzeMeal(String description, boolean hasImage);
+    void markUsed();
+    void unload();
+    boolean loaded();
+    Instant lastUsedAt();
 }
 ```
-實作：
-- `LocalOllamaProvider`：呼叫 `POST {OLLAMA_BASE_URL}/api/chat`、`/api/generate`，以 `keep_alive: "0s"` 卸載模型。
-- `OpenAiProvider` / `AnthropicProvider`：未來擴充，僅需實作同一介面。
-- 透過 Spring `@ConditionalOnProperty(name = "ai.provider")` 注入正確 Bean。
+**目前實作狀態**：
+- `LocalAiProvider`：🟡 **stub** — 回固定模板（abs/legs/cardio 預設菜單；固定 360 kcal 餐點估算）。整體 idle / unload 流程已就緒，但 `HttpClient` 對 Ollama `POST /api/chat` 尚未串接。
+- `OpenAiProvider` / `AnthropicProvider`：🔴 未建立。
+- 切換策略（規劃中）：Spring `@ConditionalOnProperty(name = "ai.provider")` 注入。
 
 ### 3.3 閒置釋放 RAM 策略
 1. 每次 AI 請求更新 `lastUsedAt`（記在 `AiProvider` Bean 內，volatile）。
@@ -212,14 +238,8 @@ CREATE TABLE meals (
 );
 CREATE INDEX idx_meals_user_date ON meals(user_id, date);
 
-CREATE TABLE daily_stats (
-  user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  date        DATE NOT NULL,
-  intake_kcal INT NOT NULL DEFAULT 0,
-  burn_kcal   INT NOT NULL DEFAULT 0,
-  weight_kg   NUMERIC(5,2),
-  PRIMARY KEY (user_id, date)
-);
+-- MVP 階段不建立 daily_stats 彙總表；統計 API 直接由 meals、workout_plans、
+-- body_measurements 即時計算。若 Phase 2 需要更高查詢效能，再新增彙總表或物化檢視。
 ```
 
 > 所有與使用者相關的表皆以 `user_id` 為外鍵，並設 `ON DELETE CASCADE`，刪除帳號時連動清除個人資料。
@@ -247,7 +267,7 @@ Base URL：`/api/v1`
 | POST   | `/meals` | 新增餐點（multipart：`image` + `description` + `slot`） |
 | DELETE | `/meals/{id}` | 刪除餐點 |
 | GET    | `/stats/daily?date=YYYY-MM-DD` | 當日熱量收支 |
-| GET    | `/stats/range?from=&to=` | 區間統計（趨勢圖） |
+| GET    | `/stats/range?from=&to=` | 區間統計（回傳 `{from, to, series:[{date, intakeKcal, burnKcal, weightKg}]}`，給趨勢圖） |
 | GET    | `/ai/status` | 目前 Provider / 是否載入 / 閒置秒數 |
 | POST   | `/ai/unload` | 手動釋放本地模型 |
 
@@ -306,7 +326,7 @@ MyHealth/
 
 ### Backend（`backend/src/main/resources/application.yml` 或環境變數）
 ```
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/myhealth
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/myhealth
 SPRING_DATASOURCE_USERNAME=myhealth
 SPRING_DATASOURCE_PASSWORD=changeme
 
@@ -339,25 +359,33 @@ VITE_API_BASE_URL=http://localhost:8080/api/v1
 
 ---
 
-## 八、預計開發完成後的啟動方式
+## 八、本機啟動方式
 
-> 以下指令為 **規劃中的目標流程**，對應的 `docker-compose.yml`、Maven 專案、Vite 專案皆尚未建立，無法直接執行。實作開始後，本節將更新為實際可運作版本。
+> 已隨 repo 提供 Maven Wrapper（`backend/mvnw`），開發者**不需要先安裝 Maven**。Ollama 改為 docker-compose 的 `ai` profile（預設不啟動，避免拉幾 GB 模型）；目前 `LocalAiProvider` 仍為內建 stub，沒有 Ollama 也能啟動，AI 端點會以假資料回應。
 
+### 一鍵啟動（推薦）
 ```bash
-# 0. 啟動 Postgres 與 Ollama（建議 docker compose）
-docker compose up -d postgres ollama
-ollama pull qwen2.5:7b
-ollama pull qwen2-vl:7b
+scripts/dev.sh         # 自動 docker compose up -d postgres，再並行起 backend/frontend
+scripts/dev.sh --ai    # 同時啟動 Ollama（profile=ai）
+scripts/dev.sh --stop  # 停止 docker compose
+```
+Backend log → `.dev-logs/backend.log`；Frontend log → `.dev-logs/frontend.log`。
 
-# 1. 後端
+### 手動分步
+```bash
+# 0. 啟動 Postgres（Ollama 預設不啟動；要 AI 真實推論時加 --profile ai）
+docker compose up -d postgres
+# docker compose --profile ai up -d ollama && ollama pull qwen2.5:7b
+
+# 1. 後端（用 wrapper，無須事先安裝 Maven）
 cd backend
 ./mvnw spring-boot:run          # http://localhost:8080
 # 首次啟動 Flyway 會自動套用 db/migration/*.sql
 
 # 2. 前端
 cd ../frontend
-pnpm install
-pnpm dev                        # http://localhost:5173
+npm install
+npm run dev                     # http://localhost:5173
 ```
 
 Swagger UI：`http://localhost:8080/swagger-ui.html`
@@ -435,7 +463,7 @@ Swagger UI：`http://localhost:8080/swagger-ui.html`
 | 指標 | 目標 | 衡量方式 | MVP 可量測 |
 |---|---|---|---|
 | 啟用率（Activation） | 註冊後 24 小時內至少完成 1 次菜單生成 + 1 次飲食記錄 | 事件埋點（Phase 2） | ✗ |
-| 留存（W1 Retention） | 註冊後第 7 天回訪比例 ≥ 30% | DailyStat 是否新增 | ✅（以 DailyStat 近似） |
+| 留存（W1 Retention） | 註冊後第 7 天回訪比例 ≥ 30% | 第 7 天是否有 meals / workout_plans / body_measurements 新增 | ✅（以既有表近似） |
 | AI 結果採用率 | 菜單／飲食 AI 回應「不採用」回報 < 20% | 「不採用」按鈕事件（Phase 2） | ✗ |
 | 平均功耗 | 閒置 > 5 分鐘後本地 AI 不占用 GPU/RAM | OS 監控 + `/ai/status.loaded` 輪詢 | ✅ |
 
@@ -445,7 +473,7 @@ Swagger UI：`http://localhost:8080/swagger-ui.html`
 - **方案 A（優先）**：自有 `events` 表（`user_id`、`event_type`、`payload jsonb`、`occurred_at`），後端 Service 層在關鍵動作埋點（`workout.generated`、`workout.completed`、`meal.created`、`ai.rejected`…）；前端透過 `POST /api/v1/events` 上報純前端事件（頁面進入、按鈕點擊）。
 - **方案 B**：接外部 analytics（PostHog 自架版），保留資料本地化。
 - **隱私原則**：事件僅記錄 `event_type` 與必要的數值欄位，**不寫入飲食描述、照片內容、個人身體數據明細**；遵循 §10.1 最小化原則。
-- **MVP 階段**：不導入埋點，避免拖延上線；以資料庫既有資料（`users.created_at`、`daily_stats`、`/ai/status`）做粗略估算。
+- **MVP 階段**：不導入埋點，避免拖延上線；以資料庫既有資料（`users.created_at`、`meals`、`workout_plans`、`body_measurements`、`/ai/status`）做粗略估算。
 
 ---
 
