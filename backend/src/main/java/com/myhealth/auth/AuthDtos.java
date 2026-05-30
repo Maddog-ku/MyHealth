@@ -45,7 +45,12 @@ public final class AuthDtos {
 
     public record LoginRequest(
             @Email @NotBlank @Size(max = 254) String email,
-            @NotBlank @Size(min = 8, max = 128) @Pattern(regexp = "^(?=.*[A-Z])(?=.*[a-z])[A-Za-z0-9]+$") String password
+            // Login deliberately does NOT enforce the register-time policy:
+            //  - blocks legitimate users whose password predates the policy
+            //  - leaks the policy to attackers via 400 vs 401
+            //  - actual correctness is BCrypt-checked in AuthService
+            // Only minimal anti-DoS bound here.
+            @NotBlank @Size(max = 128) String password
     ) {
     }
 

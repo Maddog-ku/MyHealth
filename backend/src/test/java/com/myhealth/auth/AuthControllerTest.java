@@ -92,8 +92,23 @@ class AuthControllerTest {
     }
 
     @Test
-    void login_returns400_whenPasswordDoesNotMatchAccountPolicy() throws Exception {
-        String body = "{\"email\":\"demo@example.com\",\"password\":\"password123\"}";
+    void login_acceptsPredatePolicyPasswords_andLetsServiceDecide() throws Exception {
+        // Login DTO must not enforce the register policy: an existing user whose password
+        // is "secret123" (no uppercase) needs to be able to attempt login. Whether the
+        // password matches is BCrypt-checked downstream — here we just confirm the
+        // request reaches AuthService instead of being short-circuited at validation.
+        when(authService.login(any())).thenReturn(new AuthResponse(
+                "a", "r", "Bearer", 900L, new UserSummary(1L, "demo@example.com", "Demo", Role.USER)));
+
+        String body = "{\"email\":\"demo@example.com\",\"password\":\"secret123\"}";
+
+        mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void login_returns400_whenPasswordBlank() throws Exception {
+        String body = "{\"email\":\"demo@example.com\",\"password\":\"\"}";
 
         mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
