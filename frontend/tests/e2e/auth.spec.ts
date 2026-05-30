@@ -16,6 +16,10 @@ test("login page renders and surfaces API errors", async ({ page }) => {
   await page.goto("/login");
 
   await expect(page.getByRole("heading", { name: "MyHealth" })).toBeVisible();
+  // Fields are no longer pre-filled, so type credentials to get past the
+  // required-field validation and actually trigger the (mocked) login call.
+  await page.getByLabel("電子郵件").fill("user@example.com");
+  await page.getByLabel("密碼", { exact: true }).fill("whatever123");
   await page.getByRole("button", { name: /開始使用/ }).click();
   await expect(page.getByText("帳號或密碼錯誤")).toBeVisible();
 });
