@@ -7,6 +7,7 @@
 #   scripts/dev.sh --ai       # 額外啟動 Ollama（AI 端點可用）
 #   scripts/dev.sh --infra    # 只起依賴服務（Postgres/Redis），不跑 backend/frontend
 #   scripts/dev.sh --reset    # 重置 DB（DROP SCHEMA 後讓 Flyway 重建）再正常啟動
+#   scripts/dev.sh --seed     # 後端就緒後建立 demo 帳號（demo@example.com / Secret123）
 #   scripts/dev.sh --stop     # 停止並移除 docker compose 服務
 #   scripts/dev.sh --help     # 顯示說明
 
@@ -17,16 +18,18 @@ WITH_AI=0
 STOP=0
 INFRA_ONLY=0
 RESET=0
+SEED=0
 ASSUME_YES=0
 for arg in "$@"; do
   case "$arg" in
     --ai)        WITH_AI=1 ;;
     --infra)     INFRA_ONLY=1 ;;
     --reset)     RESET=1 ;;
+    --seed)      SEED=1 ;;
     -y|--yes)    ASSUME_YES=1 ;;
     --stop|--down) STOP=1 ;;
     -h|--help)
-      sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
       exit 0 ;;
     *) echo "unknown arg: ${arg} (用 --help 看用法)" >&2; exit 2 ;;
   esac
@@ -153,10 +156,36 @@ cat <<EOF
    Swagger  http://localhost:8080/swagger-ui.html
 $( [[ $WITH_AI -eq 1 ]] && echo "   Ollama   http://localhost:11434  (AI 端點已啟用)" )
 
-   後端啟動約需 10~30 秒。按 Ctrl+C 結束 backend/frontend（不會停 Postgres/Redis）。
+   按 Ctrl+C 結束 backend/frontend（不會停 Postgres/Redis）。
    只停依賴服務：scripts/dev.sh --stop
    看後端日誌：  tail -f $LOG_DIR/backend.log
 EOF
+
+# 等 backend 真正就緒：輪詢 /actuator/health（DB 連得上才會回 UP/200）。
+# 比固定睡 30 秒準確，也能在 backend 啟動失敗時即時發現。
+echo "==> 等待 backend 就緒（/actuator/health）…"
+for i in $(seq 1 60); do
+  if ! kill -0 "$BACKEND_PID" 2>/dev/null; then break; fi   # 交給下面的死亡偵測處理
+  if curl -fsS http://localhost:8080/actuator/health >/dev/null 2>&1; then
+    echo "    ✅ backend ready — http://localhost:5173 可以開了"
+    break
+  fi
+  sleep 1
+  [[ $i -eq 60 ]] && echo "    ⚠ 60 秒內未就緒，請看 $LOG_DIR/backend.log"
+done
+
+# (--seed) 後端就緒後建立 demo 帳號，省去每次 --reset 後手動註冊。
+# 透過 register API 建立（dev-only，不寫進 Flyway migration 以免帶到 prod）。
+if [[ $SEED -eq 1 ]] && kill -0 "$BACKEND_PID" 2>/dev/null; then
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8080/api/v1/auth/register \
+    -H 'Content-Type: application/json' \
+    -d '{"email":"demo@example.com","password":"Secret123","name":"Demo","gender":"other","heightCm":170,"weightKg":65}' 2>/dev/null || true)
+  case "${code}" in
+    201) echo "    ✅ 已建立 demo 帳號: demo@example.com / Secret123" ;;
+    409) echo "    ℹ demo 帳號已存在: demo@example.com / Secret123" ;;
+    *)   echo "    ⚠ demo 帳號建立失敗 (HTTP ${code})，可稍後手動註冊" ;;
+  esac
+fi
 
 # 若任一服務先結束就一起收掉，避免殘留孤兒程序
 # （macOS 內建 bash 3.2 沒有 `wait -n`，改用輪詢）

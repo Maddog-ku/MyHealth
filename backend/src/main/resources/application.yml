@@ -60,6 +60,20 @@ app:
       ttl-padding: ${RATE_LIMIT_REDIS_TTL_PADDING:10s}
   upload-dir: ${UPLOAD_DIR:./uploads}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health   # 只開 health，其餘 actuator 端點維持關閉
+  endpoint:
+    health:
+      # 匿名只看到 {"status":"UP"}（dev.sh / docker healthcheck 需要的就這個）；
+      # 登入後才看得到 db、diskSpace 等元件明細，避免在 prod 洩漏基礎設施資訊。
+      show-details: when_authorized
+      show-components: when_authorized
+      probes:
+        enabled: true   # 額外提供 /actuator/health/liveness 與 /readiness
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

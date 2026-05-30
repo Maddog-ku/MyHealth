@@ -53,9 +53,12 @@ scripts/dev.sh            # Postgres + Redis + backend + frontend
 scripts/dev.sh --ai       # 額外啟動 Ollama（AI 端點可用，見下節）
 scripts/dev.sh --infra    # 只起依賴服務（Postgres / Redis），不跑 backend / frontend
 scripts/dev.sh --reset    # 重置資料庫後再啟動（見「疑難排解」）
+scripts/dev.sh --seed     # 後端就緒後建立 demo 帳號（demo@example.com / Secret123）
 scripts/dev.sh --stop     # 停止並移除 docker compose 服務
 scripts/dev.sh --help     # 顯示說明
 ```
+
+啟動時 `scripts/dev.sh` 會輪詢 `GET /actuator/health` 等後端真正就緒（DB 連得上才回 `UP`），不再只是固定等 30 秒。健康檢查與錯誤排查見 [`docs/ERROR_CODES.md`](docs/ERROR_CODES.md)。
 
 ### 要讓 AI 真的跑起來
 本機需要先裝 [Ollama](https://ollama.ai) 並 pull 一個模型（預設 `gemma4:e4b`）：

@@ -36,8 +36,14 @@ public class SecurityConfig {
                         .authenticationEntryPoint((request, response, authException) -> {
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                             response.setContentType("application/json");
-                            response.getWriter().write("""
-                                    {"status":401,"error":"UNAUTHORIZED","message":"token invalid or expired"}""");
+                            boolean expired = "expired".equals(request.getAttribute(JwtAuthenticationFilter.JWT_ERROR_ATTRIBUTE));
+                            if (expired) {
+                                response.getWriter().write("""
+                                        {"status":401,"error":"TOKEN_EXPIRED","message":"access token expired"}""");
+                            } else {
+                                response.getWriter().write("""
+                                        {"status":401,"error":"UNAUTHORIZED","message":"token invalid or expired"}""");
+                            }
                         })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
@@ -49,6 +55,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/ai/status").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**")
                         .access((authentication, context) -> new org.springframework.security.authorization.AuthorizationDecision(!isProd(environment)))
                         .anyRequest().authenticated())

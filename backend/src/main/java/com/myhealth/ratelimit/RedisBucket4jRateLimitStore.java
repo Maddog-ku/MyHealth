@@ -51,7 +51,7 @@ public class RedisBucket4jRateLimitStore implements RateLimitStore {
                 log.warn("Redis rate limiter unavailable; allowing request. cause={}", ex.toString());
                 return;
             }
-            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, ErrorCode.INTERNAL_ERROR,
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, ErrorCode.SERVICE_UNAVAILABLE,
                     "Rate limiter unavailable");
         }
     }
