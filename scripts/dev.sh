@@ -101,6 +101,22 @@ if [[ $INFRA_ONLY -eq 1 ]]; then
   exit 0
 fi
 
+# --- 3.5 連接埠前置檢查 -------------------------------------------------------
+# backend 無法換 port，8080 被占用就會啟動失敗（exit 1）並連帶讓本腳本收尾。
+# 先擋下來給清楚訊息，而不是啟動一個註定失敗的 backend。
+port_pid() { lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | head -1; }
+pid=$(port_pid 8080) || true
+if [[ -n "$pid" ]]; then
+  echo "❌ 連接埠 8080 已被占用 (PID ${pid}: $(ps -p "${pid}" -o comm= 2>/dev/null))" >&2
+  echo "   多半是先前的 backend 還在跑。先停掉再重試:" >&2
+  echo "     kill ${pid}      # 或 pkill -f spring-boot:run" >&2
+  exit 1
+fi
+pid=$(port_pid 5173) || true
+if [[ -n "$pid" ]]; then
+  echo "⚠ 連接埠 5173 已被占用 (PID ${pid}); Vite 會自動改用 5174 等其他埠 (見 frontend 日誌)"
+fi
+
 # --- 4. backend（mvnw）、frontend（npm）並行 ---------------------------------
 LOG_DIR=".dev-logs"
 mkdir -p "$LOG_DIR"
@@ -117,13 +133,17 @@ fi
 ( cd frontend && npm run dev ) >"$LOG_DIR/frontend.log" 2>&1 &
 FRONTEND_PID=$!
 
-cleanup() {
-  echo
-  echo "==> 收到中斷，正在停止 backend/frontend（Postgres/Redis 保持執行）"
+stop_children() {
   kill "$BACKEND_PID" "$FRONTEND_PID" 2>/dev/null || true
   wait "$BACKEND_PID" "$FRONTEND_PID" 2>/dev/null || true
 }
-trap cleanup INT TERM
+on_interrupt() {
+  echo
+  echo "==> 收到 Ctrl+C，正在停止 backend/frontend（Postgres/Redis 保持執行）"
+  stop_children
+  exit 0
+}
+trap on_interrupt INT TERM
 
 cat <<EOF
 
@@ -143,4 +163,16 @@ EOF
 while kill -0 "$BACKEND_PID" 2>/dev/null && kill -0 "$FRONTEND_PID" 2>/dev/null; do
   sleep 1
 done
-cleanup
+
+# 走到這裡代表「不是 Ctrl+C，而是某個服務自己結束了」——指出是誰、附上日誌末尾
+echo
+if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+  echo "❌ backend 已結束（很可能啟動失敗）。$LOG_DIR/backend.log 末尾："
+  tail -n 15 "$LOG_DIR/backend.log" 2>/dev/null | sed 's/^/   /'
+else
+  echo "❌ frontend 已結束。$LOG_DIR/frontend.log 末尾："
+  tail -n 15 "$LOG_DIR/frontend.log" 2>/dev/null | sed 's/^/   /'
+fi
+echo "==> 正在停止另一個服務（Postgres/Redis 保持執行）"
+stop_children
+exit 1
