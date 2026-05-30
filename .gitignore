@@ -1,27 +1,61 @@
-# Environment
+# --- Secrets / Credentials ---
+# Never commit env files with real values. .env.example is the template (allowed).
 .env
 .env.*
 !.env.example
+# Catch-all for credentials people sometimes drop in the repo
+**/credentials.json
+**/secrets.json
+**/*.pem
+**/*.key
+*.p12
+*.pfx
 
-# Java / Maven
+# --- Java / Maven ---
 backend/target/
+**/target/
 *.class
+*.jar
+*.war
+hs_err_pid*.log
+replay_pid*.log
+# Maven wrapper meta cache (the jar itself, when present, IS tracked)
+.mvn/wrapper/maven-wrapper.jar.lck
 
-# Node / Vite
+# --- Node / Vite / Frontend ---
 frontend/node_modules/
+**/node_modules/
 frontend/dist/
 frontend/tsconfig.tsbuildinfo
+.eslintcache
+.npm/
+.yarn/
+.pnpm-store/
+.cache/
 
-# Runtime uploads (user-generated meal photos)
+# --- Runtime artefacts ---
+# Meal photo storage (user-generated, never push)
 uploads/
 backend/uploads/
-
-# Dev tooling
+# Backend dev logs from scripts/dev.sh
 .dev-logs/
 *.log
+# JVM crash reports
+hs_err_pid*
 
-# OS / editor
+# --- OS / editor ---
 .DS_Store
+Thumbs.db
 .idea/
-.vscode/
 *.iml
+.vscode/
+*.swp
+*.swo
+.history/
+.fleet/
+
+# --- Misc local-only ---
+# Anything dropped under a `local/` sub-directory is per-developer scratch
+local/
+tmp/
+.tmp/

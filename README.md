@@ -15,7 +15,7 @@
 | Meals CRUD（文字 + 圖片 multipart） | ✅ | AI 內容為 stub |
 | Stats `/daily`、`/range` | ✅ | 即時計算，無彙總表 |
 | AI Provider 介面 + IdleWatcher | ✅ | 介面 + 排程到位 |
-| **LocalAiProvider 真實串接 Ollama** | 🟡 stub | 目前回固定模板；`HttpClient` → `/api/chat` 尚未串接 |
+| **LocalAiProvider 真實串接 Ollama** | ✅ | 預設模型 `gemma4:e4b`；NDJSON streaming + 自動 `unload()` 每次呼叫後立即釋放（`ollama ps` 回空），JSON 解析失敗時 fallback 到模板 |
 | OpenAI / Anthropic Provider | 🔴 | Phase 2 |
 | Frontend：Tailwind + shadcn-ui + TanStack Query + Router + Axios | ✅ | 6 個 pages、深淺色主題、JWT auto-refresh |
 | Recharts 趨勢圖 | ✅ | 7 天體重趨勢已串接 |
