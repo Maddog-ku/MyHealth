@@ -8,6 +8,15 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/myhealth}
     username: ${SPRING_DATASOURCE_USERNAME:myhealth}
     password: ${SPRING_DATASOURCE_PASSWORD:changeme}
+    hikari:
+      # 讓 DB 不可用時請求快速失敗（~5s），而非預設 30s——避免 Tomcat 執行緒被卡滿
+      # 導致整個服務無回應（先前 Postgres 一掛掉就「整個系統崩潰」的主因）。
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:5000}
+      validation-timeout: ${DB_VALIDATION_TIMEOUT_MS:3000}
+      keepalive-time: 30000
+      max-lifetime: 600000
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
   jpa:
     hibernate:
       ddl-auto: validate

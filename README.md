@@ -116,6 +116,7 @@ scripts/dev.sh --reset -y   # 跳過確認（非互動／CI 環境必須加）
 - `DELETE /me` 連動刪除使用者所有資料（運動、餐點、體重、refresh token）
 
 完整 REST API 參考：[`docs/API.md`](docs/API.md)
+錯誤代碼與崩潰排查手冊：[`docs/ERROR_CODES.md`](docs/ERROR_CODES.md)
 後端啟動後的互動 API 文件（非 prod）：http://localhost:8080/swagger-ui.html
 
 ---

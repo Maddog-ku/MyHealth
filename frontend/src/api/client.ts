@@ -96,7 +96,10 @@ http.interceptors.response.use(
     if (body && typeof body === "object" && "status" in body) {
       throw new ApiError(body as ApiErrorBody);
     }
-    throw new ApiError({ status, message: error.message });
+    // status 0 = no HTTP response at all (backend down / network unreachable).
+    // axios reports a bare "Network Error"; give users something actionable.
+    const message = status === 0 ? "無法連線到伺服器，請確認後端是否啟動後重試" : error.message;
+    throw new ApiError({ status, message });
   },
 );
 
