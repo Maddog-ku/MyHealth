@@ -1,31 +1,35 @@
+import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { RequireAuth } from "@/components/RequireAuth";
 import { useTheme } from "@/hooks/useTheme";
-import { DashboardPage } from "@/pages/DashboardPage";
-import { LoginPage } from "@/pages/LoginPage";
-import { MealsPage } from "@/pages/MealsPage";
-import { SettingsPage } from "@/pages/SettingsPage";
-import { WorkoutsPage } from "@/pages/WorkoutsPage";
+
+const DashboardPage = lazy(() => import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const LoginPage = lazy(() => import("@/pages/LoginPage").then((m) => ({ default: m.LoginPage })));
+const MealsPage = lazy(() => import("@/pages/MealsPage").then((m) => ({ default: m.MealsPage })));
+const SettingsPage = lazy(() => import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
+const WorkoutsPage = lazy(() => import("@/pages/WorkoutsPage").then((m) => ({ default: m.WorkoutsPage })));
 
 export function App() {
   useTheme();
 
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route
-        element={
-          <RequireAuth>
-            <AppShell />
-          </RequireAuth>
-        }
-      >
-        <Route index element={<DashboardPage />} />
-        <Route path="/workouts" element={<WorkoutsPage />} />
-        <Route path="/meals" element={<MealsPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-      </Route>
-    </Routes>
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">載入中…</div>}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          element={
+            <RequireAuth>
+              <AppShell />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<DashboardPage />} />
+          <Route path="/workouts" element={<WorkoutsPage />} />
+          <Route path="/meals" element={<MealsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Route>
+      </Routes>
+    </Suspense>
   );
 }

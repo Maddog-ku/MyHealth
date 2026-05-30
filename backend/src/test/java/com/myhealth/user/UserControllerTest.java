@@ -96,6 +96,24 @@ class UserControllerTest {
     }
 
     @Test
+    void updateProfile_returns400_whenEquipmentContainsUnsupportedCharacters() throws Exception {
+        String body = "{\"gender\":\"male\",\"heightCm\":175,\"weightKg\":70,\"equipment\":[\"啞鈴<script>\"]}";
+
+        mockMvc.perform(put("/api/v1/me/profile").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("equipment[0]")));
+    }
+
+    @Test
+    void updateProfile_returns400_whenWeightHasTooManyDecimals() throws Exception {
+        String body = "{\"gender\":\"male\",\"heightCm\":175,\"weightKg\":70.123}";
+
+        mockMvc.perform(put("/api/v1/me/profile").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("weightKg")));
+    }
+
+    @Test
     void deleteAccount_returns204() throws Exception {
         AppUser user = stubUser();
         when(currentUser.require()).thenReturn(user);

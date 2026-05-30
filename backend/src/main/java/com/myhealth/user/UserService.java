@@ -4,6 +4,7 @@ import com.myhealth.auth.AuthMapper;
 import com.myhealth.auth.AuthDtos.ProfileResponse;
 import com.myhealth.auth.AuthDtos.UserResponse;
 import com.myhealth.user.UserDtos.ProfileUpdateRequest;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +35,7 @@ public class UserService {
         profile.setWaistCm(request.waistCm());
         profile.setBodyWaterPct(request.bodyWaterPct());
         profile.setGoal(request.goal());
-        profile.setEquipment(request.equipment() == null ? new String[0] : request.equipment().toArray(String[]::new));
+        profile.setEquipment(normalizeEquipment(request.equipment()));
         profile.setExperience(request.experience());
         profile.setTheme(request.theme() == null ? "system" : request.theme());
         profile.setLanguage(request.language() == null ? "zh-TW" : request.language());
@@ -53,6 +54,17 @@ public class UserService {
 
         users.save(user);
         return AuthMapper.toProfileResponse(profile);
+    }
+
+    private String[] normalizeEquipment(List<String> equipment) {
+        if (equipment == null) {
+            return new String[0];
+        }
+        return equipment.stream()
+                .map(String::strip)
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .toArray(String[]::new);
     }
 
     @Transactional

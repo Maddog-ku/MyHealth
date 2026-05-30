@@ -1,5 +1,12 @@
 package com.myhealth.ai;
 
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
 
@@ -20,12 +27,34 @@ public interface AiProvider {
 
     List<ExerciseItem> generateWorkout(String category, int durationMin, String intensity);
 
-    MealAnalysis analyzeMeal(String description, boolean hasImage);
+    MealAnalysis analyzeMeal(String description, MealImage image);
 
-    record ExerciseItem(String name, int sets, String reps, int restSec, int kcal, String note, List<String> alt) {
+    record ExerciseItem(
+            @NotBlank @Size(max = 80) String name,
+            @Min(1) @Max(6) int sets,
+            @NotBlank @Size(max = 20) @Pattern(regexp = "^[\\p{L}\\p{N}\\s/.-]+$") String reps,
+            @Min(15) @Max(180) int restSec,
+            @Min(5) @Max(250) int kcal,
+            @NotBlank @Size(max = 60) String note,
+            @Size(max = 2) List<@NotBlank @Size(max = 80) String> alt
+    ) {
     }
 
-    record FoodItem(String name, double grams, int kcal, double protein, double fat, double carb, double confidence) {
+    record FoodItem(
+            @NotBlank @Size(max = 80) String name,
+            @DecimalMin("0.0") @DecimalMax("5000.0") double grams,
+            @Min(0) @Max(5000) int kcal,
+            @DecimalMin("0.0") @DecimalMax("500.0") double protein,
+            @DecimalMin("0.0") @DecimalMax("500.0") double fat,
+            @DecimalMin("0.0") @DecimalMax("1000.0") double carb,
+            @DecimalMin("0.0") @DecimalMax("1.0") double confidence
+    ) {
+    }
+
+    record MealImage(String contentType, byte[] bytes) {
+        public boolean present() {
+            return bytes != null && bytes.length > 0;
+        }
     }
 
     record MealAnalysis(List<FoodItem> items, String suggestion) {

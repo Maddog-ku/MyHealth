@@ -89,6 +89,18 @@
 }
 
 @layer utilities {
+  @keyframes generation-slide {
+    0% {
+      transform: translateX(-120%);
+    }
+    50% {
+      transform: translateX(70%);
+    }
+    100% {
+      transform: translateX(220%);
+    }
+  }
+
   .glass-panel {
     background: rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(12px);

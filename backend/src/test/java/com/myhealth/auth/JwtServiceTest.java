@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
 
 class JwtServiceTest {
 
@@ -104,5 +105,33 @@ class JwtServiceTest {
 
         assertThatThrownBy(() -> service.parse(tampered))
                 .isInstanceOf(io.jsonwebtoken.JwtException.class);
+    }
+
+    @Test
+    void constructor_rejectsDefaultSecretInProdProfile() {
+        AppProperties props = new AppProperties(
+                new AppProperties.Jwt("change-me-to-a-base64-or-long-random-secret-at-least-32-bytes", 15, 30),
+                new AppProperties.Cors(List.of("http://localhost")),
+                new AppProperties.Ai("local", "http://localhost", "x", "y", 300),
+                "./uploads");
+        MockEnvironment env = new MockEnvironment();
+        env.setActiveProfiles("prod");
+
+        assertThatThrownBy(() -> new JwtService(props, env))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("default value");
+    }
+
+    @Test
+    void constructor_allowsDefaultSecretOutsideProdProfile() {
+        AppProperties props = new AppProperties(
+                new AppProperties.Jwt("change-me-to-a-base64-or-long-random-secret-at-least-32-bytes", 15, 30),
+                new AppProperties.Cors(List.of("http://localhost")),
+                new AppProperties.Ai("local", "http://localhost", "x", "y", 300),
+                "./uploads");
+
+        JwtService devService = new JwtService(props, new MockEnvironment());
+
+        assertThat(devService.expiresInSeconds()).isEqualTo(Duration.ofMinutes(15).toSeconds());
     }
 }

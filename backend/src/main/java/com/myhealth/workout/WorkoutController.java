@@ -1,7 +1,9 @@
 package com.myhealth.workout;
 
+import com.myhealth.ai.AiEndpointRateLimiter;
 import com.myhealth.auth.CurrentUser;
 import com.myhealth.common.PageEnvelope;
+import com.myhealth.user.AppUser;
 import com.myhealth.workout.WorkoutDtos.CompleteWorkoutRequest;
 import com.myhealth.workout.WorkoutDtos.GenerateWorkoutRequest;
 import com.myhealth.workout.WorkoutDtos.WorkoutPlanResponse;
@@ -24,15 +26,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class WorkoutController {
     private final CurrentUser currentUser;
     private final WorkoutService workoutService;
+    private final AiEndpointRateLimiter rateLimiter;
 
-    public WorkoutController(CurrentUser currentUser, WorkoutService workoutService) {
+    public WorkoutController(CurrentUser currentUser, WorkoutService workoutService, AiEndpointRateLimiter rateLimiter) {
         this.currentUser = currentUser;
         this.workoutService = workoutService;
+        this.rateLimiter = rateLimiter;
     }
 
     @PostMapping("/generate")
     ResponseEntity<WorkoutPlanResponse> generate(@Valid @RequestBody GenerateWorkoutRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(workoutService.generate(currentUser.require(), request));
+        AppUser user = currentUser.require();
+        rateLimiter.checkWorkoutGenerate(user);
+        return ResponseEntity.status(HttpStatus.CREATED).body(workoutService.generate(user, request));
     }
 
     @GetMapping
@@ -47,7 +53,7 @@ public class WorkoutController {
     }
 
     @PostMapping("/{id}/complete")
-    WorkoutPlanResponse complete(@PathVariable Long id, @RequestBody(required = false) CompleteWorkoutRequest request) {
+    WorkoutPlanResponse complete(@PathVariable Long id, @Valid @RequestBody(required = false) CompleteWorkoutRequest request) {
         return workoutService.complete(currentUser.require(), id);
     }
 

@@ -103,6 +103,9 @@ export function SettingsPage() {
                 type="number"
                 min={50}
                 max={250}
+                step="0.1"
+                required
+                inputMode="decimal"
                 value={draft.heightCm}
                 onChange={(e) => setDraft({ ...draft!, heightCm: Number(e.target.value) })}
                 className="rounded-2xl border-slate-200/80 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 py-5 focus-visible:ring-emerald-500 focus-visible:border-emerald-500/40 transition-all duration-300"
@@ -116,6 +119,8 @@ export function SettingsPage() {
                 min={20}
                 max={300}
                 step="0.1"
+                required
+                inputMode="decimal"
                 value={draft.weightKg}
                 onChange={(e) => setDraft({ ...draft!, weightKg: Number(e.target.value) })}
                 className="rounded-2xl border-slate-200/80 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 py-5 focus-visible:ring-emerald-500 focus-visible:border-emerald-500/40 transition-all duration-300"
@@ -144,6 +149,8 @@ export function SettingsPage() {
                 type="number"
                 min={1}
                 max={120}
+                step={1}
+                inputMode="numeric"
                 value={draft.age ?? ""}
                 onChange={(e) => setDraft({ ...draft!, age: e.target.value ? Number(e.target.value) : undefined })}
                 placeholder="未設定"

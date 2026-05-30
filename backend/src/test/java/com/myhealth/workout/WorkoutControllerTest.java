@@ -2,6 +2,7 @@ package com.myhealth.workout;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.myhealth.ai.AiEndpointRateLimiter;
 import com.myhealth.ai.AiProvider.ExerciseItem;
 import com.myhealth.auth.CurrentUser;
 import com.myhealth.auth.JwtAuthenticationFilter;
@@ -44,6 +46,7 @@ class WorkoutControllerTest {
 
     @MockBean WorkoutService workoutService;
     @MockBean CurrentUser currentUser;
+    @MockBean AiEndpointRateLimiter rateLimiter;
 
     AppUser stubUser() {
         AppUser u = new AppUser();
@@ -72,6 +75,23 @@ class WorkoutControllerTest {
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.category").value("abs"))
                 .andExpect(jsonPath("$.items[0].name").value("捲腹"));
+
+        verify(rateLimiter).checkWorkoutGenerate(any());
+    }
+
+    @Test
+    void generate_returns429_whenAiRateLimited() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        doThrow(new ApiException(HttpStatus.TOO_MANY_REQUESTS, ErrorCode.RATE_LIMITED,
+                "Too many requests. Please retry later."))
+                .when(rateLimiter).checkWorkoutGenerate(any());
+
+        String body = "{\"date\":\"2026-05-30\",\"category\":\"abs\",\"durationMin\":30,\"intensity\":\"medium\"}";
+
+        mockMvc.perform(post("/api/v1/workouts/generate")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.error").value("RATE_LIMITED"));
     }
 
     @Test
@@ -81,8 +101,7 @@ class WorkoutControllerTest {
         mockMvc.perform(post("/api/v1/workouts/generate")
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("category")));
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
     }
 
     @Test
@@ -93,6 +112,16 @@ class WorkoutControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("durationMin")));
+    }
+
+    @Test
+    void generate_returns400_whenEquipmentOverrideContainsUnsupportedCharacters() throws Exception {
+        String body = "{\"date\":\"2026-05-30\",\"category\":\"abs\",\"durationMin\":30,\"equipmentOverride\":[\"啞鈴<script>\"]}";
+
+        mockMvc.perform(post("/api/v1/workouts/generate")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"));
     }
 
     @Test
@@ -146,6 +175,16 @@ class WorkoutControllerTest {
         mockMvc.perform(post("/api/v1/workouts/7/complete"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.done").value(true));
+    }
+
+    @Test
+    void complete_returns400_whenNoteContainsUnsupportedCharacters() throws Exception {
+        String body = "{\"actualKcal\":120,\"note\":\"<script>alert(1)</script>\"}";
+
+        mockMvc.perform(post("/api/v1/workouts/7/complete")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("note")));
     }
 
     @Test

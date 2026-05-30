@@ -2,27 +2,39 @@ package com.myhealth.stats;
 
 import com.myhealth.meal.Meal;
 import com.myhealth.meal.MealRepository;
+import com.myhealth.common.ApiException;
+import com.myhealth.common.ErrorCode;
 import com.myhealth.stats.StatsDtos.DailyStatsResponse;
 import com.myhealth.stats.StatsDtos.RangeStatsResponse;
 import com.myhealth.stats.StatsDtos.SeriesPoint;
 import com.myhealth.user.AppUser;
+import com.myhealth.user.BodyMeasurement;
+import com.myhealth.user.BodyMeasurementRepository;
+import com.myhealth.user.Goal;
+import com.myhealth.user.Profile;
 import com.myhealth.workout.WorkoutPlan;
 import com.myhealth.workout.WorkoutPlanRepository;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
 public class StatsService {
     private final MealRepository meals;
     private final WorkoutPlanRepository workouts;
+    private final BodyMeasurementRepository bodyMeasurements;
+    private final ZoneId zoneId = ZoneId.systemDefault();
 
-    public StatsService(MealRepository meals, WorkoutPlanRepository workouts) {
+    public StatsService(MealRepository meals, WorkoutPlanRepository workouts, BodyMeasurementRepository bodyMeasurements) {
         this.meals = meals;
         this.workouts = workouts;
+        this.bodyMeasurements = bodyMeasurements;
     }
 
     public DailyStatsResponse daily(AppUser user, LocalDate date) {
@@ -44,21 +56,38 @@ public class StatsService {
                 protein,
                 fat,
                 carb,
-                user.getProfile().getWeightKg(),
-                1700,
+                latestWeightOnOrBefore(user, date),
+                targetKcal(user.getProfile()),
                 done,
                 dayWorkouts.size());
     }
 
     public RangeStatsResponse range(AppUser user, LocalDate from, LocalDate to) {
-        if (ChronoUnit.DAYS.between(from, to) > 90) {
-            to = from.plusDays(90);
+        long days = ChronoUnit.DAYS.between(from, to);
+        if (days < 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "from must be on or before to");
         }
-        List<Meal> rangeMeals = meals.findByUserIdAndDateBetweenOrderByDateAsc(user.getId(), from, to);
-        List<WorkoutPlan> rangeWorkouts = workouts.findByUserIdAndDateBetweenOrderByDateAsc(user.getId(), from, to);
+        if (days > 90) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "date range must be 90 days or less");
+        }
+        Long userId = user.getId();
+        List<Meal> rangeMeals = meals.findByUserIdAndDateBetweenOrderByDateAsc(userId, from, to);
+        List<WorkoutPlan> rangeWorkouts = workouts.findByUserIdAndDateBetweenOrderByDateAsc(userId, from, to);
+        List<BodyMeasurement> measurements = measurementsForRange(userId, from, to);
         List<SeriesPoint> series = new ArrayList<>();
+        BigDecimal currentWeight = weightBeforeOrOn(userId, from.minusDays(1)).orElse(user.getProfile().getWeightKg());
+        int measurementIndex = 0;
         for (LocalDate date = from; !date.isAfter(to); date = date.plusDays(1)) {
             LocalDate current = date;
+            Instant end = endOfDay(current);
+            while (measurementIndex < measurements.size()
+                    && !measurements.get(measurementIndex).getMeasuredAt().isAfter(end)) {
+                BigDecimal weight = measurements.get(measurementIndex).getWeightKg();
+                if (weight != null) {
+                    currentWeight = weight;
+                }
+                measurementIndex++;
+            }
             int intake = rangeMeals.stream()
                     .filter(meal -> meal.getDate().equals(current))
                     .mapToInt(Meal::getTotalKcal)
@@ -67,7 +96,7 @@ public class StatsService {
                     .filter(workout -> workout.getDate().equals(current) && workout.isDone())
                     .mapToInt(WorkoutPlan::getTotalKcal)
                     .sum();
-            series.add(new SeriesPoint(current, intake, burn, user.getProfile().getWeightKg()));
+            series.add(new SeriesPoint(current, intake, burn, currentWeight));
         }
         return new RangeStatsResponse(from, to, series);
     }
@@ -76,5 +105,41 @@ public class StatsService {
         return values.stream()
                 .filter(value -> value != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal latestWeightOnOrBefore(AppUser user, LocalDate date) {
+        return bodyMeasurements.findFirstByUserIdAndMeasuredAtLessThanEqualOrderByMeasuredAtDesc(user.getId(), endOfDay(date))
+                .map(BodyMeasurement::getWeightKg)
+                .filter(weight -> weight != null)
+                .orElse(user.getProfile().getWeightKg());
+    }
+
+    private List<BodyMeasurement> measurementsForRange(Long userId, LocalDate from, LocalDate to) {
+        return bodyMeasurements.findByUserIdAndMeasuredAtBetweenOrderByMeasuredAtAsc(userId, startOfDay(from), endOfDay(to));
+    }
+
+    private java.util.Optional<BigDecimal> weightBeforeOrOn(Long userId, LocalDate date) {
+        return bodyMeasurements.findFirstByUserIdAndMeasuredAtLessThanEqualOrderByMeasuredAtDesc(userId, endOfDay(date))
+                .map(BodyMeasurement::getWeightKg)
+                .filter(weight -> weight != null);
+    }
+
+    private int targetKcal(Profile profile) {
+        int base = profile.getBmrKcal() == null ? 1700 : profile.getBmrKcal();
+        Goal goal = profile.getGoal();
+        int adjustment = switch (goal == null ? Goal.maintain : goal) {
+            case fat_loss -> -300;
+            case muscle_gain -> 300;
+            case maintain -> 0;
+        };
+        return Math.max(1200, base + adjustment);
+    }
+
+    private Instant startOfDay(LocalDate date) {
+        return date.atStartOfDay(zoneId).toInstant();
+    }
+
+    private Instant endOfDay(LocalDate date) {
+        return date.plusDays(1).atStartOfDay(zoneId).toInstant().minusNanos(1);
     }
 }

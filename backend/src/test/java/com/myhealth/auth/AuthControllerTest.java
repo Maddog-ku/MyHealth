@@ -2,6 +2,8 @@ package com.myhealth.auth;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -39,6 +41,7 @@ class AuthControllerTest {
     @Autowired ObjectMapper objectMapper;
 
     @MockBean AuthService authService;
+    @MockBean AuthRateLimiter rateLimiter;
 
     @Test
     void register_returns201_andCallsService() throws Exception {
@@ -48,7 +51,7 @@ class AuthControllerTest {
         String body = """
                 {
                   "email": "demo@example.com",
-                  "password": "secret123",
+                  "password": "Secret123",
                   "name": "Demo",
                   "gender": "male",
                   "heightCm": 175,
@@ -61,6 +64,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.email").value("demo@example.com"))
                 .andExpect(jsonPath("$.role").value("USER"));
 
+        verify(rateLimiter).checkRegister(any());
         verify(authService).register(argThat(req -> "demo@example.com".equals(req.email())));
     }
 
@@ -77,12 +81,43 @@ class AuthControllerTest {
     }
 
     @Test
+    void register_returns400_whenPasswordMissingRequiredCaseOrContainsSymbol() throws Exception {
+        String body = """
+                {"email":"demo@example.com","password":"Password!","name":"Demo","gender":"male","heightCm":175,"weightKg":70}
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("password")));
+    }
+
+    @Test
+    void login_returns400_whenPasswordDoesNotMatchAccountPolicy() throws Exception {
+        String body = "{\"email\":\"demo@example.com\",\"password\":\"password123\"}";
+
+        mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("password")));
+    }
+
+    @Test
+    void register_returns400_whenNameContainsUnsupportedCharacters() throws Exception {
+        String body = """
+                {"email":"demo@example.com","password":"Secret123","name":"<script>","gender":"male","heightCm":175,"weightKg":70}
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("name")));
+    }
+
+    @Test
     void register_returns409_whenServiceThrowsConflict() throws Exception {
         when(authService.register(any())).thenThrow(
                 new ApiException(HttpStatus.CONFLICT, ErrorCode.CONFLICT, "Email already registered"));
 
         String body = """
-                {"email":"x@y.z","password":"secret123","name":"X","gender":"male","heightCm":175,"weightKg":70}
+                {"email":"x@y.z","password":"Secret123","name":"X","gender":"male","heightCm":175,"weightKg":70}
                 """;
 
         mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
@@ -92,12 +127,27 @@ class AuthControllerTest {
     }
 
     @Test
+    void register_returns429_whenRateLimited() throws Exception {
+        doThrow(new ApiException(HttpStatus.TOO_MANY_REQUESTS, ErrorCode.RATE_LIMITED,
+                "Too many registration attempts. Please retry later."))
+                .when(rateLimiter).checkRegister(any());
+
+        String body = """
+                {"email":"demo@example.com","password":"Secret123","name":"Demo","gender":"male","heightCm":175,"weightKg":70}
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.error").value("RATE_LIMITED"));
+    }
+
+    @Test
     void login_returns200_withTokensAndUser() throws Exception {
         when(authService.login(any())).thenReturn(new AuthResponse(
                 "access-token-value", "refresh-token-uuid", "Bearer", 900L,
                 new UserSummary(1L, "demo@example.com", "Demo", Role.USER)));
 
-        String body = "{\"email\":\"demo@example.com\",\"password\":\"secret123\"}";
+        String body = "{\"email\":\"demo@example.com\",\"password\":\"Secret123\"}";
 
         mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk())
@@ -106,6 +156,8 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.expiresIn").value(900))
                 .andExpect(jsonPath("$.user.email").value("demo@example.com"));
+
+        verify(rateLimiter).checkLogin(any(), eq("demo@example.com"));
     }
 
     @Test
@@ -113,11 +165,24 @@ class AuthControllerTest {
         when(authService.login(any())).thenThrow(
                 new ApiException(HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED, "Invalid email or password"));
 
-        String body = "{\"email\":\"demo@example.com\",\"password\":\"wrong\"}";
+        String body = "{\"email\":\"demo@example.com\",\"password\":\"WrongPass1\"}";
 
         mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void login_returns429_whenRateLimited() throws Exception {
+        doThrow(new ApiException(HttpStatus.TOO_MANY_REQUESTS, ErrorCode.RATE_LIMITED,
+                "Too many authentication attempts. Please retry later."))
+                .when(rateLimiter).checkLogin(any(), eq("demo@example.com"));
+
+        String body = "{\"email\":\"demo@example.com\",\"password\":\"Secret123\"}";
+
+        mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.error").value("RATE_LIMITED"));
     }
 
     @Test
@@ -128,9 +193,11 @@ class AuthControllerTest {
 
         mockMvc.perform(post("/api/v1/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refreshToken\":\"some-uuid\"}"))
+                        .content("{\"refreshToken\":\"12345678-1234-1234-1234-123456789abc\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value("new-access"));
+
+        verify(rateLimiter).checkRefresh(any());
     }
 
     @Test
@@ -140,19 +207,32 @@ class AuthControllerTest {
 
         mockMvc.perform(post("/api/v1/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refreshToken\":\"reused\"}"))
+                        .content("{\"refreshToken\":\"12345678-1234-1234-1234-123456789abc\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("INVALID_REFRESH_TOKEN"));
+    }
+
+    @Test
+    void refresh_returns429_whenRateLimited() throws Exception {
+        doThrow(new ApiException(HttpStatus.TOO_MANY_REQUESTS, ErrorCode.RATE_LIMITED,
+                "Too many authentication attempts. Please retry later."))
+                .when(rateLimiter).checkRefresh(any());
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"12345678-1234-1234-1234-123456789abc\"}"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.error").value("RATE_LIMITED"));
     }
 
     @Test
     void logout_returns204_andCallsService() throws Exception {
         mockMvc.perform(post("/api/v1/auth/logout")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refreshToken\":\"abc\"}"))
+                        .content("{\"refreshToken\":\"12345678-1234-1234-1234-123456789abc\"}"))
                 .andExpect(status().isNoContent());
 
-        verify(authService).logout("abc");
+        verify(authService).logout("12345678-1234-1234-1234-123456789abc");
     }
 
     @Test

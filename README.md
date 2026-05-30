@@ -9,19 +9,21 @@
 
 | 模組 | 狀態 | 備註 |
 |---|---|---|
-| Auth（註冊/登入/JWT/Refresh rotation） | ✅ | 含 12 個 AuthService + 5 個 JwtService 單元測試 |
+| Auth（註冊/登入/JWT/Refresh rotation） | ✅ | 含 12 個 AuthService + 7 個 JwtService 單元測試；登入、refresh 與 AI 高成本端點已支援 memory / Redis Bucket4j 限流 |
 | User profile + body measurements | ✅ | |
-| Workouts CRUD + complete | ✅ | AI 內容為 stub |
-| Meals CRUD（文字 + 圖片 multipart） | ✅ | AI 內容為 stub |
-| Stats `/daily`、`/range` | ✅ | 即時計算，無彙總表 |
+| Workouts CRUD + complete | ✅ | 文字 AI 可走 Ollama；不可用或輸出異常時 fallback 模板 |
+| Meals CRUD（文字 + 圖片 multipart） | ✅ | 文字走 text model；圖片會以 base64 `images` payload 送入 vision model；無法可靠辨識時不猜測熱量 |
+| Stats `/daily`、`/range` | ✅ | 即時計算，體重趨勢讀 `body_measurements` 歷史紀錄，無彙總表 |
 | AI Provider 介面 + IdleWatcher | ✅ | 介面 + 排程到位 |
-| **LocalAiProvider 真實串接 Ollama** | ✅ | 預設模型 `gemma4:e4b`；NDJSON streaming + 自動 `unload()` 每次呼叫後立即釋放（`ollama ps` 回空），JSON 解析失敗時 fallback 到模板 |
+| **LocalAiProvider 真實串接 Ollama** | ✅ | 預設模型 `gemma4:e4b`；NDJSON streaming + 自動 `unload()`；運動 JSON 解析失敗時 fallback 到模板，餐點則要求手動修正 |
+| 圖片 AI 辨識（vision model payload） | ✅ | 餐點圖片會送入 Ollama vision model；不支援或解析失敗時 fallback |
 | OpenAI / Anthropic Provider | 🔴 | Phase 2 |
 | Frontend：Tailwind + shadcn-ui + TanStack Query + Router + Axios | ✅ | 6 個 pages、深淺色主題、JWT auto-refresh |
-| Recharts 趨勢圖 | ✅ | 7 天體重趨勢已串接 |
-| Service 層單元測試（Auth/User/Workout/Meal/Stats/Jwt） | ✅ | 49 個案例 |
-| Controller @WebMvcTest（5 個 Controller + GlobalExceptionHandler） | ✅ | 35 + 4 個案例 |
-| Coverage ≥ 60%（DoD） | ✅ | 共 84 個測試案例，Service 與 Controller 兩層皆覆蓋 |
+| Recharts 趨勢圖 | ✅ | 7 天體重趨勢已串接歷史量測資料 |
+| DTO / request validation | ✅ | 身體數據範圍、theme/language、Workout category/intensity、Meal slot 皆有後端約束 |
+| Service 層單元測試（Auth/User/Workout/Meal/Stats/Jwt/AI） | ✅ | 65 個案例 |
+| Controller @WebMvcTest（5 個 Controller + GlobalExceptionHandler） | ✅ | 39 + 4 個案例 |
+| Coverage ≥ 60%（DoD） | ✅ | 共 112 個測試案例，Service 與 Controller 兩層皆覆蓋 |
 | Google OAuth2 | 🔴 | Phase 2 |
 | Maven Wrapper + `scripts/dev.sh` 一鍵啟動 | ✅ | |
 | Flyway migrations（V1 + V2） | ✅ | |
@@ -49,7 +51,7 @@
 ## 二、核心功能
 
 ### 2.0 帳號系統（多使用者管理）
-- **註冊（必填）**：Email、密碼（BCrypt 雜湊）、**姓名**、**性別**、**身高 (cm)**、**體重 (kg)**
+- **註冊（必填）**：Email 帳號、密碼（BCrypt 雜湊，至少 8 字，只允許半形英數且需含大小寫英文）、**姓名**、**性別**、**身高 (cm)**、**體重 (kg)**
 - **註冊（選填）**：年齡、體脂率 (%)、肌肉量 (kg)、基礎代謝率 BMR、腰圍、體水分率、健身目標、可用器材、健身經驗
 - **OAuth2（Phase 2）**：Google 登入；首次登入後仍須補齊上列必填欄位才能使用主要功能
 - **登入／登出**：Spring Security + JWT（Access Token + Refresh Token）
@@ -119,6 +121,7 @@
 | 驗證 | Jakarta Bean Validation | DTO 驗證 |
 | 文件 | springdoc-openapi (Swagger UI) | 自動產生 API 文件 |
 | 資料庫 | **PostgreSQL 16** | |
+| 限流 | Bucket4j + Redis / in-memory fallback | Auth 與 AI 高成本端點已支援；預設 memory，正式多節點可切 Redis |
 | 檔案儲存 | 本地 `uploads/`（開發） / S3 相容（正式） | 餐點圖片 |
 | 構建 | Maven 或 Gradle | 範例採 Maven |
 | 本地 AI | Ollama | 文字：`qwen2.5:7b`；視覺：`qwen2-vl:7b` |
@@ -131,7 +134,7 @@ public interface AiProvider {
     String textModel();
     String visionModel();
     List<ExerciseItem> generateWorkout(String category, int durationMin, String intensity);
-    MealAnalysis analyzeMeal(String description, boolean hasImage);
+    MealAnalysis analyzeMeal(String description, MealImage image);
     void markUsed();
     void unload();
     boolean loaded();
@@ -139,7 +142,8 @@ public interface AiProvider {
 }
 ```
 **目前實作狀態**：
-- `LocalAiProvider`：🟡 **stub** — 回固定模板（abs/legs/cardio 預設菜單；固定 360 kcal 餐點估算）。整體 idle / unload 流程已就緒，但 `HttpClient` 對 Ollama `POST /api/chat` 尚未串接。
+- `LocalAiProvider`：✅ 已透過 `OllamaClient` 呼叫 Ollama `POST /api/chat`，解析模型回傳 JSON；Ollama 不可用、回傳空資料或 JSON malformed 時 fallback 到內建模板。
+- 餐點圖片：✅ 已支援 multipart 上傳、驗證與儲存；有圖片時會把 bytes 編成 base64，透過 Ollama `images` payload 傳給 vision model。
 - `OpenAiProvider` / `AnthropicProvider`：🔴 未建立。
 - 切換策略（規劃中）：Spring `@ConditionalOnProperty(name = "ai.provider")` 注入。
 
@@ -315,7 +319,7 @@ MyHealth/
 │     ├─ pages/            # Login, Register, Dashboard, Workouts, Meals, Settings
 │     ├─ components/       # UI 元件（shadcn-ui based）
 │     └─ lib/              # utils, jwt store
-├─ docker-compose.yml                 # postgres + ollama + (option) backend/frontend
+├─ docker-compose.yml                 # postgres + redis + ollama + (option) backend/frontend
 ├─ .env.example
 └─ README.md
 ```
@@ -331,7 +335,7 @@ SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/myhealth
 SPRING_DATASOURCE_USERNAME=myhealth
 SPRING_DATASOURCE_PASSWORD=changeme
 
-JWT_SECRET=                    # 至少 32 bytes，建議 openssl rand -base64 48
+JWT_SECRET=                    # 至少 32 bytes，prod profile 不允許空值或預設值；建議 openssl rand -base64 48
 JWT_ACCESS_TTL_MIN=15
 JWT_REFRESH_TTL_DAYS=30
 
@@ -344,6 +348,19 @@ OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_TEXT_MODEL=qwen2.5:7b
 OLLAMA_VISION_MODEL=qwen2-vl:7b
 AI_IDLE_TIMEOUT_SEC=300
+
+RATE_LIMIT_BACKEND=memory       # memory | redis；正式多節點部署建議 redis
+RATE_LIMIT_REGISTER_LIMIT=5     # /auth/register 每個 IP 每個 window 可嘗試次數
+RATE_LIMIT_LOGIN_LIMIT=10       # /auth/login 每個 IP + email 每個 window 可嘗試次數
+RATE_LIMIT_REFRESH_LIMIT=30     # /auth/refresh 每個 IP 每個 window 可嘗試次數
+RATE_LIMIT_AI_LIMIT=20          # /workouts/generate、POST /meals 每個 user 每個 window 可用次數
+RATE_LIMIT_WINDOW=1m
+RATE_LIMIT_TRUST_FORWARDED_FOR=false # 只有後端位於可信任 reverse proxy 後方時才設 true
+REDIS_URL=redis://localhost:6379
+RATE_LIMIT_REDIS_KEY_PREFIX=myhealth:rate-limit
+RATE_LIMIT_REDIS_FAIL_OPEN=false # Redis 不可用時是否放行請求；正式環境建議 false
+RATE_LIMIT_REDIS_REQUEST_TIMEOUT=2s
+RATE_LIMIT_REDIS_TTL_PADDING=10s
 
 # 雲端 AI Provider Key（Phase 2 才需要設定；MVP 階段可留空）
 OPENAI_API_KEY=
@@ -362,7 +379,7 @@ VITE_API_BASE_URL=http://localhost:8080/api/v1
 
 ## 八、本機啟動方式
 
-> 已隨 repo 提供 Maven Wrapper（`backend/mvnw`），開發者**不需要先安裝 Maven**。Ollama 改為 docker-compose 的 `ai` profile（預設不啟動，避免拉幾 GB 模型）；目前 `LocalAiProvider` 仍為內建 stub，沒有 Ollama 也能啟動，AI 端點會以假資料回應。
+> 已隨 repo 提供 Maven Wrapper（`backend/mvnw`），開發者**不需要先安裝 Maven**。Ollama 改為 docker-compose 的 `ai` profile（預設不啟動，避免拉幾 GB 模型）；沒有 Ollama 也能啟動，AI 端點會在呼叫失敗或解析失敗時回退到內建模板。
 
 ### 一鍵啟動（推薦）
 ```bash
@@ -389,7 +406,7 @@ npm install
 npm run dev                     # http://localhost:5173
 ```
 
-Swagger UI：`http://localhost:8080/swagger-ui.html`
+Swagger UI（非 prod）：`http://localhost:8080/swagger-ui.html`
 
 ---
 
@@ -484,7 +501,9 @@ Swagger UI：`http://localhost:8080/swagger-ui.html`
 - **資料分類**：身高、體重、體脂率、飲食照片屬於敏感個人資料，依《個資法》第 6 條相關規範處理。
 - **儲存與傳輸**：
   - 密碼使用 BCrypt 雜湊，從不明碼儲存。
-  - JWT Secret 至少 32 bytes；正式環境強制 HTTPS。
+  - JWT Secret 至少 32 bytes；`prod` profile 會拒絕空值、預設值或太短的 secret；正式環境強制 HTTPS。
+  - `prod` profile 會關閉 springdoc Swagger/OpenAPI，避免公開暴露互動 API 文件。
+  - Rate limit 預設不信任 `X-Forwarded-For`，除非服務只接收可信任 reverse proxy 轉發。
   - 餐點照片預設僅本機儲存；若啟用雲端儲存須加密。
 - **資料主權**：使用者可透過 `DELETE /me` 一鍵刪除帳號與所有關聯資料（schema 設 `ON DELETE CASCADE`）；提供「匯出我的資料」端點作為 Phase 2 規劃。
 - **AI 與資料外流**：MVP 預設使用本地 Ollama，使用者資料**不離開本機**；切換至雲端 Provider（OpenAI／Anthropic）時，UI 必須明確警示「將傳送至第三方」。

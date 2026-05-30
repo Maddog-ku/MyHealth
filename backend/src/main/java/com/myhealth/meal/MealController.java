@@ -1,9 +1,11 @@
 package com.myhealth.meal;
 
+import com.myhealth.ai.AiEndpointRateLimiter;
 import com.myhealth.auth.CurrentUser;
 import com.myhealth.common.PageEnvelope;
 import com.myhealth.meal.FileStorageService.StoredFile;
 import com.myhealth.meal.MealDtos.MealResponse;
+import com.myhealth.user.AppUser;
 import com.myhealth.meal.MealDtos.UpdateMealRequest;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -29,20 +31,24 @@ import org.springframework.web.multipart.MultipartFile;
 public class MealController {
     private final CurrentUser currentUser;
     private final MealService mealService;
+    private final AiEndpointRateLimiter rateLimiter;
 
-    public MealController(CurrentUser currentUser, MealService mealService) {
+    public MealController(CurrentUser currentUser, MealService mealService, AiEndpointRateLimiter rateLimiter) {
         this.currentUser = currentUser;
         this.mealService = mealService;
+        this.rateLimiter = rateLimiter;
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     ResponseEntity<MealResponse> create(
             @RequestPart(required = false) MultipartFile image,
             @RequestParam(required = false) String description,
-            @RequestParam String slot,
+            @RequestParam MealSlot slot,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        AppUser user = currentUser.require();
+        rateLimiter.checkMealCreate(user);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(mealService.create(currentUser.require(), image, description, slot, date));
+                .body(mealService.create(user, image, description, slot.name(), date));
     }
 
     @GetMapping

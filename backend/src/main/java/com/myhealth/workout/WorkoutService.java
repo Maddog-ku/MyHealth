@@ -31,13 +31,14 @@ public class WorkoutService {
     @Transactional
     public WorkoutPlanResponse generate(AppUser user, GenerateWorkoutRequest request) {
         int duration = request.durationMin() == null ? 30 : request.durationMin();
-        String intensity = request.intensity() == null ? "medium" : request.intensity();
-        List<ExerciseItem> items = aiProvider.generateWorkout(request.category(), duration, intensity);
+        WorkoutIntensity intensity = request.intensity() == null ? WorkoutIntensity.medium : request.intensity();
+        String category = request.category().name();
+        List<ExerciseItem> items = aiProvider.generateWorkout(category, duration, intensity.name());
 
         WorkoutPlan plan = new WorkoutPlan();
         plan.setUser(user);
         plan.setDate(request.date());
-        plan.setCategory(request.category());
+        plan.setCategory(category);
         plan.setItemsJson(writeItems(items));
         plan.setTotalKcal(items.stream().mapToInt(ExerciseItem::kcal).sum());
         return toResponse(workouts.save(plan));

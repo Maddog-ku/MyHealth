@@ -2,8 +2,8 @@
 
 版本：`v1`
 Base URL（開發環境）：`http://localhost:8080/api/v1`
-Swagger UI：`http://localhost:8080/swagger-ui.html`
-OpenAPI JSON：`http://localhost:8080/v3/api-docs`
+Swagger UI（非 prod）：`http://localhost:8080/swagger-ui.html`
+OpenAPI JSON（非 prod）：`http://localhost:8080/v3/api-docs`
 
 ---
 
@@ -134,7 +134,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 ```json
 {
   "email": "user@example.com",
-  "password": "P@ssw0rd!23",
+  "password": "SecurePass1",
   "name": "Alice",
   "gender": "female",
   "heightCm": 165.0,
@@ -157,8 +157,8 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 必填欄位：
 | 欄位 | 型別 | 限制 |
 |---|---|---|
-| `email` | string | 有效 Email、unique |
-| `password` | string | 至少 8 字、需含英數 |
+| `email` | string | 有效 Email、unique，不限制信箱供應商 |
+| `password` | string | 至少 8 字，只允許半形英文與數字，且至少包含 1 個大寫英文與 1 個小寫英文 |
 | `name` | string | 1 ~ 100 字 |
 | `gender` | string | `male` \| `female` \| `other` |
 | `heightCm` | number | 50 ~ 250 |
@@ -216,7 +216,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 
 **Request**
 ```json
-{ "email": "user@example.com", "password": "P@ssw0rd!23" }
+{ "email": "user@example.com", "password": "SecurePass1" }
 ```
 
 **Response 200**
@@ -232,7 +232,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 }
 ```
 
-**Errors**：`401 UNAUTHORIZED`（帳密錯誤）
+**Errors**：`401 UNAUTHORIZED`（帳密錯誤）、`429 RATE_LIMITED`（登入嘗試過於頻繁）
 
 ---
 
@@ -246,6 +246,8 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 ```
 
 **Response 200**：同 4.2（新 `accessToken`，`refreshToken` 不變或輪替）
+
+**Errors**：`401 INVALID_REFRESH_TOKEN`（refreshToken 失效）、`429 RATE_LIMITED`（刷新請求過於頻繁）
 
 ---
 
@@ -377,7 +379,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 | 欄位 | 必填 | 說明 |
 |---|---|---|
 | `date` | ✓ | 目標日期 |
-| `category` | ✓ | `abs` \| `waist` \| `legs` \| `chest` \| `back` \| `glutes` \| `arms` \| `full_body` \| `cardio` |
+| `category` | ✓ | `abs` \| `legs` \| `chest` \| `back` \| `glutes` \| `arms` \| `full_body` \| `cardio` |
 | `durationMin` | ✗ | 預期訓練長度（10–180），預設 30 |
 | `intensity` | ✗ | `low` \| `medium` \| `high`，預設 `medium` |
 | `equipmentOverride` | ✗ | 覆蓋個人檔案的可用器材 |
@@ -397,7 +399,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 }
 ```
 
-**Errors**：`503 AI_UNAVAILABLE`（模型未就緒，前端應顯示載入中並重試）
+**Errors**：`400 BAD_REQUEST`（不支援的 category/intensity）、`400 VALIDATION_ERROR`（日期缺漏或時長超出範圍）、`429 RATE_LIMITED`（AI 產生請求過於頻繁）
 
 ---
 
@@ -436,19 +438,19 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 
 ## 7. Meals（飲食紀錄）
 
-### 7.1 新增餐點（含 AI 辨識）
+### 7.1 新增餐點（含 AI 估算）
 
 `POST /meals`
 Content-Type：`multipart/form-data`
 
 | Part | 型別 | 必填 | 說明 |
 |---|---|---|---|
-| `image` | file (jpg/png/webp, ≤ 8 MB) | ✗ | 餐點照片 |
+| `image` | file (jpg/png/webp, ≤ 10 MB) | ✗ | 餐點照片；會送入本地 vision model 分析，並保留供前端顯示 |
 | `description` | string | ✗ | 文字描述 |
 | `slot` | string | ✓ | `breakfast` \| `lunch` \| `dinner` \| `snack` |
 | `date` | string (YYYY-MM-DD) | ✗ | 預設今日 |
 
-> `image` 與 `description` 至少擇一。
+> `image` 與 `description` 至少擇一。有圖片時，後端會把圖片 bytes 編為 base64，透過 Ollama `images` payload 傳給 vision model；若 Ollama 不可用、模型不支援圖片、JSON 解析失敗或回傳資料不可信，後端不會硬猜熱量，會回傳空項目與手動修正提示。
 
 **Response 201**
 ```json
@@ -471,7 +473,7 @@ Content-Type：`multipart/form-data`
 }
 ```
 
-**Errors**：`413 PAYLOAD_TOO_LARGE`、`415 UNSUPPORTED_MEDIA_TYPE`、`503 AI_UNAVAILABLE`
+**Errors**：`400 BAD_REQUEST`（未提供圖片或描述）、`413 PAYLOAD_TOO_LARGE`、`415 UNSUPPORTED_MEDIA_TYPE`、`429 RATE_LIMITED`（AI 估算請求過於頻繁）
 
 ---
 
@@ -536,6 +538,8 @@ Content-Type：`multipart/form-data`
 `GET /stats/range?from=2026-05-01&to=2026-05-25`
 
 限制：`to - from ≤ 90` 天。
+
+`weightKg` 會使用 `body_measurements` 歷史紀錄：每一天取當日結束前最近一次量測值，沒有歷史量測時回退到目前 profile 體重。
 
 **Response 200**
 ```json
@@ -641,19 +645,16 @@ Content-Type：`multipart/form-data`
 
 ## 12. 速率限制與分頁
 
-### 12.1 速率限制（規劃中，Bucket4j）
-| 範疇 | 限制 |
-|---|---|
-| 匿名（`/auth/*`） | 10 req / min / IP |
-| 登入後一般 API | 120 req / min / user |
-| AI 端點（`/workouts/generate`、`POST /meals`） | 20 req / min / user |
+### 12.1 速率限制
+| 範疇 | 限制 | 狀態 |
+|---|---|---|
+| `POST /auth/register` | 5 req / min / IP | ✅ 已實作；預設 memory fixed window，可切 Redis Bucket4j token bucket |
+| `POST /auth/login` | 10 req / min / IP + email | ✅ 已實作；預設 memory fixed window，可切 Redis Bucket4j token bucket |
+| `POST /auth/refresh` | 30 req / min / IP | ✅ 已實作；預設 memory fixed window，可切 Redis Bucket4j token bucket |
+| 登入後一般 API | 120 req / min / user | 📋 規劃中 |
+| AI 端點（`/workouts/generate`、`POST /meals`） | 20 req / min / user | ✅ 已實作；預設 memory fixed window，可切 Redis Bucket4j token bucket |
 
-超限回 `429 RATE_LIMITED`，header 附：
-```
-X-RateLimit-Limit: 20
-X-RateLimit-Remaining: 0
-X-RateLimit-Reset: 1716640000
-```
+超限回 `429 RATE_LIMITED`。設定 `RATE_LIMIT_BACKEND=redis` 時，限流狀態會存放在 Redis，適合多台 backend 共用；Redis 不可用時預設 `RATE_LIMIT_REDIS_FAIL_OPEN=false`，會回 `503`，正式環境建議維持 fail-closed。預設不信任 `X-Forwarded-For`；只有後端部署在可信任 reverse proxy 後方時才設定 `RATE_LIMIT_TRUST_FORWARDED_FOR=true`。目前限流不回傳 `X-RateLimit-*` header。
 
 ### 12.2 分頁
 列表端點支援：
@@ -671,12 +672,12 @@ X-RateLimit-Reset: 1716640000
 # 註冊
 curl -X POST http://localhost:8080/api/v1/auth/register \
   -H 'Content-Type: application/json' \
-  -d '{"email":"a@b.com","password":"Passw0rd!","name":"Alice"}'
+  -d '{"email":"a@b.com","password":"SecurePass1","name":"Alice"}'
 
 # 登入
 TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"a@b.com","password":"Passw0rd!"}' | jq -r .accessToken)
+  -d '{"email":"a@b.com","password":"SecurePass1"}' | jq -r .accessToken)
 
 # 取得當前使用者
 curl http://localhost:8080/api/v1/me -H "Authorization: Bearer $TOKEN"

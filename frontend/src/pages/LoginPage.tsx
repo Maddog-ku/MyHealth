@@ -32,7 +32,7 @@ export function LoginPage() {
     const form = new FormData(event.currentTarget);
     try {
       await login.mutateAsync({
-        email: String(form.get("email")),
+        email: String(form.get("email")).trim(),
         password: String(form.get("password")),
       });
       await qc.invalidateQueries({ queryKey: qk.me });
@@ -46,9 +46,9 @@ export function LoginPage() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const payload = {
-      email: String(form.get("email")),
+      email: String(form.get("email")).trim(),
       password: String(form.get("password")),
-      name: String(form.get("name")),
+      name: String(form.get("name")).trim(),
       gender: String(form.get("gender")) as Gender,
       heightCm: Number(form.get("heightCm")),
       weightKg: Number(form.get("weightKg")),
@@ -65,6 +65,9 @@ export function LoginPage() {
   }
 
   const pendingError = login.error ?? register.error;
+  const demoDefaults = import.meta.env.DEV
+    ? { email: "demo@example.com", password: "Secret123", name: "Demo" }
+    : { email: "", password: "", name: "" };
 
   return (
     <main className="relative grid min-h-screen place-items-center overflow-hidden bg-gradient-to-tr from-slate-50 via-slate-100 to-emerald-50/30 px-4 py-16 dark:from-[#070b13] dark:via-[#0c1322] dark:to-[#08151f]">
@@ -113,8 +116,8 @@ export function LoginPage() {
               {/* Login Form */}
               <TabsContent value="login" className="outline-none mt-0">
                 <form onSubmit={handleLogin} className="grid gap-4">
-                  <Field name="email" label="電子郵件" type="email" required defaultValue="demo@example.com" placeholder="name@example.com" />
-                  <Field name="password" label="密碼" type="password" required defaultValue="secret123" placeholder="請輸入密碼" />
+                  <Field name="email" label="電子郵件" type="email" required maxLength={254} autoComplete="email" defaultValue={demoDefaults.email} placeholder="name@example.com" />
+                  <Field name="password" label="密碼" type="password" required minLength={8} maxLength={128} pattern="(?=.*[A-Z])(?=.*[a-z])[A-Za-z0-9]+" title="密碼需至少 8 字，且只能使用半形英文與數字，並至少包含 1 個大寫英文與 1 個小寫英文。" autoComplete="current-password" defaultValue={demoDefaults.password} placeholder="請輸入密碼" />
                   
                   {pendingError && <ErrorBox error={pendingError} />}
                   
@@ -140,9 +143,9 @@ export function LoginPage() {
               {/* Register Form */}
               <TabsContent value="register" className="outline-none mt-0">
                 <form onSubmit={handleRegister} className="grid gap-4.5">
-                  <Field name="name" label="姓名 / 暱稱" required defaultValue="Demo" placeholder="如何稱呼您" />
-                  <Field name="email" label="電子郵件" type="email" required defaultValue="demo@example.com" placeholder="name@example.com" />
-                  <Field name="password" label="設定密碼" type="password" minLength={8} required defaultValue="secret123" placeholder="至少 8 個字元" />
+                  <Field name="name" label="姓名 / 暱稱" required maxLength={100} pattern="[\p{L}\p{N}\s._-]+" autoComplete="name" defaultValue={demoDefaults.name} placeholder="如何稱呼您" />
+                  <Field name="email" label="電子郵件" type="email" required maxLength={254} autoComplete="email" defaultValue={demoDefaults.email} placeholder="name@example.com" />
+                  <Field name="password" label="設定密碼" type="password" minLength={8} maxLength={128} pattern="(?=.*[A-Z])(?=.*[a-z])[A-Za-z0-9]+" title="密碼需至少 8 字，且只能使用半形英文與數字，並至少包含 1 個大寫英文與 1 個小寫英文。" required autoComplete="new-password" defaultValue={demoDefaults.password} placeholder="至少 8 字，含大小寫英文" />
                   
                   <div className="grid gap-1.5">
                     <Label htmlFor="gender" className="text-xs font-semibold text-slate-600 dark:text-slate-400 px-1">生理性別</Label>
@@ -159,7 +162,7 @@ export function LoginPage() {
                   </div>
                   
                   <div className="grid grid-cols-2 gap-3.5">
-                    <Field name="heightCm" label="身高 (cm)" type="number" min={50} max={250} required defaultValue="170" placeholder="cm" />
+                    <Field name="heightCm" label="身高 (cm)" type="number" min={50} max={250} step="0.1" required defaultValue="170" placeholder="cm" />
                     <Field name="weightKg" label="體重 (kg)" type="number" min={20} max={300} step="0.1" required defaultValue="65" placeholder="kg" />
                   </div>
 

@@ -35,6 +35,20 @@ app:
     text-model: ${OLLAMA_TEXT_MODEL:gemma4:e4b}
     vision-model: ${OLLAMA_VISION_MODEL:gemma4:e4b}
     idle-timeout-sec: ${AI_IDLE_TIMEOUT_SEC:60}
+  rate-limit:
+    backend: ${RATE_LIMIT_BACKEND:memory}
+    register-limit: ${RATE_LIMIT_REGISTER_LIMIT:5}
+    login-limit: ${RATE_LIMIT_LOGIN_LIMIT:10}
+    refresh-limit: ${RATE_LIMIT_REFRESH_LIMIT:30}
+    ai-limit: ${RATE_LIMIT_AI_LIMIT:20}
+    window: ${RATE_LIMIT_WINDOW:1m}
+    trust-forwarded-for: ${RATE_LIMIT_TRUST_FORWARDED_FOR:false}
+    redis:
+      uri: ${REDIS_URL:redis://localhost:6379}
+      key-prefix: ${RATE_LIMIT_REDIS_KEY_PREFIX:myhealth:rate-limit}
+      fail-open: ${RATE_LIMIT_REDIS_FAIL_OPEN:false}
+      request-timeout: ${RATE_LIMIT_REDIS_REQUEST_TIMEOUT:2s}
+      ttl-padding: ${RATE_LIMIT_REDIS_TTL_PADDING:10s}
   upload-dir: ${UPLOAD_DIR:./uploads}
 
 springdoc:

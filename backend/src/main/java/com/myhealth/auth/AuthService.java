@@ -16,6 +16,7 @@ import com.myhealth.user.RefreshToken;
 import com.myhealth.user.RefreshTokenRepository;
 import com.myhealth.user.UserRepository;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -44,11 +45,12 @@ public class AuthService {
 
     @Transactional
     public AuthDtos.UserResponse register(RegisterRequest request) {
-        if (users.existsByEmailIgnoreCase(request.email())) {
+        String email = request.email().trim().toLowerCase();
+        if (users.existsByEmailIgnoreCase(email)) {
             throw new ApiException(HttpStatus.CONFLICT, ErrorCode.CONFLICT, "Email already registered");
         }
         AppUser user = new AppUser();
-        user.setEmail(request.email().trim().toLowerCase());
+        user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setName(request.name().trim());
 
@@ -134,9 +136,20 @@ public class AuthService {
         profile.setWaistCm(request.waistCm());
         profile.setBodyWaterPct(request.bodyWaterPct());
         profile.setGoal(request.goal());
-        profile.setEquipment(request.equipment() == null ? new String[0] : request.equipment().toArray(String[]::new));
+        profile.setEquipment(normalizeEquipment(request.equipment()));
         profile.setExperience(request.experience());
         profile.setTheme(request.theme() == null ? "system" : request.theme());
         profile.setLanguage(request.language() == null ? "zh-TW" : request.language());
+    }
+
+    private String[] normalizeEquipment(List<String> equipment) {
+        if (equipment == null) {
+            return new String[0];
+        }
+        return equipment.stream()
+                .map(String::strip)
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .toArray(String[]::new);
     }
 }

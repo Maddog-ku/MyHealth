@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AiGenerationPanel } from "@/components/AiGenerationPanel";
 import { useCreateMeal, useDeleteMeal, useMeals } from "@/hooks/useMeals";
 import { ApiError } from "@/api/client";
 import { todayLocalISO } from "@/lib/date";
@@ -18,11 +19,27 @@ const SLOTS = [
   { value: "snack", label: "點心", time: "全天輕食紀錄" },
 ];
 
+const FOOD_HINT =
+  /(早餐|午餐|晚餐|宵夜|點心|餐點|便當|飯|米飯|白飯|糙米|麵|麵包|吐司|粥|湯|沙拉|壽司|水餃|雞|雞胸|牛|牛肉|豬|豬肉|魚|鮭魚|蝦|蛋|豆腐|起司|乳酪|優格|牛奶|豆漿|咖啡|茶|果汁|水|蔬菜|青菜|花椰菜|地瓜|馬鈴薯|玉米|水果|香蕉|蘋果|燕麥|堅果|蛋白|碳水|脂肪|熱量|卡路里|kcal|calorie|rice|noodle|bread|toast|oat|chicken|beef|pork|fish|salmon|shrimp|egg|tofu|cheese|yogurt|milk|coffee|tea|juice|salad|vegetable|banana|apple|potato|meal|breakfast|lunch|dinner|snack)/i;
+
+const PROMPT_INJECTION_HINT =
+  /(忽略.*規則|忽略.*指示|系統提示|開發者訊息|prompt|system prompt|developer message|ignore previous|ignore above|json schema|扮演|角色扮演)/i;
+
+function mealDescriptionWarning(value: string) {
+  const trimmed = value.trim().replace(/\s+/g, " ");
+  if (!trimmed) return null;
+  if (trimmed.length > 300) return "餐點描述請控制在 300 字內，並只填寫食物、飲品與份量。";
+  if (PROMPT_INJECTION_HINT.test(trimmed)) return "請只輸入餐點內容，不要輸入指令、角色扮演或系統提示文字。";
+  if (!FOOD_HINT.test(trimmed)) return "請確認輸入內容是否為飲食或餐點描述，例如「雞胸肉 150g、白飯一碗」。";
+  return null;
+}
+
 export function MealsPage() {
   const today = useMemo(() => todayLocalISO(), []);
   const [slot, setSlot] = useState("lunch");
   const [description, setDescription] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [inputWarning, setInputWarning] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const meals = useMeals(today);
@@ -31,11 +48,18 @@ export function MealsPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!description.trim() && !imageFile) return;
+    const trimmedDescription = description.trim().replace(/\s+/g, " ");
+    if (!trimmedDescription && !imageFile) return;
+    const warning = mealDescriptionWarning(trimmedDescription);
+    if (warning) {
+      setInputWarning(warning);
+      return;
+    }
+    setInputWarning(null);
     const form = new FormData();
     form.set("date", today);
     form.set("slot", slot);
-    if (description.trim()) form.set("description", description.trim());
+    if (trimmedDescription) form.set("description", trimmedDescription);
     if (imageFile) form.set("image", imageFile);
     try {
       await createMeal.mutateAsync(form);
@@ -68,8 +92,9 @@ export function MealsPage() {
                   <button
                     key={s.value}
                     type="button"
+                    disabled={createMeal.isPending}
                     onClick={() => setSlot(s.value)}
-                    className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-center transition-all duration-300 ${
+                    className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-center transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-60 ${
                       slot === s.value
                         ? "bg-gradient-to-tr from-emerald-500/10 to-teal-500/5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm shadow-emerald-500/5"
                         : "bg-white/50 border-slate-100 dark:bg-slate-900/50 dark:border-slate-900 hover:border-slate-200 dark:hover:border-slate-800"
@@ -88,8 +113,14 @@ export function MealsPage() {
               <Input
                 id="description"
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="例：水煮雞胸肉 150克、水煮蛋一顆、地瓜一條，或是簡述所吃的事物..."
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  setInputWarning(null);
+                }}
+                disabled={createMeal.isPending}
+                maxLength={300}
+                aria-invalid={!!inputWarning}
+                placeholder="例：水煮雞胸肉 150克、水煮蛋一顆、地瓜一條，或是簡述所吃的食物..."
                 className="rounded-2xl border-slate-200/80 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 py-5 focus-visible:ring-emerald-500 focus-visible:border-emerald-500/40 transition-all duration-300"
               />
             </div>
@@ -102,11 +133,13 @@ export function MealsPage() {
                   id="meal-image"
                   type="file"
                   accept="image/*"
+                  disabled={createMeal.isPending}
                   className="hidden"
                   onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
                 />
                 <Button
                   type="button"
+                  disabled={createMeal.isPending}
                   variant="outline"
                   onClick={() => fileInputRef.current?.click()}
                   className="rounded-2xl border-slate-200/80 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900/80 gap-2 text-xs py-5 px-4 font-medium transition-all-smooth"
@@ -149,6 +182,15 @@ export function MealsPage() {
               </Button>
             </div>
 
+            {(inputWarning || (createMeal.error instanceof ApiError && createMeal.error.status === 400)) && (
+              <Alert variant="destructive" className="rounded-2xl border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-400">
+                <AlertTitle className="text-xs font-bold">請確認餐點內容</AlertTitle>
+                <AlertDescription className="text-[11px] opacity-90">
+                  {inputWarning ?? (createMeal.error instanceof ApiError ? createMeal.error.message : "請重新確認輸入內容。")}
+                </AlertDescription>
+              </Alert>
+            )}
+
             {createMeal.error instanceof ApiError && createMeal.error.status === 503 && (
               <Alert variant="destructive" className="rounded-2xl border-rose-500/20 bg-rose-500/5 text-rose-600 dark:text-rose-400">
                 <AlertTitle className="text-xs font-bold">AI 服務暫時離線</AlertTitle>
@@ -162,6 +204,8 @@ export function MealsPage() {
       {/* Meals History List */}
       <div className="space-y-4">
         <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 px-1 tracking-wider uppercase">今日餐點日誌</h2>
+
+        {createMeal.isPending && <AiGenerationPanel kind="meal" />}
         
         {meals.isLoading ? (
           <Skeleton className="h-40 w-full rounded-3xl" />
@@ -255,7 +299,7 @@ export function MealsPage() {
               </CardContent>
             </Card>
           ))
-        ) : (
+        ) : !createMeal.isPending ? (
           <Card className="border border-dashed border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-950/10 rounded-3xl overflow-hidden py-12 text-center">
             <CardContent className="flex flex-col items-center gap-3">
               <div className="flex size-14 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-900 text-slate-400">
@@ -265,7 +309,7 @@ export function MealsPage() {
               <p className="text-xs text-muted-foreground max-w-xs leading-normal">選好餐點時段並輸入您的餐食，讓 AI 為您追蹤今日的熱量與營養素平衡吧！</p>
             </CardContent>
           </Card>
-        )}
+        ) : null}
       </div>
     </section>
   );

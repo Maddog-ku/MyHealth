@@ -9,6 +9,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
@@ -29,14 +32,18 @@ public class OllamaClient {
     private final HttpClient httpClient;
 
     public OllamaClient(AppProperties properties, ObjectMapper objectMapper) {
-        this.properties = properties;
-        this.objectMapper = objectMapper;
-        this.httpClient = HttpClient.newBuilder()
+        this(properties, objectMapper, HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
                 // Force HTTP/1.1 — Java's default tries HTTP/2 first, which truncates
                 // Ollama's chunked NDJSON stream in practice (some chunks lost mid-flight).
                 .version(HttpClient.Version.HTTP_1_1)
-                .build();
+                .build());
+    }
+
+    OllamaClient(AppProperties properties, ObjectMapper objectMapper, HttpClient httpClient) {
+        this.properties = properties;
+        this.objectMapper = objectMapper;
+        this.httpClient = httpClient;
     }
 
     /**
@@ -46,18 +53,32 @@ public class OllamaClient {
      */
     public String chat(String model, String systemPrompt, String userPrompt, boolean jsonMode, Duration timeout)
             throws OllamaException {
-        // Java HttpClient + Ollama's chunked NDJSON stream occasionally truncates
-        // ~25% of the time at ~230 chars. One retry is enough to push that to
-        // <10%. Retry only when the stream ended without done=true.
+        return chat(model, systemPrompt, userPrompt, List.of(), jsonMode, timeout);
+    }
+
+    public String chat(String model, String systemPrompt, String userPrompt, List<String> base64Images,
+                       boolean jsonMode, Duration timeout) throws OllamaException {
         try {
-            return chatOnce(model, systemPrompt, userPrompt, jsonMode, timeout);
-        } catch (StreamTruncatedException ex) {
+            return chatStreaming(model, systemPrompt, userPrompt, base64Images, jsonMode, timeout);
+        } catch (StreamTruncatedException first) {
             log.warn("Ollama stream truncated, retrying once");
-            return chatOnce(model, systemPrompt, userPrompt, jsonMode, timeout);
+            try {
+                return chatStreaming(model, systemPrompt, userPrompt, base64Images, jsonMode, timeout);
+            } catch (StreamTruncatedException second) {
+                log.warn("Ollama stream truncated after retry, falling back to non-streaming request");
+                try {
+                    return chatBuffered(model, systemPrompt, userPrompt, base64Images, jsonMode, timeout);
+                } catch (OllamaException fallback) {
+                    fallback.addSuppressed(first);
+                    fallback.addSuppressed(second);
+                    throw fallback;
+                }
+            }
         }
     }
 
-    private String chatOnce(String model, String systemPrompt, String userPrompt, boolean jsonMode, Duration timeout)
+    private String chatStreaming(String model, String systemPrompt, String userPrompt, List<String> base64Images,
+                                 boolean jsonMode, Duration timeout)
             throws OllamaException {
         // Use streaming mode and accumulate chunks ourselves. Some models (e.g. gemma4)
         // emit "thinking" tokens before the structured output and ignore stream:false,
@@ -66,29 +87,7 @@ public class OllamaClient {
         // Don't pass keep_alive on the chat call — Ollama otherwise closes the
         // streaming connection early. LocalAiProvider calls unload() after every
         // request to release the model immediately regardless of Ollama's default.
-        Map<String, Object> body = Map.of(
-                "model", model,
-                "messages", java.util.List.of(
-                        Map.of("role", "system", "content", systemPrompt),
-                        Map.of("role", "user", "content", userPrompt)),
-                "stream", true,
-                "format", jsonMode ? "json" : "",
-                // num_predict=2048 ensures structured outputs aren't truncated mid-JSON;
-                // temperature=0.3 keeps responses repeatable enough for downstream parsing.
-                "options", Map.of("num_predict", 4096, "temperature", 0.3)
-        );
-
-        HttpRequest request;
-        try {
-            request = HttpRequest.newBuilder()
-                    .uri(URI.create(properties.ai().ollamaBaseUrl() + "/api/chat"))
-                    .timeout(timeout)
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
-                    .build();
-        } catch (Exception ex) {
-            throw new OllamaException("failed to build Ollama request", ex);
-        }
+        HttpRequest request = buildChatRequest(model, systemPrompt, userPrompt, base64Images, jsonMode, timeout, true);
 
         HttpResponse<Stream<String>> response;
         try {
@@ -130,6 +129,98 @@ public class OllamaClient {
         log.debug("Ollama accumulated {} chars of content (done={})", content.length(), sawDone[0]);
         if (!sawDone[0]) {
             throw new StreamTruncatedException(content.length());
+        }
+        return content.toString();
+    }
+
+    private String chatBuffered(String model, String systemPrompt, String userPrompt, List<String> base64Images,
+                                boolean jsonMode, Duration timeout) throws OllamaException {
+        HttpRequest request = buildChatRequest(model, systemPrompt, userPrompt, base64Images, jsonMode, timeout, false);
+        HttpResponse<String> response;
+        try {
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException ex) {
+            throw new OllamaException("Ollama unreachable: " + ex.getMessage(), ex);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new OllamaException("Ollama call interrupted", ex);
+        }
+        if (response.statusCode() / 100 != 2) {
+            throw new OllamaException("Ollama returned HTTP " + response.statusCode());
+        }
+        String content = parseBufferedResponse(response.body());
+        if (content.isBlank()) {
+            throw new OllamaException("Ollama response had no message.content");
+        }
+        log.debug("Ollama buffered response accumulated {} chars", content.length());
+        return content;
+    }
+
+    private HttpRequest buildChatRequest(String model, String systemPrompt, String userPrompt, List<String> base64Images,
+                                         boolean jsonMode, Duration timeout, boolean stream) {
+        Map<String, Object> userMessage = new LinkedHashMap<>();
+        userMessage.put("role", "user");
+        userMessage.put("content", userPrompt);
+        if (base64Images != null && !base64Images.isEmpty()) {
+            userMessage.put("images", base64Images);
+        }
+
+        List<Map<String, Object>> messages = new ArrayList<>();
+        messages.add(Map.of("role", "system", "content", systemPrompt));
+        messages.add(userMessage);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", model);
+        body.put("messages", messages);
+        body.put("stream", stream);
+        body.put("format", jsonMode ? "json" : "");
+        // num_predict=4096 ensures structured outputs aren't truncated mid-JSON;
+        // temperature=0.3 keeps responses repeatable enough for downstream parsing.
+        body.put("options", Map.of("num_predict", 4096, "temperature", 0.3));
+
+        try {
+            return HttpRequest.newBuilder()
+                    .uri(URI.create(properties.ai().ollamaBaseUrl() + "/api/chat"))
+                    .timeout(timeout)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
+                    .build();
+        } catch (Exception ex) {
+            throw new OllamaException("failed to build Ollama request", ex);
+        }
+    }
+
+    private String parseBufferedResponse(String body) throws OllamaException {
+        StringBuilder content = new StringBuilder();
+        try {
+            JsonNode response = objectMapper.readTree(body);
+            JsonNode messageContent = response.path("message").path("content");
+            if (messageContent.isTextual()) {
+                return messageContent.asText();
+            }
+        } catch (IOException ex) {
+            // Some Ollama-compatible servers may still return NDJSON even when
+            // stream=false. Fall through and parse line by line.
+        }
+
+        boolean sawJson = false;
+        for (String line : body.lines().toList()) {
+            if (line.isBlank()) {
+                continue;
+            }
+            try {
+                JsonNode chunk = objectMapper.readTree(line);
+                sawJson = true;
+                JsonNode chunkContent = chunk.path("message").path("content");
+                if (chunkContent.isTextual()) {
+                    content.append(chunkContent.asText());
+                }
+            } catch (IOException ex) {
+                log.debug("Skipping malformed Ollama buffered chunk: {}", line);
+            }
+        }
+        if (!sawJson) {
+            throw new OllamaException("Ollama returned malformed JSON");
         }
         return content.toString();
     }

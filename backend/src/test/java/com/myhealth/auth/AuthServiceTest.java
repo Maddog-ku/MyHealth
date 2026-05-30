@@ -67,7 +67,7 @@ class AuthServiceTest {
     private RegisterRequest validRegisterRequest() {
         return new RegisterRequest(
                 "Alice@Example.com",
-                "secret123",
+                "Secret123",
                 "  Alice  ",
                 Gender.female,
                 new BigDecimal("165.0"),
@@ -117,8 +117,8 @@ class AuthServiceTest {
     @Test
     void register_persistsUserProfileAndInitialMeasurement_andNormalizesEmail() {
         RegisterRequest req = validRegisterRequest();
-        when(users.existsByEmailIgnoreCase(req.email())).thenReturn(false);
-        when(passwordEncoder.encode("secret123")).thenReturn("hashed");
+        when(users.existsByEmailIgnoreCase("alice@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("Secret123")).thenReturn("hashed");
         when(users.save(any(AppUser.class))).thenAnswer(inv -> {
             AppUser u = inv.getArgument(0);
             try {
@@ -159,7 +159,7 @@ class AuthServiceTest {
     @Test
     void register_throwsConflict_whenEmailExists() {
         RegisterRequest req = validRegisterRequest();
-        when(users.existsByEmailIgnoreCase(req.email())).thenReturn(true);
+        when(users.existsByEmailIgnoreCase("alice@example.com")).thenReturn(true);
 
         assertThatThrownBy(() -> service.register(req))
                 .isInstanceOf(ApiException.class)
@@ -175,13 +175,13 @@ class AuthServiceTest {
     @Test
     void register_defaultsEquipmentToEmptyArray_whenNull() {
         RegisterRequest req = new RegisterRequest(
-                "bob@example.com", "secret123", "Bob",
+                "bob@example.com", "Secret123", "Bob",
                 Gender.male, new BigDecimal("180"), new BigDecimal("75"),
                 null, null, null, null, null, null, null,
                 null, // equipment null
                 null, null, null);
         when(users.existsByEmailIgnoreCase(req.email())).thenReturn(false);
-        when(passwordEncoder.encode("secret123")).thenReturn("hashed");
+        when(passwordEncoder.encode("Secret123")).thenReturn("hashed");
         when(users.save(any(AppUser.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.register(req);
@@ -197,11 +197,11 @@ class AuthServiceTest {
     void login_returnsTokens_andPersistsHashedRefreshToken() {
         AppUser user = persistedUser();
         when(users.findByEmailIgnoreCase("alice@example.com")).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("secret123", "hashed")).thenReturn(true);
+        when(passwordEncoder.matches("Secret123", "hashed")).thenReturn(true);
         when(jwtService.issueAccessToken(any(UserPrincipal.class))).thenReturn("access-token");
         when(jwtService.expiresInSeconds()).thenReturn(900L);
 
-        AuthResponse response = service.login(new LoginRequest("alice@example.com", "secret123"));
+        AuthResponse response = service.login(new LoginRequest("alice@example.com", "Secret123"));
 
         assertThat(response.accessToken()).isEqualTo("access-token");
         assertThat(response.refreshToken()).isNotBlank();
@@ -221,7 +221,7 @@ class AuthServiceTest {
     void login_throwsUnauthorized_whenUserMissing() {
         when(users.findByEmailIgnoreCase("nobody@example.com")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.login(new LoginRequest("nobody@example.com", "x")))
+        assertThatThrownBy(() -> service.login(new LoginRequest("nobody@example.com", "WrongPass1")))
                 .isInstanceOf(ApiException.class)
                 .extracting(e -> ((ApiException) e).status())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
@@ -232,9 +232,9 @@ class AuthServiceTest {
     void login_throwsUnauthorized_whenPasswordMismatch() {
         AppUser user = persistedUser();
         when(users.findByEmailIgnoreCase("alice@example.com")).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("wrong", "hashed")).thenReturn(false);
+        when(passwordEncoder.matches("WrongPass1", "hashed")).thenReturn(false);
 
-        assertThatThrownBy(() -> service.login(new LoginRequest("alice@example.com", "wrong")))
+        assertThatThrownBy(() -> service.login(new LoginRequest("alice@example.com", "WrongPass1")))
                 .isInstanceOf(ApiException.class)
                 .extracting(e -> ((ApiException) e).errorCode())
                 .isEqualTo(ErrorCode.UNAUTHORIZED);

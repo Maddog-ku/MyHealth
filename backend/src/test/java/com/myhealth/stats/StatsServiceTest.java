@@ -1,22 +1,32 @@
 package com.myhealth.stats;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.myhealth.meal.Meal;
 import com.myhealth.meal.MealRepository;
+import com.myhealth.common.ApiException;
 import com.myhealth.stats.StatsDtos.DailyStatsResponse;
 import com.myhealth.stats.StatsDtos.RangeStatsResponse;
 import com.myhealth.user.AppUser;
+import com.myhealth.user.BodyMeasurement;
+import com.myhealth.user.BodyMeasurementRepository;
 import com.myhealth.user.Gender;
+import com.myhealth.user.Goal;
 import com.myhealth.user.Profile;
 import com.myhealth.user.Role;
 import com.myhealth.workout.WorkoutPlan;
 import com.myhealth.workout.WorkoutPlanRepository;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,13 +38,14 @@ class StatsServiceTest {
 
     @Mock MealRepository meals;
     @Mock WorkoutPlanRepository workouts;
+    @Mock BodyMeasurementRepository bodyMeasurements;
 
     StatsService service;
     AppUser owner;
 
     @BeforeEach
     void setUp() {
-        service = new StatsService(meals, workouts);
+        service = new StatsService(meals, workouts, bodyMeasurements);
         owner = new AppUser();
         owner.setEmail("a@b.c");
         owner.setPasswordHash("h");
@@ -45,6 +56,10 @@ class StatsServiceTest {
         p.setHeightCm(new BigDecimal("175"));
         p.setWeightKg(new BigDecimal("70.0"));
         owner.setProfile(p);
+        lenient().when(bodyMeasurements.findFirstByUserIdAndMeasuredAtLessThanEqualOrderByMeasuredAtDesc(eq(1L), any(Instant.class)))
+                .thenReturn(Optional.empty());
+        lenient().when(bodyMeasurements.findByUserIdAndMeasuredAtBetweenOrderByMeasuredAtAsc(eq(1L), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of());
     }
 
     private static void setField(Object t, String n, Object v) {
@@ -79,6 +94,13 @@ class StatsServiceTest {
         return w;
     }
 
+    private BodyMeasurement measurement(String measuredAt, String weightKg) {
+        BodyMeasurement m = new BodyMeasurement();
+        m.setMeasuredAt(Instant.parse(measuredAt));
+        m.setWeightKg(new BigDecimal(weightKg));
+        return m;
+    }
+
     @Test
     void daily_sumsIntake_protein_fat_carb_acrossMultipleMeals() {
         LocalDate today = LocalDate.of(2026, 5, 30);
@@ -94,6 +116,22 @@ class StatsServiceTest {
         assertThat(response.fat()).isEqualByComparingTo("22.0");
         assertThat(response.carb()).isEqualByComparingTo("72.0");
         assertThat(response.weightKg()).isEqualByComparingTo("70.0");
+    }
+
+    @Test
+    void daily_usesLatestMeasurementWeightAndGoalAdjustedTargetKcal() {
+        LocalDate today = LocalDate.of(2026, 5, 30);
+        owner.getProfile().setBmrKcal(1800);
+        owner.getProfile().setGoal(Goal.fat_loss);
+        when(meals.findByUserIdAndDateOrderByCreatedAtDesc(1L, today)).thenReturn(List.of());
+        when(workouts.findByUserIdAndDateOrderByCreatedAtDesc(1L, today)).thenReturn(List.of());
+        when(bodyMeasurements.findFirstByUserIdAndMeasuredAtLessThanEqualOrderByMeasuredAtDesc(eq(1L), any(Instant.class)))
+                .thenReturn(Optional.of(measurement("2026-05-29T12:00:00Z", "68.5")));
+
+        DailyStatsResponse response = service.daily(owner, today);
+
+        assertThat(response.weightKg()).isEqualByComparingTo("68.5");
+        assertThat(response.goalKcal()).isEqualTo(1500);
     }
 
     @Test
@@ -160,26 +198,39 @@ class StatsServiceTest {
     }
 
     @Test
-    void range_clampsTo90DayWindow() {
-        LocalDate from = LocalDate.of(2026, 1, 1);
-        LocalDate to = LocalDate.of(2026, 6, 30);  // ~180 days out
-
-        when(meals.findByUserIdAndDateBetweenOrderByDateAsc(
-                org.mockito.ArgumentMatchers.eq(1L),
-                org.mockito.ArgumentMatchers.eq(from),
-                org.mockito.ArgumentMatchers.eq(from.plusDays(90))))
-                .thenReturn(List.of());
-        when(workouts.findByUserIdAndDateBetweenOrderByDateAsc(
-                org.mockito.ArgumentMatchers.eq(1L),
-                org.mockito.ArgumentMatchers.eq(from),
-                org.mockito.ArgumentMatchers.eq(from.plusDays(90))))
-                .thenReturn(List.of());
+    void range_carriesForwardHistoricalMeasurementWeights() {
+        LocalDate from = LocalDate.of(2026, 5, 28);
+        LocalDate to = LocalDate.of(2026, 5, 30);
+        when(meals.findByUserIdAndDateBetweenOrderByDateAsc(1L, from, to)).thenReturn(List.of());
+        when(workouts.findByUserIdAndDateBetweenOrderByDateAsc(1L, from, to)).thenReturn(List.of());
+        when(bodyMeasurements.findFirstByUserIdAndMeasuredAtLessThanEqualOrderByMeasuredAtDesc(eq(1L), any(Instant.class)))
+                .thenReturn(Optional.of(measurement("2026-05-27T12:00:00Z", "70.2")));
+        when(bodyMeasurements.findByUserIdAndMeasuredAtBetweenOrderByMeasuredAtAsc(eq(1L), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of(
+                        measurement("2026-05-29T03:00:00Z", "69.8"),
+                        measurement("2026-05-30T03:00:00Z", "69.5")));
 
         RangeStatsResponse response = service.range(owner, from, to);
 
-        // from + 90 days = 2026-04-01
-        assertThat(response.to()).isEqualTo(from.plusDays(90));
-        assertThat(response.series()).hasSize(91);  // inclusive of both endpoints
+        assertThat(response.series()).extracting(StatsDtos.SeriesPoint::weightKg)
+                .containsExactly(new BigDecimal("70.2"), new BigDecimal("69.8"), new BigDecimal("69.5"));
+    }
+
+    @Test
+    void range_rejectsMoreThan90Days() {
+        LocalDate from = LocalDate.of(2026, 1, 1);
+        LocalDate to = LocalDate.of(2026, 6, 30);  // ~180 days out
+
+        assertThatThrownBy(() -> service.range(owner, from, to))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("90 days");
+    }
+
+    @Test
+    void range_rejectsInvertedDateRange() {
+        assertThatThrownBy(() -> service.range(owner, LocalDate.of(2026, 5, 30), LocalDate.of(2026, 5, 1)))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("from must be on or before to");
     }
 
     @Test

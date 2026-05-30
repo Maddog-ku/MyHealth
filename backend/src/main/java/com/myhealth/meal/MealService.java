@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.myhealth.ai.AiProvider;
 import com.myhealth.ai.AiProvider.FoodItem;
+import com.myhealth.ai.AiProvider.MealImage;
 import com.myhealth.common.ApiException;
 import com.myhealth.common.ErrorCode;
 import com.myhealth.meal.FileStorageService.StoredFile;
@@ -44,15 +45,24 @@ public class MealService {
     }
 
     public MealResponse create(AppUser user, MultipartFile image, String description, String slot, LocalDate date) {
-        if ((description == null || description.isBlank()) && (image == null || image.isEmpty())) {
+        String normalizedDescription = MealInputGuard.normalizeDescription(description);
+        if (normalizedDescription == null && (image == null || image.isEmpty())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "image or description is required");
         }
+        MealInputGuard.validateDescription(normalizedDescription);
         LocalDate mealDate = date == null ? LocalDate.now() : date;
         String imageUrl = fileStorage.storeMealImage(image, mealDate);
+        MealImage mealImage;
+        try {
+            mealImage = toMealImage(image);
+        } catch (RuntimeException ex) {
+            fileStorage.delete(imageUrl);
+            throw ex;
+        }
 
         AiProvider.MealAnalysis analysis;
         try {
-            analysis = aiProvider.analyzeMeal(description, image != null && !image.isEmpty());
+            analysis = aiProvider.analyzeMeal(normalizedDescription, mealImage);
         } catch (RuntimeException ex) {
             log.warn("AI meal analysis failed, saving raw entry", ex);
             analysis = AiProvider.MealAnalysis.empty();
@@ -60,10 +70,21 @@ public class MealService {
 
         AiProvider.MealAnalysis finalAnalysis = analysis;
         try {
-            return transactionTemplate.execute(status -> persist(user, mealDate, slot, description, imageUrl, finalAnalysis));
+            return transactionTemplate.execute(status -> persist(user, mealDate, slot, normalizedDescription, imageUrl, finalAnalysis));
         } catch (RuntimeException ex) {
             fileStorage.delete(imageUrl);
             throw ex;
+        }
+    }
+
+    private MealImage toMealImage(MultipartFile image) {
+        if (image == null || image.isEmpty()) {
+            return null;
+        }
+        try {
+            return new MealImage(image.getContentType(), image.getBytes());
+        } catch (java.io.IOException ex) {
+            throw new IllegalStateException("Unable to read uploaded image for AI analysis", ex);
         }
     }
 

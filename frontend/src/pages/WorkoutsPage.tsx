@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AiGenerationPanel } from "@/components/AiGenerationPanel";
 import { useCompleteWorkout, useGenerateWorkout, useWorkouts } from "@/hooks/useWorkouts";
 import { ApiError } from "@/api/client";
 import { todayLocalISO } from "@/lib/date";
@@ -55,7 +56,7 @@ export function WorkoutsPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_auto] items-end">
             <div className="grid gap-1.5">
               <label className="text-xs font-semibold text-slate-500 px-1">鍛鍊目標分類</label>
-              <Select value={category} onValueChange={setCategory}>
+              <Select value={category} onValueChange={setCategory} disabled={generate.isPending}>
                 <SelectTrigger className="rounded-2xl border-slate-200/80 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 py-5">
                   <SelectValue />
                 </SelectTrigger>
@@ -69,7 +70,7 @@ export function WorkoutsPage() {
             
             <div className="grid gap-1.5">
               <label className="text-xs font-semibold text-slate-500 px-1">訓練預估時長</label>
-              <Select value={String(duration)} onValueChange={(v) => setDuration(Number(v))}>
+              <Select value={String(duration)} onValueChange={(v) => setDuration(Number(v))} disabled={generate.isPending}>
                 <SelectTrigger className="rounded-2xl border-slate-200/80 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 py-5">
                   <SelectValue />
                 </SelectTrigger>
@@ -83,7 +84,7 @@ export function WorkoutsPage() {
             
             <div className="grid gap-1.5">
               <label className="text-xs font-semibold text-slate-500 px-1">目標阻力強度</label>
-              <Select value={intensity} onValueChange={setIntensity}>
+              <Select value={intensity} onValueChange={setIntensity} disabled={generate.isPending}>
                 <SelectTrigger className="rounded-2xl border-slate-200/80 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 py-5">
                   <SelectValue />
                 </SelectTrigger>
@@ -128,6 +129,8 @@ export function WorkoutsPage() {
       {/* Routine Display List */}
       <div className="space-y-4">
         <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 px-1 tracking-wider uppercase">今日訓練計畫</h2>
+
+        {generate.isPending && <AiGenerationPanel kind="workout" />}
         
         {workouts.isLoading ? (
           <Skeleton className="h-44 w-full rounded-3xl" />
@@ -212,7 +215,7 @@ export function WorkoutsPage() {
               </CardContent>
             </Card>
           ))
-        ) : (
+        ) : !generate.isPending ? (
           <Card className="border border-dashed border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-950/10 rounded-3xl overflow-hidden py-12 text-center">
             <CardContent className="flex flex-col items-center gap-3">
               <div className="flex size-14 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-900 text-slate-400">
@@ -222,7 +225,7 @@ export function WorkoutsPage() {
               <p className="text-xs text-muted-foreground max-w-xs leading-normal">點擊上方「產生訓練菜單」，讓 AI 智慧引擎依據您的性別、身高體重，規畫專屬動作組合吧！</p>
             </CardContent>
           </Card>
-        )}
+        ) : null}
       </div>
     </section>
   );

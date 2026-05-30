@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
@@ -46,6 +47,12 @@ public class GlobalExceptionHandler {
                 ex.getName(), "typeMismatch", "Parameter has the wrong type");
         return build(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "Invalid parameter: " + ex.getName(),
                 request.getRequestURI(), List.of(detail));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ResponseEntity<ApiErrorResponse> handleUnreadableBody(HttpMessageNotReadableException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "Request body is malformed or contains unsupported values",
+                request.getRequestURI(), List.of());
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

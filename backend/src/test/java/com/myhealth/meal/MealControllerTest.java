@@ -3,14 +3,17 @@ package com.myhealth.meal;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.myhealth.ai.AiEndpointRateLimiter;
 import com.myhealth.ai.AiProvider.FoodItem;
 import com.myhealth.auth.CurrentUser;
 import com.myhealth.auth.JwtAuthenticationFilter;
@@ -46,6 +49,7 @@ class MealControllerTest {
 
     @MockBean MealService mealService;
     @MockBean CurrentUser currentUser;
+    @MockBean AiEndpointRateLimiter rateLimiter;
 
     AppUser stubUser() {
         AppUser u = new AppUser();
@@ -77,6 +81,23 @@ class MealControllerTest {
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.description").value("雞胸肉沙拉"))
                 .andExpect(jsonPath("$.totalKcal").value(248));
+
+        verify(rateLimiter).checkMealCreate(any());
+    }
+
+    @Test
+    void create_returns429_whenAiRateLimited() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        doThrow(new ApiException(HttpStatus.TOO_MANY_REQUESTS, ErrorCode.RATE_LIMITED,
+                "Too many requests. Please retry later."))
+                .when(rateLimiter).checkMealCreate(any());
+
+        mockMvc.perform(multipart("/api/v1/meals")
+                        .param("description", "雞胸肉沙拉")
+                        .param("slot", "lunch")
+                        .param("date", "2026-05-30"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.error").value("RATE_LIMITED"));
     }
 
     @Test
@@ -131,6 +152,30 @@ class MealControllerTest {
         mockMvc.perform(get("/api/v1/meals/99"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("NOT_FOUND"));
+    }
+
+    @Test
+    void update_returns400_whenFoodItemInvalid() throws Exception {
+        String body = """
+                {"items":[{"name":"","grams":100,"kcal":100,"protein":1,"fat":1,"carb":1,"confidence":0.5}],
+                 "aiSuggestion":"保守估算"}
+                """;
+
+        mockMvc.perform(put("/api/v1/meals/1").contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void update_returns400_whenAiSuggestionContainsUnsupportedCharacters() throws Exception {
+        String body = """
+                {"items":[{"name":"白飯","grams":100,"kcal":130,"protein":2.5,"fat":0.3,"carb":28,"confidence":0.8}],
+                 "aiSuggestion":"<script>alert(1)</script>"}
+                """;
+
+        mockMvc.perform(put("/api/v1/meals/1").contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("aiSuggestion")));
     }
 
     @Test

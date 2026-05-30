@@ -46,6 +46,18 @@ public class BodyMeasurement {
 
     private String note;
 
+    public Instant getMeasuredAt() {
+        return measuredAt;
+    }
+
+    public void setMeasuredAt(Instant measuredAt) {
+        this.measuredAt = measuredAt;
+    }
+
+    public BigDecimal getWeightKg() {
+        return weightKg;
+    }
+
     public void setUser(AppUser user) {
         this.user = user;
     }

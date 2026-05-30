@@ -1,6 +1,10 @@
 package com.myhealth.meal;
 
 import com.myhealth.ai.AiProvider.FoodItem;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -26,6 +30,9 @@ public final class MealDtos {
     ) {
     }
 
-    public record UpdateMealRequest(List<FoodItem> items, String aiSuggestion) {
+    public record UpdateMealRequest(
+            @NotNull @Size(max = 5) List<@Valid FoodItem> items,
+            @Size(max = 120) @Pattern(regexp = "^[\\p{L}\\p{N}\\s，。,.!?、:：()（）_-]*$") String aiSuggestion
+    ) {
     }
 }

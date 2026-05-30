@@ -72,7 +72,7 @@ class WorkoutServiceTest {
         when(workouts.save(any(WorkoutPlan.class))).thenAnswer(inv -> inv.getArgument(0));
 
         WorkoutPlanResponse response = service.generate(owner,
-                new GenerateWorkoutRequest(LocalDate.of(2026, 5, 30), "abs", 30, "medium", null));
+                new GenerateWorkoutRequest(LocalDate.of(2026, 5, 30), WorkoutCategory.abs, 30, WorkoutIntensity.medium, null));
 
         ArgumentCaptor<WorkoutPlan> captor = ArgumentCaptor.forClass(WorkoutPlan.class);
         verify(workouts).save(captor.capture());
@@ -94,7 +94,7 @@ class WorkoutServiceTest {
                 new ExerciseItem("深蹲", 4, "12", 60, 70, "", List.of())));
         when(workouts.save(any(WorkoutPlan.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.generate(owner, new GenerateWorkoutRequest(LocalDate.now(), "legs", null, null, null));
+        service.generate(owner, new GenerateWorkoutRequest(LocalDate.now(), WorkoutCategory.legs, null, null, null));
 
         verify(aiProvider).generateWorkout("legs", 30, "medium");
     }

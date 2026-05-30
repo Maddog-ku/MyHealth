@@ -3,6 +3,7 @@ package com.myhealth.ai;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -16,6 +17,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -43,7 +45,7 @@ class LocalAiProviderTest {
         String ollamaJson = """
                 {"items":[
                   {"name":"深蹲","sets":4,"reps":"12","restSec":60,"kcal":70,"note":"膝蓋朝腳尖","alt":["椅子深蹲"]},
-                  {"name":"弓箭步","sets":3,"reps":"每側10","restSec":60,"kcal":65,"note":"","alt":[]}
+                  {"name":"弓箭步","sets":3,"reps":"每側10","restSec":60,"kcal":65,"note":"保持軀幹穩定","alt":[]}
                 ]}
                 """;
         when(ollama.chat(eq("gemma4:e4b"), any(), any(), eq(true), any())).thenReturn(ollamaJson);
@@ -58,10 +60,10 @@ class LocalAiProviderTest {
     }
 
     @Test
-    void generateWorkout_capsLargeOutputs_toEightItems() {
+    void generateWorkout_capsLargeOutputs_toSixItems() {
         StringBuilder json = new StringBuilder("{\"items\":[");
         for (int i = 0; i < 20; i++) {
-            json.append("{\"name\":\"E").append(i).append("\",\"sets\":1,\"reps\":\"1\",\"restSec\":1,\"kcal\":1,\"note\":\"\",\"alt\":[]}");
+            json.append("{\"name\":\"E").append(i).append("\",\"sets\":1,\"reps\":\"10\",\"restSec\":30,\"kcal\":10,\"note\":\"保持穩定\",\"alt\":[]}");
             if (i < 19) json.append(',');
         }
         json.append("]}");
@@ -69,7 +71,91 @@ class LocalAiProviderTest {
 
         List<ExerciseItem> items = provider.generateWorkout("abs", 30, "medium");
 
-        assertThat(items).hasSize(8);
+        assertThat(items).hasSize(6);
+    }
+
+    @Test
+    void generateWorkout_promptRequiresSafeJsonOnlyPlan() {
+        when(ollama.chat(any(), any(), any(), eq(true), any()))
+                .thenReturn("{\"items\":[{\"name\":\"棒式\",\"sets\":3,\"reps\":\"30s\",\"restSec\":45,\"kcal\":30,\"note\":\"身體維持一直線\",\"alt\":[]}]}");
+
+        provider.generateWorkout("abs", 30, "medium");
+
+        ArgumentCaptor<String> systemCaptor = ArgumentCaptor.forClass(String.class);
+        verify(ollama).chat(eq("gemma4:e4b"), systemCaptor.capture(), eq("分類: abs\n時長: 30 分鐘\n強度: medium"), eq(true), any());
+
+        assertThat(systemCaptor.getValue())
+                .contains("不可假設傷病、器材、場地或訓練經驗")
+                .contains("若缺少器材資訊，預設使用徒手或常見低風險動作")
+                .contains("不可產生高風險")
+                .contains("不可輸出醫療、復健或傷病治療處方")
+                .contains("動作名稱必須是常見且可理解")
+                .contains("不要編造不存在的動作")
+                .contains("必須推薦 3 到 6 個 items")
+                .contains("sets 必須是 1 到 6 的整數")
+                .contains("restSec 必須是 15 到 180 的整數")
+                .contains("kcal 必須是 5 到 250 的整數")
+                .contains("alt 最多 2 個替代動作")
+                .contains("不可輸出 Markdown")
+                .contains("不可輸出 Markdown、註解、推理過程、額外欄位或 JSON 以外的文字")
+                .contains("low：低衝擊")
+                .contains("medium：中等強度")
+                .contains("high：可提高密度")
+                .contains("只允許回傳下列 JSON schema");
+    }
+
+    @Test
+    void generateWorkout_userPromptContainsOnlyRequestedInputs() {
+        when(ollama.chat(any(), any(), any(), eq(true), any()))
+                .thenReturn("{\"items\":[{\"name\":\"棒式\",\"sets\":3,\"reps\":\"30s\",\"restSec\":45,\"kcal\":30,\"note\":\"身體維持一直線\",\"alt\":[]}]}");
+
+        provider.generateWorkout("full_body", 45, "high");
+
+        ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
+        verify(ollama).chat(eq("gemma4:e4b"), any(), userCaptor.capture(), eq(true), any());
+
+        assertThat(userCaptor.getValue())
+                .isEqualTo("分類: full_body\n時長: 45 分鐘\n強度: high")
+                .doesNotContain("器材")
+                .doesNotContain("傷病")
+                .doesNotContain("經驗");
+    }
+
+    @Test
+    void generateWorkout_filtersInvalidExerciseItemsAndCapsToSix() {
+        String json = """
+                {"items":[
+                  {"name":"","sets":3,"reps":"10","restSec":30,"kcal":30,"note":"穩定控制","alt":[]},
+                  {"name":"組數過高","sets":9,"reps":"10","restSec":30,"kcal":30,"note":"穩定控制","alt":[]},
+                  {"name":"休息過短","sets":3,"reps":"10","restSec":5,"kcal":30,"note":"穩定控制","alt":[]},
+                  {"name":"A","sets":3,"reps":"10","restSec":30,"kcal":30,"note":"穩定控制","alt":[]},
+                  {"name":"B","sets":3,"reps":"10","restSec":30,"kcal":30,"note":"穩定控制","alt":[]},
+                  {"name":"C","sets":3,"reps":"10","restSec":30,"kcal":30,"note":"穩定控制","alt":[]},
+                  {"name":"D","sets":3,"reps":"10","restSec":30,"kcal":30,"note":"穩定控制","alt":[]},
+                  {"name":"E","sets":3,"reps":"10","restSec":30,"kcal":30,"note":"穩定控制","alt":[]},
+                  {"name":"F","sets":3,"reps":"10","restSec":30,"kcal":30,"note":"穩定控制","alt":[]},
+                  {"name":"G","sets":3,"reps":"10","restSec":30,"kcal":30,"note":"穩定控制","alt":[]}
+                ]}
+                """;
+        when(ollama.chat(any(), any(), any(), eq(true), any())).thenReturn(json);
+
+        List<ExerciseItem> items = provider.generateWorkout("abs", 30, "medium");
+
+        assertThat(items).extracting(ExerciseItem::name).containsExactly("A", "B", "C", "D", "E", "F");
+    }
+
+    @Test
+    void generateWorkout_fallsBackToTemplate_whenAllItemsInvalidAfterSanitization() {
+        when(ollama.chat(any(), any(), any(), eq(true), any())).thenReturn("""
+                {"items":[
+                  {"name":"","sets":3,"reps":"10","restSec":30,"kcal":30,"note":"穩定控制","alt":[]},
+                  {"name":"休息過短","sets":3,"reps":"10","restSec":5,"kcal":30,"note":"穩定控制","alt":[]}
+                ]}
+                """);
+
+        List<ExerciseItem> items = provider.generateWorkout("abs", 30, "medium");
+
+        assertThat(items.get(0).name()).isEqualTo("捲腹");
     }
 
     @Test
@@ -131,9 +217,9 @@ class LocalAiProviderTest {
                 ],
                 "suggestion":"蛋白足夠，可加碳水"}
                 """;
-        when(ollama.chat(any(), any(), any(), eq(true), any())).thenReturn(json);
+        when(ollama.chat(any(), any(), any(), anyList(), eq(true), any())).thenReturn(json);
 
-        MealAnalysis result = provider.analyzeMeal("雞胸肉沙拉", false);
+        MealAnalysis result = provider.analyzeMeal("雞胸肉沙拉", null);
 
         assertThat(result.items()).hasSize(1);
         FoodItem food = result.items().get(0);
@@ -144,25 +230,113 @@ class LocalAiProviderTest {
     }
 
     @Test
-    void analyzeMeal_fallsBackToStub_whenOllamaUnavailable() {
-        when(ollama.chat(any(), any(), any(), anyBoolean(), any()))
-                .thenThrow(new OllamaClient.OllamaException("timeout"));
+    void analyzeMeal_withImage_usesVisionModelAndPassesBase64Image() {
+        String json = """
+                {"items":[
+                  {"name":"牛肉飯","grams":350,"kcal":680,"protein":32.0,"fat":22.0,"carb":88.0,"confidence":0.74}
+                ],
+                "suggestion":"份量偏高，晚餐可清淡"}
+                """;
+        when(ollama.chat(eq("gemma4:e4b"), any(), any(), eq(List.of("AQID")), eq(true), any())).thenReturn(json);
 
-        MealAnalysis result = provider.analyzeMeal("焗烤起司飯", false);
+        MealAnalysis result = provider.analyzeMeal("牛肉飯", new AiProvider.MealImage("image/jpeg", new byte[]{1, 2, 3}));
 
         assertThat(result.items()).hasSize(1);
-        assertThat(result.suggestion()).contains("AI 暫時不可用");
+        assertThat(result.items().get(0).name()).isEqualTo("牛肉飯");
+    }
+
+    @Test
+    void analyzeMeal_promptRequiresConservativeJsonOnlyVisionEstimate() {
+        when(ollama.chat(any(), any(), any(), anyList(), eq(true), any()))
+                .thenReturn("{\"items\":[],\"suggestion\":\"請重新拍攝或手動輸入\"}");
+
+        provider.analyzeMeal(null, new AiProvider.MealImage("image/jpeg", new byte[]{1, 2, 3}));
+
+        ArgumentCaptor<String> systemCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
+        verify(ollama).chat(eq("gemma4:e4b"), systemCaptor.capture(), userCaptor.capture(), eq(List.of("AQID")), eq(true), any());
+
+        assertThat(systemCaptor.getValue())
+                .contains("只能根據照片中清楚可見的食物、容器、份量線索，以及使用者明確輸入的文字判斷")
+                .contains("不可猜測看不到的食材")
+                .contains("看不清楚時要降低 confidence")
+                .contains("無法辨識的餐點")
+                .contains("不要編造菜名")
+                .contains("若只能辨識大類，請用大類估算，confidence 不可高於 0.45")
+                .contains("items 必須是空陣列")
+                .contains("最多 5 個 items")
+                .contains("不要拆出看不到的成分")
+                .contains("confidence 必須介於 0 到 1")
+                .contains("不可輸出醫療診斷、減重處方或絕對化結論")
+                .contains("若文字描述與照片衝突，以照片為主")
+                .contains("不可輸出 Markdown")
+                .contains("不可輸出 Markdown、註解、推理過程、額外欄位或 JSON 以外的文字")
+                .contains("只允許回傳下列 JSON schema");
+        assertThat(userCaptor.getValue()).contains("照片已隨請求附上").contains("不要猜測具體菜名");
+    }
+
+    @Test
+    void analyzeMeal_withoutImagePromptStillRequiresStrictConservativeJson() {
+        when(ollama.chat(any(), any(), any(), anyList(), eq(true), any()))
+                .thenReturn("{\"items\":[{\"name\":\"白飯\",\"grams\":150,\"kcal\":240,\"protein\":4.0,\"fat\":0.4,\"carb\":53.0,\"confidence\":0.7}],\"suggestion\":\"份量以描述保守估算\"}");
+
+        provider.analyzeMeal("白飯一碗", null);
+
+        ArgumentCaptor<String> systemCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
+        verify(ollama).chat(eq("gemma4:e4b"), systemCaptor.capture(), userCaptor.capture(), eq(List.of()), eq(true), any());
+
+        assertThat(systemCaptor.getValue())
+                .contains("只能根據照片中清楚可見的食物")
+                .contains("使用者明確輸入的文字")
+                .contains("不可猜測看不到的食材")
+                .contains("不可輸出 Markdown、註解、推理過程、額外欄位或 JSON 以外的文字")
+                .contains("\"suggestion\":\"一段繁體中文建議，10到30字\"");
+        assertThat(userCaptor.getValue())
+                .isEqualTo("餐點描述: 白飯一碗\n");
+    }
+
+    @Test
+    void parseMealAnalysis_filtersInvalidFoodItemsAndCapsToFive() throws Exception {
+        String json = """
+                {"items":[
+                  {"name":"","grams":100,"kcal":100,"protein":1,"fat":1,"carb":1,"confidence":0.5},
+                  {"name":"壞資料","grams":-1,"kcal":100,"protein":1,"fat":1,"carb":1,"confidence":0.5},
+                  {"name":"壞信心","grams":100,"kcal":100,"protein":1,"fat":1,"carb":1,"confidence":1.5},
+                  {"name":"A","grams":100,"kcal":100,"protein":1,"fat":1,"carb":1,"confidence":0.5},
+                  {"name":"B","grams":100,"kcal":100,"protein":1,"fat":1,"carb":1,"confidence":0.5},
+                  {"name":"C","grams":100,"kcal":100,"protein":1,"fat":1,"carb":1,"confidence":0.5},
+                  {"name":"D","grams":100,"kcal":100,"protein":1,"fat":1,"carb":1,"confidence":0.5},
+                  {"name":"E","grams":100,"kcal":100,"protein":1,"fat":1,"carb":1,"confidence":0.5},
+                  {"name":"F","grams":100,"kcal":100,"protein":1,"fat":1,"carb":1,"confidence":0.5}
+                ],"suggestion":"保守估算"}
+                """;
+
+        MealAnalysis result = provider.parseMealAnalysis(json);
+
+        assertThat(result.items()).extracting(FoodItem::name).containsExactly("A", "B", "C", "D", "E");
+    }
+
+    @Test
+    void analyzeMeal_fallsBackToStub_whenOllamaUnavailable() {
+        when(ollama.chat(any(), any(), any(), anyList(), anyBoolean(), any()))
+                .thenThrow(new OllamaClient.OllamaException("timeout"));
+
+        MealAnalysis result = provider.analyzeMeal("焗烤起司飯", null);
+
+        assertThat(result.items()).isEmpty();
+        assertThat(result.suggestion()).contains("AI 無法可靠辨識");
     }
 
     @Test
     void analyzeMeal_fallsBackToStub_whenItemsArrayEmpty() {
-        when(ollama.chat(any(), any(), any(), anyBoolean(), any()))
+        when(ollama.chat(any(), any(), any(), anyList(), anyBoolean(), any()))
                 .thenReturn("{\"items\":[],\"suggestion\":\"…\"}");
 
-        MealAnalysis result = provider.analyzeMeal("白飯", false);
+        MealAnalysis result = provider.analyzeMeal("白飯", null);
 
-        assertThat(result.items()).hasSize(1);
-        assertThat(result.suggestion()).contains("AI 暫時不可用");
+        assertThat(result.items()).isEmpty();
+        assertThat(result.suggestion()).contains("AI 無法可靠辨識");
     }
 
     @Test
