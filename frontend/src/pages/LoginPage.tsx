@@ -65,9 +65,11 @@ export function LoginPage() {
   }
 
   const pendingError = login.error ?? register.error;
+  // Login default matches the seed demo account (registered before the
+  // current policy); register default satisfies the new policy regex.
   const demoDefaults = import.meta.env.DEV
-    ? { email: "demo@example.com", password: "Secret123", name: "Demo" }
-    : { email: "", password: "", name: "" };
+    ? { email: "demo@example.com", password: "Secret123", loginPassword: "secret123", name: "Demo" }
+    : { email: "", password: "", loginPassword: "", name: "" };
 
   return (
     <main className="relative grid min-h-screen place-items-center overflow-hidden bg-gradient-to-tr from-slate-50 via-slate-100 to-emerald-50/30 px-4 py-16 dark:from-[#070b13] dark:via-[#0c1322] dark:to-[#08151f]">
@@ -117,7 +119,11 @@ export function LoginPage() {
               <TabsContent value="login" className="outline-none mt-0">
                 <form onSubmit={handleLogin} className="grid gap-4">
                   <Field name="email" label="電子郵件" type="email" required maxLength={254} autoComplete="email" defaultValue={demoDefaults.email} placeholder="name@example.com" />
-                  <Field name="password" label="密碼" type="password" required minLength={8} maxLength={128} pattern="(?=.*[A-Z])(?=.*[a-z])[A-Za-z0-9]+" title="密碼需至少 8 字，且只能使用半形英文與數字，並至少包含 1 個大寫英文與 1 個小寫英文。" autoComplete="current-password" defaultValue={demoDefaults.password} placeholder="請輸入密碼" />
+                  {/* Login intentionally does not enforce the register-time policy regex:
+                      existing accounts may have been registered under an older policy and
+                      must still be able to type their real password. Server BCrypt check
+                      is the source of truth. */}
+                  <Field name="password" label="密碼" type="password" required maxLength={128} autoComplete="current-password" defaultValue={demoDefaults.loginPassword} placeholder="請輸入密碼" />
                   
                   {pendingError && <ErrorBox error={pendingError} />}
                   
