@@ -5,27 +5,32 @@
 
 ---
 
-## 〇、目前實作狀態（last updated 2026-05-30）
+## 〇、目前實作狀態（last updated 2026-05-31）
 
 | 模組 | 狀態 | 備註 |
 |---|---|---|
-| Auth（註冊/登入/JWT/Refresh rotation） | ✅ | 含 12 個 AuthService + 7 個 JwtService 單元測試；登入、refresh 與 AI 高成本端點已支援 memory / Redis Bucket4j 限流 |
+| Auth（註冊/登入/JWT/Refresh rotation） | ✅ | register/login/refresh + AI 高成本端點都掛 rate limiter（memory 預設、可切 Redis Bucket4j） |
+| JWT prod 啟動防呆 | ✅ | prod profile 啟動時拒絕 null/blank/預設值/<32 bytes 的 secret |
 | User profile + body measurements | ✅ | |
-| Workouts CRUD + complete | ✅ | 文字 AI 可走 Ollama；不可用或輸出異常時 fallback 模板 |
-| Meals CRUD（文字 + 圖片 multipart） | ✅ | 文字走 text model；圖片會以 base64 `images` payload 送入 vision model；無法可靠辨識時不猜測熱量 |
-| Stats `/daily`、`/range` | ✅ | 即時計算，體重趨勢讀 `body_measurements` 歷史紀錄，無彙總表 |
-| AI Provider 介面 + IdleWatcher | ✅ | 介面 + 排程到位 |
-| **LocalAiProvider 真實串接 Ollama** | ✅ | 預設模型 `gemma4:e4b`；NDJSON streaming + 自動 `unload()`；運動 JSON 解析失敗時 fallback 到模板，餐點則要求手動修正 |
-| 圖片 AI 辨識（vision model payload） | ✅ | 餐點圖片會送入 Ollama vision model；不支援或解析失敗時 fallback |
+| Workouts CRUD + complete | ✅ | `category` / `intensity` 改成 enum；AI fallback 到模板 |
+| Meals CRUD（文字 + 圖片 multipart） | ✅ | `slot` enum；`MealInputGuard` 擋 prompt injection + 非餐點描述 |
+| Stats `/daily`、`/range` | ✅ | 體重從 `body_measurements` 取「該日當下最新」；90 天上限改回 400；目標熱量由 profile 計算 |
+| AI Provider 介面 + IdleWatcher | ✅ | 介面 + 排程到位（IdleWatcher 為 safety net）|
+| **LocalAiProvider 真實串接 Ollama** | ✅ | 預設 `gemma4:e4b`；NDJSON streaming 三層 fallback（stream → retry → buffered）；每次呼叫後 `unload()` 立即釋放，`ollama ps` 驗證為空 |
+| 圖片 AI 辨識（vision payload） | ✅ | `MealImage` record + base64 隨 chat 送 vision model；無法辨識時 items 為空、要求重拍 |
+| Prompt 安全規則 | ✅ | system prompt 含 11 條安全約束；輸出後 sanitize（kcal/sets/restSec/confidence 邊界）|
 | OpenAI / Anthropic Provider | 🔴 | Phase 2 |
-| Frontend：Tailwind + shadcn-ui + TanStack Query + Router + Axios | ✅ | 6 個 pages、深淺色主題、JWT auto-refresh |
+| Rate Limiting | ✅ | `RateLimitStore` 抽象 + `InMemoryRateLimitStore` + `RedisBucket4jRateLimitStore`（`app.rate-limit.backend` 切換） |
+| Frontend：Tailwind + shadcn-ui + TanStack Query + Router + Axios | ✅ | 6 個 pages、深淺色主題、JWT auto-refresh、`AiGenerationPanel` 推論中骨架 |
 | Recharts 趨勢圖 | ✅ | 7 天體重趨勢已串接歷史量測資料 |
-| DTO / request validation | ✅ | 身體數據範圍、theme/language、Workout category/intensity、Meal slot 皆有後端約束 |
-| Service 層單元測試（Auth/User/Workout/Meal/Stats/Jwt/AI） | ✅ | 65 個案例 |
-| Controller @WebMvcTest（5 個 Controller + GlobalExceptionHandler） | ✅ | 39 + 4 個案例 |
-| Coverage ≥ 60%（DoD） | ✅ | 共 112 個測試案例，Service 與 Controller 兩層皆覆蓋 |
+| DTO / request validation | ✅ | RegisterRequest 密碼需含大小寫+數字、name/equipment 用 `\p{L}\p{N}` 白名單、profile 數值 `@Digits` 邊界 |
+| Service 層單元測試 | ✅ | 84 個（含 Jwt / Ai / RateLimiter / InMemoryStore） |
+| Controller @WebMvcTest | ✅ | 49 個（5 個 Controller + GlobalExceptionHandler 4 個）|
+| Frontend e2e（Playwright） | ✅ | `tests/e2e/auth.spec.ts` 2 個案例（mock API + form validity）|
+| Coverage ≥ 60%（DoD） | ✅ | **共 133 個後端測試**全綠，Service / Controller 兩層皆覆蓋 |
 | Google OAuth2 | 🔴 | Phase 2 |
 | Maven Wrapper + `scripts/dev.sh` 一鍵啟動 | ✅ | |
+| GitHub Actions CI（backend test + frontend build） | ✅ | `.github/workflows/ci.yml`，PR / push to main 觸發 |
 | Flyway migrations（V1 + V2） | ✅ | |
 | ErrorBoundary + 全域錯誤格式 | ✅ | |
 
