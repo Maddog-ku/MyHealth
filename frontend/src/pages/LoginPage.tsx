@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { Activity, AlertCircle, Sparkles, Heart, ArrowRight } from "lucide-react";
+import { Activity, AlertCircle, Sparkles, Heart, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,7 @@ export function LoginPage() {
   const login = useLogin();
   const register = useRegister();
   const [tab, setTab] = useState("login");
+  const [registerError, setRegisterError] = useState<string | null>(null);
   const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? "/";
 
   if (getAccessToken()) {
@@ -45,9 +46,15 @@ export function LoginPage() {
   async function handleRegister(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const password = String(form.get("password"));
+    if (password !== String(form.get("confirmPassword"))) {
+      setRegisterError("兩次輸入的密碼不一致，請重新確認。");
+      return;
+    }
+    setRegisterError(null);
     const payload = {
       email: String(form.get("email")).trim(),
-      password: String(form.get("password")),
+      password,
       name: String(form.get("name")).trim(),
       gender: String(form.get("gender")) as Gender,
       heightCm: Number(form.get("heightCm")),
@@ -64,12 +71,7 @@ export function LoginPage() {
     }
   }
 
-  const pendingError = login.error ?? register.error;
-  // Login default matches the seed demo account (registered before the
-  // current policy); register default satisfies the new policy regex.
-  const demoDefaults = import.meta.env.DEV
-    ? { email: "demo@example.com", password: "Secret123", loginPassword: "secret123", name: "Demo" }
-    : { email: "", password: "", loginPassword: "", name: "" };
+  const pendingError = registerError ?? login.error ?? register.error;
 
   return (
     <main className="relative grid min-h-screen place-items-center overflow-hidden bg-gradient-to-tr from-slate-50 via-slate-100 to-emerald-50/30 px-4 py-16 dark:from-[#070b13] dark:via-[#0c1322] dark:to-[#08151f]">
@@ -99,7 +101,7 @@ export function LoginPage() {
             <CardDescription className="text-xs">登入或註冊以追蹤你的健身、飲食與AI健康規劃</CardDescription>
           </CardHeader>
           <CardContent className="px-6 pb-6">
-            <Tabs value={tab} onValueChange={setTab} className="w-full">
+            <Tabs value={tab} onValueChange={(v) => { setRegisterError(null); setTab(v); }} className="w-full">
               <TabsList className="grid w-full grid-cols-2 p-1 bg-slate-100/80 dark:bg-slate-900/60 rounded-2xl mb-5">
                 <TabsTrigger
                   value="login"
@@ -118,12 +120,12 @@ export function LoginPage() {
               {/* Login Form */}
               <TabsContent value="login" className="outline-none mt-0">
                 <form onSubmit={handleLogin} className="grid gap-4">
-                  <Field name="email" label="電子郵件" type="email" required maxLength={254} autoComplete="email" defaultValue={demoDefaults.email} placeholder="name@example.com" />
+                  <Field name="email" label="電子郵件" type="email" required maxLength={254} autoComplete="email" placeholder="demo@example.com" />
                   {/* Login intentionally does not enforce the register-time policy regex:
                       existing accounts may have been registered under an older policy and
                       must still be able to type their real password. Server BCrypt check
                       is the source of truth. */}
-                  <Field name="password" label="密碼" type="password" required maxLength={128} autoComplete="current-password" defaultValue={demoDefaults.loginPassword} placeholder="請輸入密碼" />
+                  <PasswordField name="password" label="密碼" required maxLength={128} autoComplete="current-password" placeholder="請輸入密碼" />
                   
                   {pendingError && <ErrorBox error={pendingError} />}
                   
@@ -149,9 +151,10 @@ export function LoginPage() {
               {/* Register Form */}
               <TabsContent value="register" className="outline-none mt-0">
                 <form onSubmit={handleRegister} className="grid gap-4.5">
-                  <Field name="name" label="姓名 / 暱稱" required maxLength={100} pattern="[\p{L}\p{N}\s._-]+" autoComplete="name" defaultValue={demoDefaults.name} placeholder="如何稱呼您" />
-                  <Field name="email" label="電子郵件" type="email" required maxLength={254} autoComplete="email" defaultValue={demoDefaults.email} placeholder="name@example.com" />
-                  <Field name="password" label="設定密碼" type="password" minLength={8} maxLength={128} pattern="(?=.*[A-Z])(?=.*[a-z])[A-Za-z0-9]+" title="密碼需至少 8 字，且只能使用半形英文與數字，並至少包含 1 個大寫英文與 1 個小寫英文。" required autoComplete="new-password" defaultValue={demoDefaults.password} placeholder="至少 8 字，含大小寫英文" />
+                  <Field name="name" label="姓名 / 暱稱" required maxLength={100} pattern="[\p{L}\p{N}\s._-]+" autoComplete="name" placeholder="如何稱呼您" />
+                  <Field name="email" label="電子郵件" type="email" required maxLength={254} autoComplete="email" placeholder="demo@example.com" />
+                  <PasswordField name="password" label="設定密碼" minLength={8} maxLength={128} pattern="(?=.*[A-Z])(?=.*[a-z])[A-Za-z0-9]+" title="密碼需至少 8 字，且只能使用半形英文與數字，並至少包含 1 個大寫英文與 1 個小寫英文。" required autoComplete="new-password" placeholder="至少 8 字，含大小寫英文" />
+                  <PasswordField name="confirmPassword" label="確認密碼" minLength={8} maxLength={128} required autoComplete="new-password" placeholder="再次輸入相同密碼" />
                   
                   <div className="grid gap-1.5">
                     <Label htmlFor="gender" className="text-xs font-semibold text-slate-600 dark:text-slate-400 px-1">生理性別</Label>
@@ -168,8 +171,8 @@ export function LoginPage() {
                   </div>
                   
                   <div className="grid grid-cols-2 gap-3.5">
-                    <Field name="heightCm" label="身高 (cm)" type="number" min={50} max={250} step="0.1" required defaultValue="170" placeholder="cm" />
-                    <Field name="weightKg" label="體重 (kg)" type="number" min={20} max={300} step="0.1" required defaultValue="65" placeholder="kg" />
+                    <Field name="heightCm" label="身高 (cm)" type="number" min={50} max={250} step="0.1" required placeholder="170" />
+                    <Field name="weightKg" label="體重 (kg)" type="number" min={20} max={300} step="0.1" required placeholder="65" />
                   </div>
 
                   <label className="flex items-start gap-2.5 p-3 rounded-2xl bg-amber-500/5 border border-amber-500/10 text-[11px] text-amber-700 dark:text-amber-300 leading-normal select-none">
@@ -232,8 +235,44 @@ function Field({
   );
 }
 
+function PasswordField({
+  name,
+  label,
+  ...props
+}: { name: string; label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  const [show, setShow] = useState(false);
+  const id = `field-${name}`;
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id} className="text-xs font-semibold text-slate-600 dark:text-slate-400 px-1">{label}</Label>
+      <div className="relative">
+        <Input
+          id={id}
+          name={name}
+          {...props}
+          type={show ? "text" : "password"}
+          className="rounded-2xl border-slate-200/80 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 py-5 pr-11 focus-visible:ring-emerald-500 focus-visible:border-emerald-500/40 transition-all duration-300"
+        />
+        <button
+          type="button"
+          onClick={() => setShow((v) => !v)}
+          aria-label={show ? "隱藏密碼" : "顯示密碼"}
+          aria-pressed={show}
+          tabIndex={-1}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+        >
+          {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ErrorBox({ error }: { error: unknown }) {
-  const message = error instanceof ApiError ? error.message : error instanceof Error ? error.message : "操作失敗，請稍後重試";
+  const message =
+    typeof error === "string"
+      ? error
+      : error instanceof ApiError ? error.message : error instanceof Error ? error.message : "操作失敗，請稍後重試";
   return (
     <Alert variant="destructive" className="rounded-2xl py-3 border-destructive/20 bg-destructive/5 text-destructive-foreground">
       <AlertCircle className="size-4 text-destructive" />

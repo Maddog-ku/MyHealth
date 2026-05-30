@@ -40,11 +40,22 @@ scripts/dev.sh
 ```
 
 `scripts/dev.sh` 會自動：
-1. `docker compose up -d postgres`（Postgres 在 5433，避開本機可能有的 brew Postgres）
-2. 用 `./mvnw spring-boot:run` 啟動後端到 8080
-3. 用 `npm run dev` 啟動前端到 5173
+1. `docker compose up -d postgres redis`（Postgres 在 5433 避開本機 brew Postgres；Redis 在 6379 供限流使用）
+2. 等 Postgres / Redis 健康檢查通過才繼續（避免「DB 還沒起來→後端連線逾時→500」）
+3. 用 `./mvnw spring-boot:run` 啟動後端到 8080（Flyway 自動套用 migration）
+4. 用 `npm run dev` 啟動前端到 5173（首次會自動 `npm install`）
 
-打開 http://localhost:5173 ，註冊一個帳號開始用。
+打開 http://localhost:5173 ，註冊一個帳號開始用。按 `Ctrl+C` 會停掉 backend / frontend，但保留 Postgres / Redis 繼續執行。
+
+### 常用參數
+```bash
+scripts/dev.sh            # Postgres + Redis + backend + frontend
+scripts/dev.sh --ai       # 額外啟動 Ollama（AI 端點可用，見下節）
+scripts/dev.sh --infra    # 只起依賴服務（Postgres / Redis），不跑 backend / frontend
+scripts/dev.sh --reset    # 重置資料庫後再啟動（見「疑難排解」）
+scripts/dev.sh --stop     # 停止並移除 docker compose 服務
+scripts/dev.sh --help     # 顯示說明
+```
 
 ### 要讓 AI 真的跑起來
 本機需要先裝 [Ollama](https://ollama.ai) 並 pull 一個模型（預設 `gemma4:e4b`）：
@@ -66,6 +77,27 @@ docker compose exec ollama ollama pull gemma4:e4b
 ```bash
 scripts/dev.sh --stop   # 停 docker-compose 服務
 ```
+
+### 疑難排解
+
+**後端啟動就崩、或 API 一直回 500** — 多半是資料庫狀態出問題，先看後端日誌：
+```bash
+tail -f .dev-logs/backend.log
+```
+
+常見兩種情況：
+
+- **`Connection refused` / HikariPool timeout**：Postgres 容器沒在跑（例如先前跑過 `docker compose down`）。重新啟動依賴服務即可：`scripts/dev.sh --infra`。
+- **Flyway `relation "users" already exists`**：`flyway_schema_history` 與實際資料表不同步（歷史被清空但資料表還在），後端一重啟就會崩。用 `--reset` 重建：
+
+```bash
+scripts/dev.sh --reset      # 互動模式會先問 y/N 確認
+scripts/dev.sh --reset -y   # 跳過確認（非互動／CI 環境必須加）
+```
+
+> ⚠️ `--reset` 會 `DROP SCHEMA public CASCADE`，**清空所有資料（含使用者帳號）**，再讓 Flyway 從 migration 從頭重建。僅適用本機開發。
+
+**提醒**：同一時間只用一個工具操作這個專案。若多個 agent / 終端同時對 docker 或資料庫下指令（如 `docker compose down -v`、清 schema），容器與 Flyway 歷史會被反覆破壞，導致上述 500。
 
 ---
 
