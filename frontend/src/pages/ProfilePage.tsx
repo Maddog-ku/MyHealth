@@ -108,6 +108,18 @@ export function ProfilePage() {
               />
             </Field>
 
+            {/* Body measurements (optional) — feed the body_measurements history / trend */}
+            <NumberField label="體脂率 (%)" htmlFor="bodyFatPct" min={1} max={70} value={draft.bodyFatPct}
+              onChange={(v) => setDraft({ ...draft!, bodyFatPct: v })} />
+            <NumberField label="肌肉量 (kg)" htmlFor="muscleMassKg" min={1} max={150} value={draft.muscleMassKg}
+              onChange={(v) => setDraft({ ...draft!, muscleMassKg: v })} />
+            <NumberField label="基礎代謝 BMR (kcal)" htmlFor="bmrKcal" min={500} max={5000} step={1} value={draft.bmrKcal}
+              onChange={(v) => setDraft({ ...draft!, bmrKcal: v })} />
+            <NumberField label="腰圍 (cm)" htmlFor="waistCm" min={30} max={200} value={draft.waistCm}
+              onChange={(v) => setDraft({ ...draft!, waistCm: v })} />
+            <NumberField label="體水分率 (%)" htmlFor="bodyWaterPct" min={1} max={90} value={draft.bodyWaterPct}
+              onChange={(v) => setDraft({ ...draft!, bodyWaterPct: v })} />
+
             <Field label="健康鍛鍊目標" htmlFor="goal">
               <Select
                 value={draft.goal ?? ""}
@@ -139,6 +151,26 @@ export function ProfilePage() {
                 </SelectContent>
               </Select>
             </Field>
+
+            <div className="md:col-span-2">
+              <Field label="可用器材（以逗號分隔）" htmlFor="equipment">
+                <Input
+                  id="equipment"
+                  value={(draft.equipment ?? []).join("、")}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft!,
+                      equipment: e.target.value
+                        .split(/[,，、\n]/)
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="例：啞鈴、瑜珈墊、彈力帶"
+                  className="rounded-2xl border-slate-200/80 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 py-5 focus-visible:ring-emerald-500 focus-visible:border-emerald-500/40 transition-all duration-300"
+                />
+              </Field>
+            </div>
           </CardContent>
 
           {/* Form Actions Footer */}
@@ -191,5 +223,40 @@ function Field({ label, htmlFor, children }: { label: string; htmlFor: string; c
       <Label htmlFor={htmlFor} className="text-xs font-semibold text-slate-500 px-1">{label}</Label>
       {children}
     </div>
+  );
+}
+
+function NumberField({
+  label,
+  htmlFor,
+  value,
+  onChange,
+  min,
+  max,
+  step = "0.1",
+}: {
+  label: string;
+  htmlFor: string;
+  value: number | undefined;
+  onChange: (value: number | undefined) => void;
+  min: number;
+  max: number;
+  step?: number | string;
+}) {
+  return (
+    <Field label={label} htmlFor={htmlFor}>
+      <Input
+        id={htmlFor}
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        inputMode="decimal"
+        value={value ?? ""}
+        placeholder="未設定"
+        onChange={(e) => onChange(e.target.value ? Number(e.target.value) : undefined)}
+        className="rounded-2xl border-slate-200/80 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 py-5 focus-visible:ring-emerald-500 focus-visible:border-emerald-500/40 transition-all duration-300"
+      />
+    </Field>
   );
 }

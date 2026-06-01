@@ -65,3 +65,32 @@ test("settings no longer contains the physiological profile form", async ({ page
   // And the nav exposes the dedicated profile entry.
   await expect(page.getByRole("link", { name: "生理指標" }).first()).toBeVisible();
 });
+
+test("body-measurement fields and equipment are sent on save", async ({ page }) => {
+  await seedAuth(page);
+  let putBody: any = null;
+
+  await page.route("**/api/v1/me/profile", async (route) => {
+    putBody = JSON.parse(route.request().postData() ?? "{}");
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(putBody) });
+  });
+  await page.route("**/api/v1/me", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(USER) }),
+  );
+
+  await page.goto("/profile");
+
+  await page.getByLabel("體脂率 (%)").fill("22.5");
+  await page.getByLabel("腰圍 (cm)").fill("70");
+  await page.getByLabel("基礎代謝 BMR (kcal)").fill("1450");
+  await page.getByLabel("可用器材（以逗號分隔）").fill("啞鈴、瑜珈墊");
+
+  await page.getByRole("button", { name: "儲存變更檔案" }).click();
+  await expect(page.getByText("資料已成功同步更新！")).toBeVisible();
+
+  expect(putBody.bodyFatPct).toBe(22.5);
+  expect(putBody.waistCm).toBe(70);
+  expect(putBody.bmrKcal).toBe(1450);
+  expect(putBody.equipment).toEqual(["啞鈴", "瑜珈墊"]);
+  expect(putBody.weightKg).toBe(55); // untouched required field preserved
+});
