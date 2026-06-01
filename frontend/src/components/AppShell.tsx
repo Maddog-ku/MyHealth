@@ -43,9 +43,7 @@ export function AppShell() {
       <aside className="hidden md:flex flex-col w-[260px] p-6 h-full border-r border-slate-100 dark:border-slate-900 bg-white/70 dark:bg-slate-950/40 backdrop-blur-xl z-20 transition-all duration-300">
         {/* Brand */}
         <div className="flex items-center gap-3 px-3 py-4 mb-8">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-lg shadow-emerald-500/20">
-            <Activity className="size-5 animate-pulse" />
-          </div>
+          <img src="/logo.svg" alt="" className="size-10 drop-shadow-sm" />
           <div>
             <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent dark:from-emerald-400 dark:to-teal-300">
               MyHealth

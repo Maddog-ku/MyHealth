@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MyHealth">
+  <defs>
+    <linearGradient id="mh-bg" x1="6" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="0.55" stop-color="#10b981"/>
+      <stop offset="1" stop-color="#0d9488"/>
+    </linearGradient>
+  </defs>
+  <!-- rounded-square app badge -->
+  <rect x="2" y="2" width="60" height="60" rx="17" fill="url(#mh-bg)"/>
+  <!-- soft top highlight -->
+  <rect x="2" y="2" width="60" height="30" rx="17" fill="#ffffff" opacity="0.08"/>
+  <!-- heart -->
+  <path d="M32 22
+           C30.4 19 27 16.5 23 16.5
+           C18.2 16.5 14 20 14 25.5
+           C14 35.5 32 46 32 46
+           C32 46 50 35.5 50 25.5
+           C50 20 45.8 16.5 41 16.5
+           C37 16.5 33.6 19 32 22 Z"
+        fill="#ffffff"/>
+  <!-- pulse / EKG line across the heart -->
+  <path d="M18 30.5 H26 L29 24.5 L34 37 L37 30.5 H46"
+        fill="none" stroke="#0d9488" stroke-width="2.6"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

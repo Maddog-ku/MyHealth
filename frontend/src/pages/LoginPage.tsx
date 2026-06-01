@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { Activity, AlertCircle, Sparkles, Heart, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { AlertCircle, Sparkles, Heart, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -82,9 +82,7 @@ export function LoginPage() {
       <div className="w-full max-w-[440px] space-y-6 animate-fade-in z-10">
         {/* App Logo / Brand */}
         <div className="flex flex-col items-center text-center space-y-2">
-          <div className="flex size-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-xl shadow-emerald-500/20">
-            <Activity className="size-7" />
-          </div>
+          <img src="/logo.svg" alt="" className="size-16 drop-shadow-md" />
           <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent dark:from-emerald-400 dark:to-teal-300">
             MyHealth
           </h1>
