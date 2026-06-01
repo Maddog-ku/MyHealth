@@ -101,6 +101,12 @@ class StatsServiceTest {
         return m;
     }
 
+    private BodyMeasurement measurement(String measuredAt, String weightKg, String bodyFatPct) {
+        BodyMeasurement m = measurement(measuredAt, weightKg);
+        m.setBodyFatPct(new BigDecimal(bodyFatPct));
+        return m;
+    }
+
     @Test
     void daily_sumsIntake_protein_fat_carb_acrossMultipleMeals() {
         LocalDate today = LocalDate.of(2026, 5, 30);
@@ -214,6 +220,25 @@ class StatsServiceTest {
 
         assertThat(response.series()).extracting(StatsDtos.SeriesPoint::weightKg)
                 .containsExactly(new BigDecimal("70.2"), new BigDecimal("69.8"), new BigDecimal("69.5"));
+    }
+
+    @Test
+    void range_carriesForwardBodyFatMeasurements() {
+        LocalDate from = LocalDate.of(2026, 5, 28);
+        LocalDate to = LocalDate.of(2026, 5, 30);
+        when(meals.findByUserIdAndDateBetweenOrderByDateAsc(1L, from, to)).thenReturn(List.of());
+        when(workouts.findByUserIdAndDateBetweenOrderByDateAsc(1L, from, to)).thenReturn(List.of());
+        when(bodyMeasurements.findByUserIdAndMeasuredAtBetweenOrderByMeasuredAtAsc(eq(1L), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of(
+                        measurement("2026-05-29T03:00:00Z", "69.8", "22.5"),
+                        measurement("2026-05-30T03:00:00Z", "69.5", "22.1")));
+
+        RangeStatsResponse response = service.range(owner, from, to);
+
+        // Day 1 has no measurement yet (and no profile body fat) → null; then it
+        // carries forward each measured value.
+        assertThat(response.series()).extracting(StatsDtos.SeriesPoint::bodyFatPct)
+                .containsExactly(null, new BigDecimal("22.5"), new BigDecimal("22.1"));
     }
 
     @Test

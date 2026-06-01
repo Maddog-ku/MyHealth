@@ -539,7 +539,7 @@ Content-Type：`multipart/form-data`
 
 限制：`to - from ≤ 90` 天。
 
-`weightKg` 會使用 `body_measurements` 歷史紀錄：每一天取當日結束前最近一次量測值，沒有歷史量測時回退到目前 profile 體重。
+`weightKg`、`bodyFatPct`、`muscleMassKg`、`waistCm`、`bodyWaterPct` 皆使用 `body_measurements` 歷史紀錄：每一天取當日結束前最近一次量測值（各欄位獨立 carry-forward），沒有歷史量測時回退到目前 profile 對應值；仍無資料則為 `null`。
 
 **Response 200**
 ```json
@@ -547,7 +547,16 @@ Content-Type：`multipart/form-data`
   "from": "2026-05-01",
   "to": "2026-05-25",
   "series": [
-    { "date": "2026-05-01", "intakeKcal": 1900, "burnKcal": 350, "weightKg": 56.0 },
+    {
+      "date": "2026-05-01",
+      "intakeKcal": 1900,
+      "burnKcal": 350,
+      "weightKg": 56.0,
+      "bodyFatPct": 22.5,
+      "muscleMassKg": 38.2,
+      "waistCm": 70.0,
+      "bodyWaterPct": 55.0
+    },
     ...
   ]
 }

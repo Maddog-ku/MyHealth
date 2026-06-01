@@ -26,6 +26,15 @@ public final class StatsDtos {
     public record RangeStatsResponse(LocalDate from, LocalDate to, List<SeriesPoint> series) {
     }
 
-    public record SeriesPoint(LocalDate date, int intakeKcal, int burnKcal, BigDecimal weightKg) {
+    public record SeriesPoint(
+            LocalDate date,
+            int intakeKcal,
+            int burnKcal,
+            BigDecimal weightKg,
+            BigDecimal bodyFatPct,
+            BigDecimal muscleMassKg,
+            BigDecimal waistCm,
+            BigDecimal bodyWaterPct
+    ) {
     }
 }

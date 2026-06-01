@@ -75,8 +75,10 @@ class StatsControllerTest {
                 .thenReturn(new RangeStatsResponse(
                         LocalDate.of(2026, 5, 24), LocalDate.of(2026, 5, 30),
                         List.of(
-                                new SeriesPoint(LocalDate.of(2026, 5, 29), 0, 100, new BigDecimal("70")),
-                                new SeriesPoint(LocalDate.of(2026, 5, 30), 720, 0, new BigDecimal("70")))));
+                                new SeriesPoint(LocalDate.of(2026, 5, 29), 0, 100, new BigDecimal("70"),
+                                        new BigDecimal("20.0"), new BigDecimal("32.0"), new BigDecimal("80"), new BigDecimal("55.0")),
+                                new SeriesPoint(LocalDate.of(2026, 5, 30), 720, 0, new BigDecimal("70"),
+                                        new BigDecimal("20.0"), new BigDecimal("32.0"), new BigDecimal("80"), new BigDecimal("55.0")))));
 
         mockMvc.perform(get("/api/v1/stats/range")
                         .param("from", "2026-05-24")

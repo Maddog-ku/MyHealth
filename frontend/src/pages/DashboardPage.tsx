@@ -13,8 +13,19 @@ import { useMe } from "@/hooks/useAuth";
 import { api } from "@/api/client";
 import { daysAgoLocalISO, todayLocalISO } from "@/lib/date";
 
+const TREND_METRICS = [
+  { key: "weightKg", label: "體重", unit: "kg" },
+  { key: "bodyFatPct", label: "體脂率", unit: "%" },
+  { key: "muscleMassKg", label: "肌肉量", unit: "kg" },
+  { key: "waistCm", label: "腰圍", unit: "cm" },
+  { key: "bodyWaterPct", label: "體水分率", unit: "%" },
+] as const;
+type MetricKey = (typeof TREND_METRICS)[number]["key"];
+
 export function DashboardPage() {
   const today = useMemo(() => todayLocalISO(), []);
+  const [metric, setMetric] = useState<MetricKey>("weightKg");
+  const selectedMetric = TREND_METRICS.find((m) => m.key === metric)!;
   const sevenDaysAgo = useMemo(() => daysAgoLocalISO(6), []);
   const stats = useDailyStats(today);
   const ai = useAiStatus();
@@ -90,24 +101,37 @@ export function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Trend Area Chart (Col span 2) */}
         <Card className="lg:col-span-2 border border-slate-100/80 dark:border-slate-900/60 bg-white/70 dark:bg-slate-950/40 backdrop-blur-xl shadow-xl shadow-slate-100/50 dark:shadow-none rounded-3xl overflow-hidden card-hover-effect">
-          <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
             <div>
               <CardTitle className="text-md font-bold flex items-center gap-2">
                 <TrendingUp className="size-4.5 text-emerald-500" />
-                近七日體重與測量趨勢
+                近七日身體量測趨勢
               </CardTitle>
-              <CardDescription className="text-xs">整合每日身體數據與量測變動軌跡</CardDescription>
+              <CardDescription className="text-xs">選擇指標查看七日變化軌跡</CardDescription>
             </div>
-            <Badge variant="secondary" className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/10 text-[10px] py-0.5 font-bold uppercase tracking-wider">
-              系統估算
-            </Badge>
+            <div className="flex flex-wrap gap-1.5">
+              {TREND_METRICS.map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => setMetric(m.key)}
+                  className={`rounded-full px-2.5 py-1 text-[10px] font-bold border transition-colors ${
+                    metric === m.key
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                      : "bg-slate-50 dark:bg-slate-900/40 text-muted-foreground border-slate-100 dark:border-slate-800 hover:text-foreground"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
           </CardHeader>
           <CardContent className="pt-2">
             {range.isLoading ? (
               <div className="space-y-3">
                 <Skeleton className="h-44 w-full rounded-2xl" />
               </div>
-            ) : range.data && range.data.series.some((p) => p.weightKg != null) ? (
+            ) : range.data && range.data.series.some((p) => p[metric] != null) ? (
               <div className="h-60 mt-2 pr-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={range.data.series} margin={{ left: -10, right: 10, top: 10, bottom: 5 }}>
@@ -152,8 +176,9 @@ export function DashboardPage() {
                     />
                     <Area
                       type="monotone"
-                      dataKey="weightKg"
-                      name="體重 (kg)"
+                      dataKey={metric}
+                      name={`${selectedMetric.label} (${selectedMetric.unit})`}
+                      connectNulls
                       stroke="hsl(var(--primary))"
                       strokeWidth={3}
                       fillOpacity={1}
@@ -165,7 +190,7 @@ export function DashboardPage() {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <EmptyState>目前尚無足夠的體重數據。請至「系統設定」更新體重，數據將同步於此呈現。</EmptyState>
+              <EmptyState>目前尚無「{selectedMetric.label}」的量測數據。請至「生理指標」更新身體數據，趨勢將同步於此呈現。</EmptyState>
             )}
           </CardContent>
         </Card>

@@ -58,6 +58,22 @@ public class BodyMeasurement {
         return weightKg;
     }
 
+    public BigDecimal getBodyFatPct() {
+        return bodyFatPct;
+    }
+
+    public BigDecimal getMuscleMassKg() {
+        return muscleMassKg;
+    }
+
+    public BigDecimal getWaistCm() {
+        return waistCm;
+    }
+
+    public BigDecimal getBodyWaterPct() {
+        return bodyWaterPct;
+    }
+
     public void setUser(AppUser user) {
         this.user = user;
     }

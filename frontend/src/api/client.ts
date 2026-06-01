@@ -116,10 +116,20 @@ export const api = {
   dailyStats: (date: string) => http.get<DailyStats>(`/stats/daily`, { params: { date } }).then((r) => r.data),
   rangeStats: (from: string, to: string) =>
     http
-      .get<{ from: string; to: string; series: Array<{ date: string; intakeKcal: number; burnKcal: number; weightKg: number | null }> }>(
-        `/stats/range`,
-        { params: { from, to } },
-      )
+      .get<{
+        from: string;
+        to: string;
+        series: Array<{
+          date: string;
+          intakeKcal: number;
+          burnKcal: number;
+          weightKg: number | null;
+          bodyFatPct: number | null;
+          muscleMassKg: number | null;
+          waistCm: number | null;
+          bodyWaterPct: number | null;
+        }>;
+      }>(`/stats/range`, { params: { from, to } })
       .then((r) => r.data),
 
   workouts: (date: string) => http.get<PageEnvelope<WorkoutPlan>>(`/workouts`, { params: { date } }).then((r) => r.data),

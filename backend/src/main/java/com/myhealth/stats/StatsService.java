@@ -75,17 +75,30 @@ public class StatsService {
         List<WorkoutPlan> rangeWorkouts = workouts.findByUserIdAndDateBetweenOrderByDateAsc(userId, from, to);
         List<BodyMeasurement> measurements = measurementsForRange(userId, from, to);
         List<SeriesPoint> series = new ArrayList<>();
-        BigDecimal currentWeight = weightBeforeOrOn(userId, from.minusDays(1)).orElse(user.getProfile().getWeightKg());
+        // Baseline: the most recent measurement on/before the day before `from`
+        // holds a full snapshot (UserService writes all metrics on every update),
+        // so each metric carries forward from there (falling back to the profile).
+        Profile profile = user.getProfile();
+        BodyMeasurement baseline =
+                bodyMeasurements.findFirstByUserIdAndMeasuredAtLessThanEqualOrderByMeasuredAtDesc(userId, endOfDay(from.minusDays(1)))
+                        .orElse(null);
+        BigDecimal currentWeight = nonNull(baseline == null ? null : baseline.getWeightKg(), profile.getWeightKg());
+        BigDecimal currentBodyFat = nonNull(baseline == null ? null : baseline.getBodyFatPct(), profile.getBodyFatPct());
+        BigDecimal currentMuscle = nonNull(baseline == null ? null : baseline.getMuscleMassKg(), profile.getMuscleMassKg());
+        BigDecimal currentWaist = nonNull(baseline == null ? null : baseline.getWaistCm(), profile.getWaistCm());
+        BigDecimal currentWater = nonNull(baseline == null ? null : baseline.getBodyWaterPct(), profile.getBodyWaterPct());
         int measurementIndex = 0;
         for (LocalDate date = from; !date.isAfter(to); date = date.plusDays(1)) {
             LocalDate current = date;
             Instant end = endOfDay(current);
             while (measurementIndex < measurements.size()
                     && !measurements.get(measurementIndex).getMeasuredAt().isAfter(end)) {
-                BigDecimal weight = measurements.get(measurementIndex).getWeightKg();
-                if (weight != null) {
-                    currentWeight = weight;
-                }
+                BodyMeasurement m = measurements.get(measurementIndex);
+                if (m.getWeightKg() != null) currentWeight = m.getWeightKg();
+                if (m.getBodyFatPct() != null) currentBodyFat = m.getBodyFatPct();
+                if (m.getMuscleMassKg() != null) currentMuscle = m.getMuscleMassKg();
+                if (m.getWaistCm() != null) currentWaist = m.getWaistCm();
+                if (m.getBodyWaterPct() != null) currentWater = m.getBodyWaterPct();
                 measurementIndex++;
             }
             int intake = rangeMeals.stream()
@@ -96,7 +109,8 @@ public class StatsService {
                     .filter(workout -> workout.getDate().equals(current) && workout.isDone())
                     .mapToInt(WorkoutPlan::getTotalKcal)
                     .sum();
-            series.add(new SeriesPoint(current, intake, burn, currentWeight));
+            series.add(new SeriesPoint(current, intake, burn,
+                    currentWeight, currentBodyFat, currentMuscle, currentWaist, currentWater));
         }
         return new RangeStatsResponse(from, to, series);
     }
@@ -118,10 +132,8 @@ public class StatsService {
         return bodyMeasurements.findByUserIdAndMeasuredAtBetweenOrderByMeasuredAtAsc(userId, startOfDay(from), endOfDay(to));
     }
 
-    private java.util.Optional<BigDecimal> weightBeforeOrOn(Long userId, LocalDate date) {
-        return bodyMeasurements.findFirstByUserIdAndMeasuredAtLessThanEqualOrderByMeasuredAtDesc(userId, endOfDay(date))
-                .map(BodyMeasurement::getWeightKg)
-                .filter(weight -> weight != null);
+    private BigDecimal nonNull(BigDecimal value, BigDecimal fallback) {
+        return value != null ? value : fallback;
     }
 
     private int targetKcal(Profile profile) {
