@@ -73,6 +73,32 @@ test("workout 打卡 is gated behind ticking every exercise on the page", async 
   expect(completeCalled).toBe(true);
 });
 
+test("ticked exercises survive a page refresh", async ({ page }) => {
+  await seedAuth(page);
+  const plan = {
+    id: 99, date: "2026-06-01", category: "abs",
+    items: [
+      { name: "捲腹", sets: 4, reps: "15", restSec: 45, kcal: 40, note: "下背貼地", alt: [] },
+      { name: "棒式", sets: 3, reps: "45s", restSec: 45, kcal: 35, note: "一直線", alt: [] },
+    ],
+    totalKcal: 75, done: false, createdAt: "2026-05-30T03:00:00Z",
+  };
+  await page.route("**/api/v1/me", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(USER) }));
+  await page.route("**/api/v1/workouts**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [plan], page: 0, size: 20, total: 1 }) }),
+  );
+
+  await page.goto("/workouts");
+  await page.getByRole("button", { name: /捲腹/ }).click();
+  await expect(page.getByRole("button", { name: "完成進度 1/2" })).toBeVisible();
+
+  await page.reload();
+
+  // Progress is restored from localStorage after the reload.
+  await expect(page.getByRole("button", { name: "完成進度 1/2" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /捲腹/ })).toHaveAttribute("aria-pressed", "true");
+});
+
 test("a single click cannot complete a workout without ticking exercises", async ({ page }) => {
   await seedAuth(page);
   let completeCalled = false;

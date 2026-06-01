@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, CheckCircle2, Dumbbell, Plus, Sparkles, Flame, Clock, Trophy, Heart } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,8 +43,19 @@ export function WorkoutsPage() {
   const complete = useCompleteWorkout(today);
 
   // 打卡 requires actually checking off each exercise on the page — not a single
-  // "mark as done" click. Track per-exercise completion, keyed by plan + index.
-  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+  // "mark as done" click. Track per-exercise completion, keyed by plan + index,
+  // and persist it for the day so refreshing mid-workout doesn't lose progress.
+  const checksStorageKey = `workoutChecks:${today}`;
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(checksStorageKey) ?? "{}") as Record<string, boolean>;
+    } catch {
+      return {};
+    }
+  });
+  useEffect(() => {
+    localStorage.setItem(checksStorageKey, JSON.stringify(checkedItems));
+  }, [checksStorageKey, checkedItems]);
   const itemKey = (planId: number, idx: number) => `${planId}:${idx}`;
   const toggleItem = (planId: number, idx: number) =>
     setCheckedItems((prev) => ({ ...prev, [itemKey(planId, idx)]: !prev[itemKey(planId, idx)] }));
