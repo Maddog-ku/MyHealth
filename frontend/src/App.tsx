@@ -7,6 +7,7 @@ import { useTheme } from "@/hooks/useTheme";
 const DashboardPage = lazy(() => import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
 const LoginPage = lazy(() => import("@/pages/LoginPage").then((m) => ({ default: m.LoginPage })));
 const MealsPage = lazy(() => import("@/pages/MealsPage").then((m) => ({ default: m.MealsPage })));
+const ProfilePage = lazy(() => import("@/pages/ProfilePage").then((m) => ({ default: m.ProfilePage })));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
 const WorkoutsPage = lazy(() => import("@/pages/WorkoutsPage").then((m) => ({ default: m.WorkoutsPage })));
 
@@ -27,6 +28,7 @@ export function App() {
           <Route index element={<DashboardPage />} />
           <Route path="/workouts" element={<WorkoutsPage />} />
           <Route path="/meals" element={<MealsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>

@@ -1,12 +1,14 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Activity, Apple, Dumbbell, Flame, Scale, Sparkles, TrendingUp, Cpu } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { WeightCheckInDialog } from "@/components/WeightCheckInDialog";
 import { useDailyStats } from "@/hooks/useDailyStats";
 import { useAiStatus } from "@/hooks/useAiStatus";
+import { useMe } from "@/hooks/useAuth";
 import { api } from "@/api/client";
 import { daysAgoLocalISO, todayLocalISO } from "@/lib/date";
 
@@ -15,6 +17,21 @@ export function DashboardPage() {
   const sevenDaysAgo = useMemo(() => daysAgoLocalISO(6), []);
   const stats = useDailyStats(today);
   const ai = useAiStatus();
+  const { data: user } = useMe();
+
+  // Daily body check-in: auto-prompt once per calendar day so the weight trend
+  // stays current. Dismiss (save or skip) is remembered in localStorage per date.
+  const checkInKey = `weightCheckIn:${today}`;
+  const [checkInOpen, setCheckInOpen] = useState(false);
+  useEffect(() => {
+    if (!user?.profile) return;
+    if (!localStorage.getItem(checkInKey)) setCheckInOpen(true);
+  }, [user, checkInKey]);
+
+  function resolveCheckIn() {
+    localStorage.setItem(checkInKey, "done");
+    setCheckInOpen(false);
+  }
 
   const range = useQuery({
     queryKey: ["stats", "range", sevenDaysAgo, today],
@@ -24,6 +41,10 @@ export function DashboardPage() {
 
   return (
     <section className="grid gap-6 animate-fade-in pb-10">
+      {user?.profile && (
+        <WeightCheckInDialog open={checkInOpen} onClose={resolveCheckIn} profile={user.profile} />
+      )}
+
       {/* Metrics Row */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Metric

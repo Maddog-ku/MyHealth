@@ -5,11 +5,15 @@
 # 用法：
 #   scripts/dev.sh            # 啟動 Postgres + Redis + backend + frontend
 #   scripts/dev.sh --ai       # 額外啟動 Ollama（AI 端點可用）
+#   scripts/dev.sh --restart  # 啟動前先收掉殘留在 8080/5173 的舊 backend/frontend（乾淨重啟）
 #   scripts/dev.sh --infra    # 只起依賴服務（Postgres/Redis），不跑 backend/frontend
 #   scripts/dev.sh --reset    # 重置 DB（DROP SCHEMA 後讓 Flyway 重建）再正常啟動
 #   scripts/dev.sh --seed     # 後端就緒後建立 demo 帳號（demo@example.com / Secret123）
 #   scripts/dev.sh --stop     # 停止並移除 docker compose 服務
 #   scripts/dev.sh --help     # 顯示說明
+#
+# 方便測試的一鍵指令：scripts/dev.sh --restart --seed --ai
+#   （乾淨重啟、建好 demo 帳號、啟用本機 AI）
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -19,6 +23,7 @@ STOP=0
 INFRA_ONLY=0
 RESET=0
 SEED=0
+RESTART=0
 ASSUME_YES=0
 for arg in "$@"; do
   case "$arg" in
@@ -26,10 +31,11 @@ for arg in "$@"; do
     --infra)     INFRA_ONLY=1 ;;
     --reset)     RESET=1 ;;
     --seed)      SEED=1 ;;
+    --restart|--fresh) RESTART=1 ;;
     -y|--yes)    ASSUME_YES=1 ;;
     --stop|--down) STOP=1 ;;
     -h|--help)
-      sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
       exit 0 ;;
     *) echo "unknown arg: ${arg} (用 --help 看用法)" >&2; exit 2 ;;
   esac
@@ -108,11 +114,31 @@ fi
 # backend 無法換 port，8080 被占用就會啟動失敗（exit 1）並連帶讓本腳本收尾。
 # 先擋下來給清楚訊息，而不是啟動一個註定失敗的 backend。
 port_pid() { lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | head -1; }
+
+# (--restart) 啟動前先收掉殘留在 8080/5173 的舊 backend/frontend，
+# 讓 Ctrl+C 沒收乾淨、或在別的終端機殘留時也能一鍵乾淨重啟。
+if [[ $RESTART -eq 1 ]]; then
+  echo "==> --restart：清掉殘留在 8080 / 5173 的舊程序"
+  for port in 8080 5173; do
+    rpid=$(port_pid "$port") || true
+    if [[ -n "$rpid" ]]; then
+      echo "    kill ${rpid} (port ${port}: $(ps -p "${rpid}" -o comm= 2>/dev/null))"
+      kill "${rpid}" 2>/dev/null || true
+    fi
+  done
+  # 等 8080 真的釋放（最多 10 秒），避免緊接著的前置檢查仍看到占用
+  for _ in {1..10}; do
+    [[ -z "$(port_pid 8080)" ]] && break
+    sleep 1
+  done
+fi
+
 pid=$(port_pid 8080) || true
 if [[ -n "$pid" ]]; then
   echo "❌ 連接埠 8080 已被占用 (PID ${pid}: $(ps -p "${pid}" -o comm= 2>/dev/null))" >&2
-  echo "   多半是先前的 backend 還在跑。先停掉再重試:" >&2
-  echo "     kill ${pid}      # 或 pkill -f spring-boot:run" >&2
+  echo "   多半是先前的 backend 還在跑。可一鍵乾淨重啟:" >&2
+  echo "     scripts/dev.sh --restart" >&2
+  echo "   或手動停掉再重試:  kill ${pid}   # 或 pkill -f spring-boot:run" >&2
   exit 1
 fi
 pid=$(port_pid 5173) || true

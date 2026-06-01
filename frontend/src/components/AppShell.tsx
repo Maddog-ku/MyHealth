@@ -8,6 +8,7 @@ const navItems = [
   { to: "/", label: "儀表板", icon: Activity, end: true },
   { to: "/workouts", label: "運動菜單", icon: Dumbbell },
   { to: "/meals", label: "飲食追蹤", icon: Salad },
+  { to: "/profile", label: "生理指標", icon: UserRound },
   { to: "/settings", label: "系統設定", icon: SettingsIcon },
 ];
 
