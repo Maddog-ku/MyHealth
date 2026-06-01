@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
-import type { AuthResponse, DailyStats, Meal, PageEnvelope, Profile, User, WorkoutPlan } from "@/types/api";
+import type { AuthResponse, DailyStats, FoodItem, Meal, PageEnvelope, Profile, User, WorkoutPlan } from "@/types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -111,6 +111,7 @@ export const api = {
   logout: (refreshToken: string) => http.post<void>("/auth/logout", { refreshToken }).then(() => undefined),
   me: () => http.get<User>("/me").then((r) => r.data),
   updateProfile: (profile: Profile) => http.put<Profile>("/me/profile", profile).then((r) => r.data),
+  deleteAccount: () => http.delete<void>("/me").then(() => undefined),
 
   dailyStats: (date: string) => http.get<DailyStats>(`/stats/daily`, { params: { date } }).then((r) => r.data),
   rangeStats: (from: string, to: string) =>
@@ -128,6 +129,8 @@ export const api = {
 
   meals: (date: string) => http.get<PageEnvelope<Meal>>(`/meals`, { params: { date } }).then((r) => r.data),
   createMeal: (form: FormData) => http.post<Meal>("/meals", form).then((r) => r.data),
+  updateMeal: (id: number, body: { items: FoodItem[]; aiSuggestion: string | null }) =>
+    http.put<Meal>(`/meals/${id}`, body).then((r) => r.data),
   deleteMeal: (id: number) => http.delete<void>(`/meals/${id}`).then(() => undefined),
 
   aiStatus: () =>

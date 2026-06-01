@@ -170,6 +170,16 @@ class LocalAiProviderTest {
     }
 
     @Test
+    void generateWorkout_fallsBackToWaistTemplate_whenOllamaThrows() {
+        when(ollama.chat(any(), any(), any(), anyBoolean(), any()))
+                .thenThrow(new OllamaClient.OllamaException("down"));
+
+        List<ExerciseItem> items = provider.generateWorkout("waist", 30, "medium");
+
+        assertThat(items.get(0).name()).isEqualTo("側棒式");  // waist fallback template
+    }
+
+    @Test
     void generateWorkout_fallsBackToTemplate_whenJsonMalformed() {
         when(ollama.chat(any(), any(), any(), anyBoolean(), any()))
                 .thenReturn("not really json at all");

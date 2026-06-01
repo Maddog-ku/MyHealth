@@ -14,6 +14,7 @@ import type { ExerciseItem } from "@/types/api";
 
 const CATEGORIES: { value: string; label: string }[] = [
   { value: "abs", label: "腹肌核心" },
+  { value: "waist", label: "腰腹側線" },
   { value: "legs", label: "腿部肌群" },
   { value: "chest", label: "胸部塑造" },
   { value: "back", label: "背部強化" },
@@ -194,14 +195,14 @@ export function WorkoutsPage() {
                     <span className="text-[10px] text-muted-foreground font-semibold">平均間隔休息</span>
                     <div className="flex items-center gap-1 mt-1">
                       <Clock className="size-4 text-amber-500" />
-                      <span className="font-extrabold text-slate-800 dark:text-slate-100">45 - 60 秒</span>
+                      <span className="font-extrabold text-slate-800 dark:text-slate-100">{avgRestSec(plan.items)} 秒</span>
                     </div>
                   </div>
                   <div className="p-4 flex flex-col items-center">
-                    <span className="text-[10px] text-muted-foreground font-semibold">建議補充水分</span>
+                    <span className="text-[10px] text-muted-foreground font-semibold">訓練總組數</span>
                     <div className="flex items-center gap-1 mt-1">
                       <Heart className="size-4 text-sky-500" />
-                      <span className="font-extrabold text-slate-800 dark:text-slate-100">300 ml</span>
+                      <span className="font-extrabold text-slate-800 dark:text-slate-100">{totalSets(plan.items)} 組</span>
                     </div>
                   </div>
                 </div>
@@ -229,6 +230,15 @@ export function WorkoutsPage() {
       </div>
     </section>
   );
+}
+
+function avgRestSec(items: ExerciseItem[]): number {
+  if (items.length === 0) return 0;
+  return Math.round(items.reduce((sum, i) => sum + i.restSec, 0) / items.length);
+}
+
+function totalSets(items: ExerciseItem[]): number {
+  return items.reduce((sum, i) => sum + i.sets, 0);
 }
 
 function ExerciseRow({ item }: { item: ExerciseItem }) {

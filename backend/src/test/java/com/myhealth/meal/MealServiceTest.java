@@ -18,6 +18,7 @@ import com.myhealth.ai.AiProvider.MealAnalysis;
 import com.myhealth.common.ApiException;
 import com.myhealth.common.ErrorCode;
 import com.myhealth.meal.MealDtos.MealResponse;
+import com.myhealth.meal.MealDtos.UpdateMealRequest;
 import com.myhealth.user.AppUser;
 import com.myhealth.user.Role;
 import java.lang.reflect.Field;
@@ -238,6 +239,57 @@ class MealServiceTest {
                 .isInstanceOf(ApiException.class)
                 .extracting(e -> ((ApiException) e).status())
                 .isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void update_replacesItems_recomputesTotals_andSetsSuggestion() {
+        Meal meal = mealWithId(7L, owner);
+        meal.setTotalKcal(999);  // stale value that must be recomputed from the new items
+        when(meals.findByIdAndUserId(7L, 1L)).thenReturn(Optional.of(meal));
+        when(meals.save(any(Meal.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateMealRequest request = new UpdateMealRequest(
+                List.of(new FoodItem("雞胸肉", 180, 297, 55.8, 6.5, 0.0, 1.0),
+                        new FoodItem("糙米飯", 100, 112, 2.6, 0.9, 23.5, 1.0)),
+                "手動修正後的紀錄");
+
+        MealResponse response = service.update(owner, 7L, request);
+
+        assertThat(meal.getTotalKcal()).isEqualTo(409);
+        assertThat(meal.getTotalProtein()).isEqualByComparingTo("58.40");
+        assertThat(meal.getTotalCarb()).isEqualByComparingTo("23.50");
+        assertThat(meal.getAiSuggestion()).isEqualTo("手動修正後的紀錄");
+        assertThat(response.totalKcal()).isEqualTo(409);
+        assertThat(response.items()).hasSize(2);
+        verify(meals).save(meal);
+    }
+
+    @Test
+    void update_clearsTotalsAndSuggestion_whenItemsEmptyAndSuggestionNull() {
+        Meal meal = mealWithId(8L, owner);
+        meal.setTotalKcal(500);
+        meal.setAiSuggestion("舊建議");
+        when(meals.findByIdAndUserId(8L, 1L)).thenReturn(Optional.of(meal));
+        when(meals.save(any(Meal.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MealResponse response = service.update(owner, 8L, new UpdateMealRequest(List.of(), null));
+
+        assertThat(meal.getTotalKcal()).isZero();
+        assertThat(meal.getTotalProtein()).isEqualByComparingTo("0.00");
+        assertThat(meal.getAiSuggestion()).isNull();
+        assertThat(response.items()).isEmpty();
+    }
+
+    @Test
+    void update_throws404_whenNotOwned() {
+        when(meals.findByIdAndUserId(50L, 1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.update(owner, 50L, new UpdateMealRequest(List.of(), null)))
+                .isInstanceOf(ApiException.class)
+                .extracting(e -> ((ApiException) e).status())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+
+        verify(meals, never()).save(any());
     }
 
     @Test

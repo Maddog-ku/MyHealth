@@ -155,6 +155,24 @@ class MealControllerTest {
     }
 
     @Test
+    void update_returns200_andDelegatesToService() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        when(mealService.update(any(), eq(1L), any())).thenReturn(stubMeal(1L));
+
+        String body = """
+                {"items":[{"name":"雞胸肉","grams":180,"kcal":297,"protein":55.8,"fat":6.5,"carb":0,"confidence":1.0}],
+                 "aiSuggestion":null}
+                """;
+
+        mockMvc.perform(put("/api/v1/meals/1").contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.totalKcal").value(248));
+
+        verify(mealService).update(any(), eq(1L), any());
+    }
+
+    @Test
     void update_returns400_whenFoodItemInvalid() throws Exception {
         String body = """
                 {"items":[{"name":"","grams":100,"kcal":100,"protein":1,"fat":1,"carb":1,"confidence":0.5}],

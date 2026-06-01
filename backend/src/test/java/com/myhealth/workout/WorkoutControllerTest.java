@@ -80,6 +80,24 @@ class WorkoutControllerTest {
     }
 
     @Test
+    void generate_returns201_forWaistCategory() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        WorkoutPlanResponse waistPlan = new WorkoutPlanResponse(
+                9L, LocalDate.of(2026, 5, 30), "waist",
+                List.of(new ExerciseItem("側棒式", 3, "每側30s", 45, 35, "髖部抬高", List.of())),
+                35, false, Instant.parse("2026-05-30T00:00:00Z"));
+        when(workoutService.generate(any(), any())).thenReturn(waistPlan);
+
+        String body = "{\"date\":\"2026-05-30\",\"category\":\"waist\",\"durationMin\":30,\"intensity\":\"medium\"}";
+
+        mockMvc.perform(post("/api/v1/workouts/generate")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.category").value("waist"))
+                .andExpect(jsonPath("$.items[0].name").value("側棒式"));
+    }
+
+    @Test
     void generate_returns429_whenAiRateLimited() throws Exception {
         when(currentUser.require()).thenReturn(stubUser());
         doThrow(new ApiException(HttpStatus.TOO_MANY_REQUESTS, ErrorCode.RATE_LIMITED,

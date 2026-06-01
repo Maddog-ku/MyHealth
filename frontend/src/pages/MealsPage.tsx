@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useRef, useState } from "react";
-import { Apple, Image as ImageIcon, Plus, Trash2, X, Sparkles, ChevronRight, UtensilsCrossed } from "lucide-react";
+import { Apple, Image as ImageIcon, Pencil, Plus, Save, Trash2, X, Sparkles, ChevronRight, UtensilsCrossed } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AiGenerationPanel } from "@/components/AiGenerationPanel";
-import { useCreateMeal, useDeleteMeal, useMeals } from "@/hooks/useMeals";
+import { useCreateMeal, useDeleteMeal, useMeals, useUpdateMeal } from "@/hooks/useMeals";
 import { ApiError } from "@/api/client";
 import { todayLocalISO } from "@/lib/date";
+import type { FoodItem, Meal } from "@/types/api";
 
 const SLOTS = [
   { value: "breakfast", label: "早餐", time: "上午 06:00 - 09:00" },
@@ -40,6 +41,7 @@ export function MealsPage() {
   const [description, setDescription] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [inputWarning, setInputWarning] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const meals = useMeals(today);
@@ -229,8 +231,19 @@ export function MealsPage() {
 
                 <div className="flex items-center gap-2">
                   <Badge className="rounded-full text-[10px] bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/5 px-2.5 py-0.5">
-                    AI 估算
+                    {meal.items.length > 0 && meal.items.every((i) => i.confidence === 1) ? "已手動修正" : "AI 估算"}
                   </Badge>
+                  {editingId !== meal.id && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setEditingId(meal.id)}
+                      className="rounded-full text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/5 size-8 transition-colors duration-300"
+                      aria-label="手動修正此餐紀錄"
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -245,6 +258,10 @@ export function MealsPage() {
               </CardHeader>
 
               <CardContent className="px-6 pb-6 space-y-4">
+                {editingId === meal.id ? (
+                  <MealEditor meal={meal} date={today} onClose={() => setEditingId(null)} />
+                ) : (
+                <>
                 {/* Micro Nutrients Summary Pill system - User Oriented */}
                 <div className="grid grid-cols-4 gap-2">
                   <NutrientBadge label="總卡路里" value={meal.totalKcal} unit="kcal" type="kcal" />
@@ -296,6 +313,8 @@ export function MealsPage() {
                     <p className="font-medium italic pl-1">{meal.aiSuggestion}</p>
                   </div>
                 )}
+                </>
+                )}
               </CardContent>
             </Card>
           ))
@@ -312,6 +331,170 @@ export function MealsPage() {
         ) : null}
       </div>
     </section>
+  );
+}
+
+function emptyFoodItem(): FoodItem {
+  return { name: "", grams: 0, kcal: 0, protein: 0, fat: 0, carb: 0, confidence: 1 };
+}
+
+function MealEditor({ meal, date, onClose }: { meal: Meal; date: string; onClose: () => void }) {
+  const update = useUpdateMeal(date);
+  const [rows, setRows] = useState<FoodItem[]>(
+    meal.items.length > 0 ? meal.items.map((i) => ({ ...i })) : [emptyFoodItem()],
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  function setField(idx: number, field: keyof FoodItem, raw: string) {
+    setRows((prev) =>
+      prev.map((r, i) => (i === idx ? { ...r, [field]: field === "name" ? raw : Number(raw) } : r)),
+    );
+  }
+  function addRow() {
+    setRows((prev) => (prev.length >= 5 ? prev : [...prev, emptyFoodItem()]));
+  }
+  function removeRow(idx: number) {
+    setRows((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function save() {
+    const cleaned = rows
+      .map((r) => ({ ...r, name: r.name.trim(), confidence: 1 }))
+      .filter((r) => r.name.length > 0);
+    if (cleaned.length === 0) {
+      setError("請至少保留一個有名稱的食物項目，或直接刪除整筆紀錄。");
+      return;
+    }
+    if (cleaned.some((r) => [r.grams, r.kcal, r.protein, r.fat, r.carb].some((n) => !Number.isFinite(n) || n < 0))) {
+      setError("份量與營養素必須為 0 以上的數值。");
+      return;
+    }
+    setError(null);
+    try {
+      await update.mutateAsync({ id: meal.id, items: cleaned, aiSuggestion: null });
+      onClose();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "儲存失敗，請稍後再試。");
+    }
+  }
+
+  const totalKcal = rows.reduce((s, r) => s + (Number.isFinite(r.kcal) ? r.kcal : 0), 0);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+          手動修正成分明細
+        </span>
+        <span className="text-[10px] text-muted-foreground font-semibold">
+          總計約 <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">{totalKcal}</span> kcal · {rows.length}/5 項
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        {rows.map((row, idx) => (
+          <div
+            key={idx}
+            className="rounded-2xl border border-slate-100 dark:border-slate-900/50 bg-white/40 dark:bg-slate-950/20 p-3 space-y-2"
+          >
+            <div className="flex items-center gap-2">
+              <Input
+                value={row.name}
+                maxLength={80}
+                onChange={(e) => setField(idx, "name", e.target.value)}
+                placeholder="食物名稱"
+                className="flex-1 rounded-xl text-xs py-4 border-slate-200/80 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 focus-visible:ring-emerald-500"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => removeRow(idx)}
+                aria-label="刪除此項目"
+                className="rounded-full text-muted-foreground hover:text-rose-500 hover:bg-rose-500/5 size-8 shrink-0"
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
+            <div className="grid grid-cols-5 gap-1.5">
+              <NumField label="克 (g)" value={row.grams} onChange={(v) => setField(idx, "grams", v)} />
+              <NumField label="熱量" value={row.kcal} onChange={(v) => setField(idx, "kcal", v)} />
+              <NumField label="蛋白" value={row.protein} onChange={(v) => setField(idx, "protein", v)} />
+              <NumField label="脂肪" value={row.fat} onChange={(v) => setField(idx, "fat", v)} />
+              <NumField label="碳水" value={row.carb} onChange={(v) => setField(idx, "carb", v)} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {error && (
+        <Alert variant="destructive" className="rounded-2xl border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-400">
+          <AlertDescription className="text-[11px]">{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <p className="text-[10px] text-muted-foreground px-1 leading-relaxed">
+        手動修正後此餐會標記為使用者確認值（信心度 100%），並清除原本的 AI 飲食建議。
+      </p>
+
+      <div className="flex items-center justify-between gap-2 pt-0.5">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={addRow}
+          disabled={rows.length >= 5 || update.isPending}
+          className="rounded-2xl text-xs gap-1.5 border-slate-200/80 dark:border-slate-800 disabled:opacity-50"
+        >
+          <Plus className="size-4 text-emerald-500" />
+          新增項目
+        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+            disabled={update.isPending}
+            className="rounded-2xl text-xs text-muted-foreground"
+          >
+            取消
+          </Button>
+          <Button
+            type="button"
+            onClick={save}
+            disabled={update.isPending}
+            className="rounded-2xl text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-500/10"
+          >
+            {update.isPending ? (
+              <>
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                儲存中...
+              </>
+            ) : (
+              <>
+                <Save className="size-4" />
+                儲存修正
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NumField({ label, value, onChange }: { label: string; value: number; onChange: (v: string) => void }) {
+  return (
+    <div className="grid gap-1">
+      <span className="text-[9px] text-muted-foreground font-semibold text-center uppercase tracking-wide">{label}</span>
+      <Input
+        type="number"
+        min={0}
+        inputMode="decimal"
+        value={Number.isFinite(value) ? value : 0}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-xl text-center text-xs py-3 px-1 border-slate-200/80 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 focus-visible:ring-emerald-500"
+      />
+    </div>
   );
 }
 

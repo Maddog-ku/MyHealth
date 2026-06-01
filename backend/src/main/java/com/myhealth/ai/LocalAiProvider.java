@@ -308,6 +308,10 @@ public class LocalAiProvider implements AiProvider {
                         new ExerciseItem("捲腹", 4, "15", 45, 40, "下背貼地，避免用脖子出力", List.of("死蟲式")),
                         new ExerciseItem("棒式", 3, "45s", 45, 35, "身體維持一直線", List.of("跪姿棒式")),
                         new ExerciseItem("登山者", 3, "30s", 60, 55, "穩定核心，膝蓋朝胸口收", List.of("慢速登山者"))),
+                "waist", List.of(
+                        new ExerciseItem("側棒式", 3, "每側30s", 45, 35, "髖部抬高，身體呈一直線", List.of("跪姿側棒式")),
+                        new ExerciseItem("俄羅斯轉體", 4, "每側12", 45, 45, "轉動軀幹，骨盆保持穩定", List.of("徒手轉體")),
+                        new ExerciseItem("站姿側屈", 3, "每側15", 30, 30, "緩慢側彎，感受側腹收縮", List.of("坐姿側屈"))),
                 "legs", List.of(
                         new ExerciseItem("深蹲", 4, "12", 60, 70, "膝蓋朝腳尖方向", List.of("椅子深蹲")),
                         new ExerciseItem("弓箭步", 3, "每側10", 60, 65, "保持軀幹穩定", List.of("反向弓箭步")),

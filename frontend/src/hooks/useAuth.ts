@@ -56,3 +56,14 @@ export function useUpdateProfile() {
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.me }),
   });
 }
+
+export function useDeleteAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.deleteAccount(),
+    onSettled: () => {
+      clearAuth();
+      qc.clear();
+    },
+  });
+}

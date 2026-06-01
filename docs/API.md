@@ -379,7 +379,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 | 欄位 | 必填 | 說明 |
 |---|---|---|
 | `date` | ✓ | 目標日期 |
-| `category` | ✓ | `abs` \| `legs` \| `chest` \| `back` \| `glutes` \| `arms` \| `full_body` \| `cardio` |
+| `category` | ✓ | `abs` \| `waist` \| `legs` \| `chest` \| `back` \| `glutes` \| `arms` \| `full_body` \| `cardio` |
 | `durationMin` | ✗ | 預期訓練長度（10–180），預設 30 |
 | `intensity` | ✗ | `low` \| `medium` \| `high`，預設 `medium` |
 | `equipmentOverride` | ✗ | 覆蓋個人檔案的可用器材 |
