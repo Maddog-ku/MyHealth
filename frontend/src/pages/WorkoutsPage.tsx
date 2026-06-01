@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CheckCircle2, Dumbbell, Plus, Sparkles, Flame, Clock, Trophy, Heart } from "lucide-react";
+import { Check, CheckCircle2, Dumbbell, Plus, Sparkles, Flame, Clock, Trophy, Heart } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +41,15 @@ export function WorkoutsPage() {
   const workouts = useWorkouts(today);
   const generate = useGenerateWorkout(today);
   const complete = useCompleteWorkout(today);
+
+  // 打卡 requires actually checking off each exercise on the page — not a single
+  // "mark as done" click. Track per-exercise completion, keyed by plan + index.
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+  const itemKey = (planId: number, idx: number) => `${planId}:${idx}`;
+  const toggleItem = (planId: number, idx: number) =>
+    setCheckedItems((prev) => ({ ...prev, [itemKey(planId, idx)]: !prev[itemKey(planId, idx)] }));
+  const completedCount = (planId: number, total: number) =>
+    Array.from({ length: total }, (_, idx) => checkedItems[itemKey(planId, idx)]).filter(Boolean).length;
 
   return (
     <section className="grid gap-6 animate-fade-in pb-10">
@@ -157,20 +166,27 @@ export function WorkoutsPage() {
                   <Badge variant="muted" className="rounded-full text-[9px] bg-slate-500/10 text-slate-600 dark:text-slate-400 px-2 py-0.5 border border-slate-500/5">
                     AI 智慧生成
                   </Badge>
-                  <Button
-                    size="sm"
-                    variant={plan.done ? "secondary" : "default"}
-                    disabled={plan.done || complete.isPending}
-                    onClick={() => complete.mutate(plan.id)}
-                    className={`rounded-2xl px-4 py-4 text-xs font-semibold gap-1.5 shadow-sm transition-all duration-300 ${
-                      plan.done
-                        ? "bg-slate-100 dark:bg-slate-900 text-muted-foreground border border-slate-200 dark:border-slate-800"
-                        : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/10"
-                    }`}
-                  >
-                    <CheckCircle2 className="size-4" />
-                    {plan.done ? "已打卡完成" : "完成本次訓練"}
-                  </Button>
+                  {(() => {
+                    const total = plan.items.length;
+                    const done = completedCount(plan.id, total);
+                    const allChecked = total > 0 && done === total;
+                    return (
+                      <Button
+                        size="sm"
+                        variant={plan.done ? "secondary" : "default"}
+                        disabled={plan.done || complete.isPending || !allChecked}
+                        onClick={() => complete.mutate(plan.id)}
+                        className={`rounded-2xl px-4 py-4 text-xs font-semibold gap-1.5 shadow-sm transition-all duration-300 ${
+                          plan.done
+                            ? "bg-slate-100 dark:bg-slate-900 text-muted-foreground border border-slate-200 dark:border-slate-800"
+                            : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/10"
+                        }`}
+                      >
+                        <CheckCircle2 className="size-4" />
+                        {plan.done ? "已打卡完成" : allChecked ? "完成打卡" : `完成進度 ${done}/${total}`}
+                      </Button>
+                    );
+                  })()}
                 </div>
               </CardHeader>
               
@@ -208,9 +224,20 @@ export function WorkoutsPage() {
                 </div>
 
                 {/* Exercises list - Board format */}
+                {!plan.done && (
+                  <p className="px-6 pt-3 text-[11px] text-muted-foreground">
+                    逐一完成每個動作後點擊勾選，全部完成才能打卡。
+                  </p>
+                )}
                 <ul className="divide-y divide-slate-50 dark:divide-slate-900/60 bg-white/40 dark:bg-slate-950/10">
                   {plan.items.map((item, idx) => (
-                    <ExerciseRow key={`${item.name}-${idx}`} item={item} />
+                    <ExerciseRow
+                      key={`${item.name}-${idx}`}
+                      item={item}
+                      done={plan.done || !!checkedItems[itemKey(plan.id, idx)]}
+                      disabled={plan.done || complete.isPending}
+                      onToggle={() => toggleItem(plan.id, idx)}
+                    />
                   ))}
                 </ul>
               </CardContent>
@@ -241,12 +268,68 @@ function totalSets(items: ExerciseItem[]): number {
   return items.reduce((sum, i) => sum + i.sets, 0);
 }
 
-function ExerciseRow({ item }: { item: ExerciseItem }) {
+function ExerciseRow({
+  item,
+  done,
+  disabled,
+  onToggle,
+}: {
+  item: ExerciseItem;
+  done: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+}) {
+  const interactive = !disabled;
   return (
-    <li className="grid grid-cols-[1fr_auto] gap-3 px-6 py-4 text-xs items-center hover:bg-slate-50 dark:hover:bg-slate-900/10 transition-colors duration-200 md:grid-cols-[2fr_1.2fr_1fr_1fr]">
-      <div>
-        <p className="font-extrabold text-slate-700 dark:text-slate-200 text-sm">{item.name}</p>
-        {item.note && <p className="text-[10px] text-muted-foreground mt-0.5 italic">{item.note}</p>}
+    <li
+      role="button"
+      aria-pressed={done}
+      aria-label={`${item.name}${done ? "，已完成" : "，點擊標記完成"}`}
+      tabIndex={interactive ? 0 : -1}
+      onClick={interactive ? onToggle : undefined}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onToggle();
+              }
+            }
+          : undefined
+      }
+      className={`grid grid-cols-[1fr_auto] gap-3 px-6 py-4 text-xs items-center transition-colors duration-200 md:grid-cols-[2fr_1.2fr_1fr_1fr] ${
+        interactive ? "cursor-pointer" : ""
+      } ${
+        done
+          ? "bg-emerald-50/50 dark:bg-emerald-950/10"
+          : interactive
+            ? "hover:bg-slate-50 dark:hover:bg-slate-900/10"
+            : ""
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <span
+          aria-hidden
+          className={`flex size-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+            done
+              ? "bg-emerald-500 border-emerald-500 text-white"
+              : "border-slate-300 dark:border-slate-700 text-transparent"
+          }`}
+        >
+          <Check className="size-3.5" />
+        </span>
+        <div>
+          <p
+            className={`font-extrabold text-sm ${
+              done
+                ? "text-emerald-700 dark:text-emerald-400 line-through decoration-emerald-500/40"
+                : "text-slate-700 dark:text-slate-200"
+            }`}
+          >
+            {item.name}
+          </p>
+          {item.note && <p className="text-[10px] text-muted-foreground mt-0.5 italic">{item.note}</p>}
+        </div>
       </div>
       <div className="flex items-center gap-2">
         <Badge variant="outline" className="rounded-xl px-2 py-0.5 bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800 font-bold text-slate-600 dark:text-slate-400 text-[10px]">
