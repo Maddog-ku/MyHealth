@@ -3,19 +3,28 @@ package com.myhealth.user;
 import com.myhealth.auth.AuthMapper;
 import com.myhealth.auth.AuthDtos.ProfileResponse;
 import com.myhealth.auth.AuthDtos.UserResponse;
+import com.myhealth.meal.FileStorageService;
+import com.myhealth.meal.MealRepository;
 import com.myhealth.user.UserDtos.ProfileUpdateRequest;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class UserService {
     private final UserRepository users;
     private final BodyMeasurementRepository bodyMeasurements;
+    private final MealRepository meals;
+    private final FileStorageService fileStorage;
 
-    public UserService(UserRepository users, BodyMeasurementRepository bodyMeasurements) {
+    public UserService(UserRepository users, BodyMeasurementRepository bodyMeasurements,
+                       MealRepository meals, FileStorageService fileStorage) {
         this.users = users;
         this.bodyMeasurements = bodyMeasurements;
+        this.meals = meals;
+        this.fileStorage = fileStorage;
     }
 
     public UserResponse me(AppUser user) {
@@ -69,6 +78,21 @@ public class UserService {
 
     @Transactional
     public void deleteAccount(AppUser user) {
+        List<String> imageUrls = meals.findImageUrlsByUserId(user.getId());
         users.delete(user);
+        runAfterCommit(() -> imageUrls.forEach(fileStorage::delete));
+    }
+
+    private void runAfterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
     }
 }

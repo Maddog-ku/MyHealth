@@ -73,7 +73,7 @@ export function DashboardPage() {
           color="emerald"
         />
         <Metric
-          icon={<Flame className="size-5 text-amber-500 animate-pulse" />}
+          icon={<Flame className="size-5 text-amber-500" />}
           label="運動消耗"
           value={stats.isLoading ? null : `${stats.data?.burnKcal ?? 0}`}
           unit="kcal"
@@ -219,7 +219,6 @@ export function DashboardPage() {
                     <span className="text-xs text-muted-foreground font-medium">引擎狀態</span>
                     <div className="flex items-center gap-2">
                       <span className="relative flex h-2 w-2">
-                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${ai.data.loaded ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
                         <span className={`relative inline-flex rounded-full h-2 w-2 ${ai.data.loaded ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
                       </span>
                       <Badge
@@ -363,7 +362,7 @@ function EmptyState({ children }: { children: React.ReactNode }) {
   return (
     <div className="grid h-36 place-items-center rounded-2xl bg-slate-50/50 dark:bg-slate-900/20 border border-dashed border-slate-200 dark:border-slate-800 text-xs text-muted-foreground text-center p-6 leading-relaxed select-none">
       <div className="flex flex-col items-center gap-2 max-w-xs">
-        <Sparkles className="size-5 text-emerald-500/60 animate-bounce" />
+        <Sparkles className="size-5 text-emerald-500/60" />
         {children}
       </div>
     </div>

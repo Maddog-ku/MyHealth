@@ -64,7 +64,7 @@ public class MealService {
         try {
             analysis = aiProvider.analyzeMeal(normalizedDescription, mealImage);
         } catch (RuntimeException ex) {
-            log.warn("AI meal analysis failed, saving raw entry", ex);
+            log.warn("AI meal analysis failed, saving empty analysis: {}", summarizeException(ex));
             analysis = AiProvider.MealAnalysis.empty();
         }
 
@@ -191,6 +191,14 @@ public class MealService {
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Unable to deserialize meal items", ex);
         }
+    }
+
+    private String summarizeException(RuntimeException ex) {
+        String message = ex.getMessage();
+        if (message == null || message.isBlank()) {
+            return ex.getClass().getSimpleName();
+        }
+        return "%s: %s".formatted(ex.getClass().getSimpleName(), message.lines().findFirst().orElse(""));
     }
 
 }

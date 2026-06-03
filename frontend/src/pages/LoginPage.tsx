@@ -76,8 +76,8 @@ export function LoginPage() {
   return (
     <main className="relative grid min-h-screen place-items-center overflow-hidden bg-gradient-to-tr from-slate-50 via-slate-100 to-emerald-50/30 px-4 py-16 dark:from-[#070b13] dark:via-[#0c1322] dark:to-[#08151f]">
       {/* Decorative ambient blobs for aesthetics */}
-      <div className="absolute top-1/4 left-1/4 -z-10 size-72 rounded-full bg-emerald-300/10 blur-3xl dark:bg-emerald-500/5 animate-pulse" style={{ animationDuration: '8s' }}></div>
-      <div className="absolute bottom-1/4 right-1/4 -z-10 size-80 rounded-full bg-teal-300/10 blur-3xl dark:bg-teal-500/5 animate-pulse" style={{ animationDuration: '10s' }}></div>
+      <div className="absolute top-1/4 left-1/4 -z-10 size-72 rounded-full bg-emerald-300/10 blur-3xl dark:bg-emerald-500/5"></div>
+      <div className="absolute bottom-1/4 right-1/4 -z-10 size-80 rounded-full bg-teal-300/10 blur-3xl dark:bg-teal-500/5"></div>
 
       <div className="w-full max-w-[440px] space-y-6 animate-fade-in z-10">
         {/* App Logo / Brand */}

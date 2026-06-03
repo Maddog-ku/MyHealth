@@ -1,5 +1,6 @@
-import { Activity, Brain, Camera, Dumbbell, Loader2, Sparkles, UtensilsCrossed } from "lucide-react";
+import { Activity, Brain, Camera, Dumbbell, Lightbulb, Loader2, Sparkles, UtensilsCrossed } from "lucide-react";
 import type { ReactNode } from "react";
+import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +12,8 @@ const COPY: Record<GenerationKind, {
   description: string;
   steps: string[];
   preview: string[];
+  tipsTitle: string;
+  tips: string[];
 }> = {
   workout: {
     icon: <Dumbbell className="size-5" />,
@@ -18,6 +21,14 @@ const COPY: Record<GenerationKind, {
     description: "本地模型正在依照分類、時長與強度產生安全的動作組合。",
     steps: ["讀取訓練條件", "套用安全限制", "整理動作與休息時間"],
     preview: ["動作名稱", "組數與次數", "休息秒數", "預估消耗"],
+    tipsTitle: "運動小知識",
+    tips: [
+      "阻力訓練不一定要練到力竭，保留 1 到 3 次餘裕通常更容易維持動作品質。",
+      "同一肌群給足恢復時間，通常比每天硬練更有利於穩定進步。",
+      "熱身的目的不是把自己操累，而是讓關節活動度和神經反應先醒過來。",
+      "深蹲與弓箭步先控制下放速度，比一開始追求重量更能降低代償。",
+      "訓練紀錄最有價值的是趨勢：重量、次數、休息時間都比單次表現更重要。",
+    ],
   },
   meal: {
     icon: <UtensilsCrossed className="size-5" />,
@@ -25,11 +36,20 @@ const COPY: Record<GenerationKind, {
     description: "本地模型正在辨識照片或文字，並用保守規則估算營養。",
     steps: ["讀取餐點資訊", "辨識可見食物", "計算熱量與營養素"],
     preview: ["食物項目", "份量估算", "三大營養素", "可信度"],
+    tipsTitle: "飲食小知識",
+    tips: [
+      "同一份餐點先估蛋白質來源，再估主食與油脂，通常比直接猜總熱量更穩。",
+      "醬料、油煎與堅果很容易被低估；拍照時讓它們入鏡會讓紀錄更接近現實。",
+      "蔬菜熱量通常不高，但能增加飽足感，也讓餐點體積更容易被判斷。",
+      "外食便當的白飯份量差異很大，半碗、一碗、滿盒會讓熱量落差很明顯。",
+      "AI 估算適合看長期趨勢，單餐誤差可以透過手動修正慢慢校準。",
+    ],
   },
 };
 
 export function AiGenerationPanel({ kind, className }: { kind: GenerationKind; className?: string }) {
   const copy = COPY[kind];
+  const tip = useMemo(() => copy.tips[Math.floor(Math.random() * copy.tips.length)], [copy.tips]);
 
   return (
     <Card
@@ -95,6 +115,13 @@ export function AiGenerationPanel({ kind, className }: { kind: GenerationKind; c
           <div className="mt-1 flex items-center gap-2 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
             <Activity className="size-3.5 animate-pulse" />
             本地 AI 推理中，完成後會自動更新列表
+          </div>
+          <div className="rounded-xl border border-amber-500/10 bg-amber-500/5 p-3 text-[11px] leading-relaxed text-amber-800 dark:text-amber-200">
+            <div className="mb-1.5 flex items-center gap-1.5 font-extrabold text-amber-700 dark:text-amber-300">
+              <Lightbulb className="size-3.5" />
+              {copy.tipsTitle}
+            </div>
+            <p>{tip}</p>
           </div>
         </div>
       </CardContent>

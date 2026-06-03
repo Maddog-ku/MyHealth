@@ -16,7 +16,7 @@ public class AiIdleWatcher {
         this.properties = properties;
     }
 
-    @Scheduled(fixedDelay = 60_000)
+    @Scheduled(fixedDelayString = "${AI_IDLE_CHECK_INTERVAL_MS:300000}")
     void unloadWhenIdle() {
         Instant lastUsedAt = provider.lastUsedAt();
         if (!provider.loaded() || lastUsedAt == null) {

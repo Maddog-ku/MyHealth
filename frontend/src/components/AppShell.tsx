@@ -112,7 +112,7 @@ export function AppShell() {
           <div>
             <p className="text-xs font-medium text-muted-foreground tracking-wide">{todayString}</p>
             <div className="flex items-center gap-2 mt-0.5">
-              <Sparkles className="size-4 text-emerald-500 dark:text-emerald-400 animate-spin" style={{ animationDuration: '6s' }} />
+              <Sparkles className="size-4 text-emerald-500 dark:text-emerald-400" />
               <h1 className="text-lg md:text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
                 {user?.name ? `${user.name}，${greeting}` : greeting}
               </h1>
@@ -123,7 +123,6 @@ export function AppShell() {
             {/* Quick profile info badge */}
             <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-slate-100 dark:border-slate-900 bg-slate-50/50 dark:bg-slate-900/20 text-xs font-semibold">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
               <span className="text-muted-foreground">AI 引擎已連線</span>

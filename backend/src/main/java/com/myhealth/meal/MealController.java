@@ -10,6 +10,7 @@ import com.myhealth.meal.MealDtos.UpdateMealRequest;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -70,6 +71,8 @@ public class MealController {
                 : MediaType.parseMediaType(image.contentType());
         return ResponseEntity.ok()
                 .contentType(mediaType)
+                .header(HttpHeaders.CACHE_CONTROL, "private, no-store")
+                .header(HttpHeaders.PRAGMA, "no-cache")
                 .body(image.resource());
     }
 

@@ -187,7 +187,7 @@ export function ProfilePage() {
               )}
               {saved && (
                 <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-extrabold animate-fade-in">
-                  <UserCheck className="size-4 animate-bounce" />
+                  <UserCheck className="size-4" />
                   <span>資料已成功同步更新！</span>
                 </div>
               )}

@@ -1,12 +1,15 @@
 package com.myhealth.user;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.myhealth.auth.AuthDtos.ProfileResponse;
 import com.myhealth.auth.AuthDtos.UserResponse;
+import com.myhealth.meal.FileStorageService;
+import com.myhealth.meal.MealRepository;
 import com.myhealth.user.UserDtos.ProfileUpdateRequest;
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +24,8 @@ class UserServiceTest {
 
     @Mock UserRepository users;
     @Mock BodyMeasurementRepository bodyMeasurements;
+    @Mock MealRepository meals;
+    @Mock FileStorageService fileStorage;
 
     UserService service;
     AppUser user;
@@ -28,11 +33,12 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new UserService(users, bodyMeasurements);
+        service = new UserService(users, bodyMeasurements, meals, fileStorage);
         user = new AppUser();
         user.setEmail("alice@example.com");
         user.setName("Alice");
         user.setRole(Role.USER);
+        setId(user, 42L);
         profile = new Profile();
         profile.setGender(Gender.female);
         profile.setHeightCm(new BigDecimal("165"));
@@ -46,6 +52,16 @@ class UserServiceTest {
             var f = target.getClass().getDeclaredField(name);
             f.setAccessible(true);
             return (T) f.get(target);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private static void setId(AppUser user, Long id) {
+        try {
+            Field f = AppUser.class.getDeclaredField("id");
+            f.setAccessible(true);
+            f.set(user, id);
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
         }
@@ -113,9 +129,17 @@ class UserServiceTest {
     }
 
     @Test
-    void deleteAccount_delegatesToRepository() {
+    void deleteAccount_delegatesToRepository_andDeletesMealImages() {
+        when(meals.findImageUrlsByUserId(42L)).thenReturn(List.of(
+                "2026/05/30/meal-a.jpg",
+                "2026/05/31/meal-b.webp"));
+
         service.deleteAccount(user);
+
+        verify(meals).findImageUrlsByUserId(42L);
         verify(users).delete(user);
+        verify(fileStorage).delete("2026/05/30/meal-a.jpg");
+        verify(fileStorage).delete("2026/05/31/meal-b.webp");
     }
 
     @Test

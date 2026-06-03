@@ -6,7 +6,8 @@ export function useAiStatus() {
   return useQuery({
     queryKey: qk.aiStatus,
     queryFn: api.aiStatus,
-    refetchInterval: 30_000,
-    staleTime: 15_000,
+    refetchInterval: () => (document.visibilityState === "visible" ? 120_000 : false),
+    refetchIntervalInBackground: false,
+    staleTime: 60_000,
   });
 }

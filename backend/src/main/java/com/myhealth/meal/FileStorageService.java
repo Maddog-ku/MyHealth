@@ -9,11 +9,14 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.Iterator;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpStatus;
@@ -23,6 +26,8 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class FileStorageService {
     private static final long MAX_SIZE_BYTES = 10L * 1024 * 1024;
+    private static final int MAX_DIMENSION_PX = 8_000;
+    private static final long MAX_PIXELS = 40_000_000L;
     private static final Set<String> ALLOWED_MIME = Set.of("image/jpeg", "image/png", "image/webp");
 
     private final Path uploadRoot;
@@ -89,6 +94,7 @@ public class FileStorageService {
             if (!looksLikeImage(mime, header)) {
                 throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ErrorCode.UNSUPPORTED_MEDIA_TYPE, "Uploaded file is not a supported image");
             }
+            validateDimensions(mime, bytes);
             if (requiresImageIoDecode(mime) && ImageIO.read(new ByteArrayInputStream(bytes)) == null) {
                 throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ErrorCode.UNSUPPORTED_MEDIA_TYPE, "Uploaded file is not a valid image");
             }
@@ -114,6 +120,97 @@ public class FileStorageService {
         return normalized.equals("image/jpeg") || normalized.equals("image/png");
     }
 
+    private void validateDimensions(String mime, byte[] bytes) throws IOException {
+        Dimensions dimensions = switch (mime.toLowerCase(Locale.ROOT)) {
+            case "image/jpeg", "image/png" -> readImageIoDimensions(bytes);
+            case "image/webp" -> readWebpDimensions(bytes);
+            default -> null;
+        };
+        if (dimensions == null) {
+            throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ErrorCode.UNSUPPORTED_MEDIA_TYPE, "Uploaded file is not a valid image");
+        }
+        if (dimensions.width() <= 0 || dimensions.height() <= 0
+                || dimensions.width() > MAX_DIMENSION_PX
+                || dimensions.height() > MAX_DIMENSION_PX
+                || (long) dimensions.width() * dimensions.height() > MAX_PIXELS) {
+            throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, ErrorCode.PAYLOAD_TOO_LARGE, "Uploaded image dimensions are too large");
+        }
+    }
+
+    private Dimensions readImageIoDimensions(byte[] bytes) throws IOException {
+        try (ImageInputStream stream = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+            if (stream == null) {
+                return null;
+            }
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(stream);
+            if (!readers.hasNext()) {
+                return null;
+            }
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(stream, true, true);
+                return new Dimensions(reader.getWidth(0), reader.getHeight(0));
+            } finally {
+                reader.dispose();
+            }
+        }
+    }
+
+    private Dimensions readWebpDimensions(byte[] bytes) {
+        if (bytes.length < 30
+                || !ascii(bytes, 0, 4).equals("RIFF")
+                || !ascii(bytes, 8, 4).equals("WEBP")) {
+            return null;
+        }
+        String chunk = ascii(bytes, 12, 4);
+        return switch (chunk) {
+            case "VP8X" -> new Dimensions(1 + uint24Le(bytes, 24), 1 + uint24Le(bytes, 27));
+            case "VP8L" -> readWebpLosslessDimensions(bytes);
+            case "VP8 " -> readWebpLossyDimensions(bytes);
+            default -> null;
+        };
+    }
+
+    private Dimensions readWebpLosslessDimensions(byte[] bytes) {
+        if (bytes.length < 25 || (bytes[20] & 0xff) != 0x2f) {
+            return null;
+        }
+        int b1 = bytes[21] & 0xff;
+        int b2 = bytes[22] & 0xff;
+        int b3 = bytes[23] & 0xff;
+        int b4 = bytes[24] & 0xff;
+        int width = 1 + (((b2 & 0x3f) << 8) | b1);
+        int height = 1 + (((b4 & 0x0f) << 10) | (b3 << 2) | ((b2 & 0xc0) >> 6));
+        return new Dimensions(width, height);
+    }
+
+    private Dimensions readWebpLossyDimensions(byte[] bytes) {
+        if (bytes.length < 30
+                || (bytes[23] & 0xff) != 0x9d
+                || (bytes[24] & 0xff) != 0x01
+                || (bytes[25] & 0xff) != 0x2a) {
+            return null;
+        }
+        int width = uint16Le(bytes, 26) & 0x3fff;
+        int height = uint16Le(bytes, 28) & 0x3fff;
+        return new Dimensions(width, height);
+    }
+
+    private int uint16Le(byte[] bytes, int offset) {
+        return (bytes[offset] & 0xff) | ((bytes[offset + 1] & 0xff) << 8);
+    }
+
+    private int uint24Le(byte[] bytes, int offset) {
+        return (bytes[offset] & 0xff) | ((bytes[offset + 1] & 0xff) << 8) | ((bytes[offset + 2] & 0xff) << 16);
+    }
+
+    private String ascii(byte[] bytes, int offset, int length) {
+        if (bytes.length < offset + length) {
+            return "";
+        }
+        return new String(bytes, offset, length, java.nio.charset.StandardCharsets.US_ASCII);
+    }
+
     private Path resolveStoragePath(String storagePath) {
         Path file = uploadRoot.resolve(storagePath).normalize();
         if (!file.startsWith(uploadRoot)) {
@@ -132,5 +229,8 @@ public class FileStorageService {
     }
 
     public record StoredFile(Resource resource, String contentType) {
+    }
+
+    private record Dimensions(int width, int height) {
     }
 }

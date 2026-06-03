@@ -25,6 +25,23 @@ import org.springframework.stereotype.Component;
 @Component
 public class LocalAiProvider implements AiProvider {
     private static final Logger log = LoggerFactory.getLogger(LocalAiProvider.class);
+    private static final List<FallbackFood> FALLBACK_FOODS = List.of(
+            new FallbackFood("雞胸", "雞胸肉", 120, 198, 37.2, 4.3, 0.0),
+            new FallbackFood("雞肉", "雞肉", 120, 215, 28.0, 10.0, 0.0),
+            new FallbackFood("牛肉", "牛肉", 100, 250, 26.0, 15.0, 0.0),
+            new FallbackFood("豬肉", "豬肉", 100, 260, 22.0, 18.0, 0.0),
+            new FallbackFood("雞蛋", "雞蛋", 50, 75, 6.3, 5.0, 0.6),
+            new FallbackFood("蛋", "雞蛋", 50, 75, 6.3, 5.0, 0.6),
+            new FallbackFood("白飯", "白飯", 150, 240, 4.0, 0.4, 53.0),
+            new FallbackFood("米飯", "白飯", 150, 240, 4.0, 0.4, 53.0),
+            new FallbackFood("地瓜", "地瓜", 120, 110, 1.6, 0.2, 26.0),
+            new FallbackFood("麵包", "麵包", 60, 160, 5.0, 2.0, 30.0),
+            new FallbackFood("香蕉", "香蕉", 100, 90, 1.1, 0.3, 23.0),
+            new FallbackFood("牛奶", "牛奶", 240, 150, 8.0, 8.0, 12.0),
+            new FallbackFood("豆腐", "豆腐", 100, 90, 8.0, 5.0, 2.0),
+            new FallbackFood("沙拉", "蔬菜沙拉", 150, 80, 3.0, 3.0, 10.0),
+            new FallbackFood("蔬菜", "蔬菜", 150, 60, 3.0, 1.0, 10.0)
+    );
 
     private final AppProperties properties;
     private final OllamaClient ollama;
@@ -112,12 +129,12 @@ public class LocalAiProvider implements AiProvider {
             raw = ollama.chat(properties.ai().textModel(), system, user, true, Duration.ofSeconds(45));
             List<ExerciseItem> items = parseWorkoutItems(raw);
             if (items.isEmpty()) {
-                log.warn("Ollama returned empty workout items, falling back. raw={}", raw);
+                log.warn("Ollama returned empty workout items, falling back");
                 return fallbackWorkout(category);
             }
             List<ExerciseItem> sanitized = sanitizeExerciseItems(items);
             if (sanitized.isEmpty()) {
-                log.warn("Ollama workout items were all invalid after sanitization, falling back. raw={}", raw);
+                log.warn("Ollama workout items were all invalid after sanitization, falling back");
                 return fallbackWorkout(category);
             }
             return sanitized;
@@ -125,7 +142,7 @@ public class LocalAiProvider implements AiProvider {
             log.warn("Ollama generateWorkout failed: {}", ex.getMessage());
             return fallbackWorkout(category);
         } catch (Exception ex) {
-            log.warn("Workout parse failed, falling back. raw={}", raw, ex);
+            log.warn("Workout parse failed, falling back: {}", summarizeException(ex));
             return fallbackWorkout(category);
         } finally {
             // Proactively release the model after each request, regardless of outcome.
@@ -168,7 +185,7 @@ public class LocalAiProvider implements AiProvider {
             String raw = ollama.chat(model, system, user, images, true, Duration.ofSeconds(60));
             MealAnalysis parsed = parseMealAnalysis(raw);
             if (parsed.items().isEmpty()) {
-                log.warn("Ollama returned empty meal items, falling back (raw={})", raw);
+                log.warn("Ollama returned empty meal items, falling back");
                 return fallbackMeal(userInput, hasImage);
             }
             return parsed;
@@ -176,7 +193,7 @@ public class LocalAiProvider implements AiProvider {
             log.warn("Ollama analyzeMeal failed: {}", ex.getMessage());
             return fallbackMeal(userInput, hasImage);
         } catch (Exception ex) {
-            log.warn("Meal analysis parse failed, falling back to stub", ex);
+            log.warn("Meal analysis parse failed, falling back to stub: {}", summarizeException(ex));
             return fallbackMeal(userInput, hasImage);
         } finally {
             ollama.unload(model);
@@ -262,6 +279,18 @@ public class LocalAiProvider implements AiProvider {
         return Double.isFinite(value) && value >= 0.0;
     }
 
+    private record FallbackFood(String keyword, String name, double grams, int kcal,
+                                double protein, double fat, double carb) {
+    }
+
+    private String summarizeException(Exception ex) {
+        String message = ex.getMessage();
+        if (message == null || message.isBlank()) {
+            return ex.getClass().getSimpleName();
+        }
+        return "%s: %s".formatted(ex.getClass().getSimpleName(), message.lines().findFirst().orElse(""));
+    }
+
     /**
      * Some models (e.g. gemma4) prepend or append "thinking" prose around the JSON
      * payload even in JSON mode. Walk the string, tracking braces while respecting
@@ -327,6 +356,25 @@ public class LocalAiProvider implements AiProvider {
     }
 
     private MealAnalysis fallbackMeal(String description, boolean hasImage) {
+        List<FoodItem> items = fallbackFoodItems(description);
+        if (!items.isEmpty()) {
+            return new MealAnalysis(items, "AI 暫時無法連線，已依描述保守估算。");
+        }
         return new MealAnalysis(List.of(), "AI 無法可靠辨識，請重新拍攝或手動輸入。");
+    }
+
+    private List<FoodItem> fallbackFoodItems(String description) {
+        if (description == null || description.isBlank() || "（無文字描述）".equals(description)) {
+            return List.of();
+        }
+        String normalized = description.strip();
+        java.util.Set<String> names = new java.util.LinkedHashSet<>();
+        return FALLBACK_FOODS.stream()
+                .filter(food -> normalized.contains(food.keyword()))
+                .filter(food -> names.add(food.name()))
+                .limit(5)
+                .map(food -> new FoodItem(food.name(), food.grams(), food.kcal(),
+                        food.protein(), food.fat(), food.carb(), 0.35))
+                .toList();
     }
 }
