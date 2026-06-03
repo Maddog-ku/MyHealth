@@ -1,9 +1,9 @@
 package com.myhealth.meal;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.myhealth.ai.AiProvider;
+import com.myhealth.common.JsonColumns;
 import com.myhealth.ai.AiProvider.FoodItem;
 import com.myhealth.ai.AiProvider.MealImage;
 import com.myhealth.common.ApiException;
@@ -45,11 +45,21 @@ public class MealService {
     }
 
     public MealResponse create(AppUser user, MultipartFile image, String description, String slot, LocalDate date) {
+        return create(user, image, description, slot, date, true);
+    }
+
+    /**
+     * @param requireFoodHint enforce the food-keyword whitelist on the description.
+     *                        The chat assistant passes false (intent already classified
+     *                        by the model); the public REST endpoint passes true.
+     */
+    public MealResponse create(AppUser user, MultipartFile image, String description, String slot, LocalDate date,
+                               boolean requireFoodHint) {
         String normalizedDescription = MealInputGuard.normalizeDescription(description);
         if (normalizedDescription == null && (image == null || image.isEmpty())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "image or description is required");
         }
-        MealInputGuard.validateDescription(normalizedDescription);
+        MealInputGuard.validateDescription(normalizedDescription, requireFoodHint);
         LocalDate mealDate = date == null ? LocalDate.now() : date;
         String imageUrl = fileStorage.storeMealImage(image, mealDate);
         MealImage mealImage;
@@ -177,20 +187,12 @@ public class MealService {
     }
 
     private String writeItems(List<FoodItem> items) {
-        try {
-            return objectMapper.writeValueAsString(items);
-        } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("Unable to serialize meal items", ex);
-        }
+        return JsonColumns.write(objectMapper, items);
     }
 
     private List<FoodItem> readItems(String json) {
-        try {
-            return objectMapper.readValue(json, new TypeReference<>() {
-            });
-        } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("Unable to deserialize meal items", ex);
-        }
+        return JsonColumns.read(objectMapper, json, new TypeReference<List<FoodItem>>() {
+        });
     }
 
     private String summarizeException(RuntimeException ex) {

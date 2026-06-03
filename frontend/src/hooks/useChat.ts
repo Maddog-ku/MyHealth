@@ -32,12 +32,22 @@ export function useSendChat() {
     onError: (_err, _message, context) => {
       if (context) qc.setQueryData(qk.chat, context.previous);
     },
-    onSuccess: ({ userMessage, reply }) => {
+    onSuccess: ({ userMessage, reply, mealLogged, workoutLogged }) => {
       qc.setQueryData<ChatMessage[]>(qk.chat, (current) => {
         // Drop the optimistic temp (negative id) and append the persisted pair.
         const committed = (current ?? []).filter((m) => m.id >= 0);
         return [...committed, userMessage, reply];
       });
+      // The assistant just recorded a meal — refresh 飲食追蹤 and dashboard totals.
+      if (mealLogged) {
+        qc.invalidateQueries({ queryKey: ["meals"] });
+        qc.invalidateQueries({ queryKey: ["stats", "daily"] });
+      }
+      // ...or generated a workout plan — refresh 運動菜單 and dashboard totals.
+      if (workoutLogged) {
+        qc.invalidateQueries({ queryKey: ["workouts"] });
+        qc.invalidateQueries({ queryKey: ["stats", "daily"] });
+      }
     },
   });
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Send, X, Trash2, Sparkles, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ApiError } from "@/api/client";
 import { useMe } from "@/hooks/useAuth";
 import { useChatHistory, useClearChat, useSendChat } from "@/hooks/useChat";
 
@@ -23,6 +24,7 @@ export function AssistantWidget() {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: messages = [], isSuccess } = useChatHistory();
   const send = useSendChat();
@@ -53,11 +55,18 @@ export function AssistantWidget() {
     scrollToBottom();
   }, [messages, pending, open]);
 
+  // Focus the composer when the panel opens so the user can type right away.
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
   function submit(text: string) {
     const trimmed = text.trim();
     if (!trimmed || pending) return;
     setDraft("");
-    send.mutate(trimmed);
+    send.reset();
+    // Restore the draft if the send fails so the user doesn't lose their message.
+    send.mutate(trimmed, { onError: () => setDraft(trimmed) });
   }
 
   return (
@@ -121,8 +130,9 @@ export function AssistantWidget() {
                 <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                   嗨{user?.name ? ` ${user.name}` : ""}！我是 {ASSISTANT_NAME} 👋
                 </p>
-                <p className="text-xs text-muted-foreground max-w-[15rem] leading-relaxed">
-                  我專門陪你聊<strong>運動與飲食</strong>，其他主題就幫不上忙囉。下面有幾個常見的起手式：
+                <p className="text-xs text-muted-foreground max-w-[16rem] leading-relaxed">
+                  我專門陪你聊<strong>運動與飲食</strong>。說「<strong>我午餐吃了雞胸肉沙拉</strong>」我幫你記到飲食追蹤；
+                  說「<strong>幫我排個練腿菜單</strong>」我幫你產生運動菜單 🍱💪 下面也有幾個起手式：
                 </p>
                 <div className="flex flex-col gap-2 w-full mt-1">
                   {QUICK_PROMPTS.map((q) => (
@@ -180,6 +190,13 @@ export function AssistantWidget() {
             )}
           </div>
 
+          {/* Send error */}
+          {send.isError && (
+            <div className="px-4 pt-2 text-[11px] text-rose-500 dark:text-rose-400">
+              {send.error instanceof ApiError ? send.error.message : "傳送失敗，請再試一次"}
+            </div>
+          )}
+
           {/* Composer */}
           <form
             onSubmit={(e) => {
@@ -189,6 +206,7 @@ export function AssistantWidget() {
             className="flex items-center gap-2 p-3 border-t border-slate-100 dark:border-slate-900 bg-white/60 dark:bg-slate-950/40"
           >
             <input
+              ref={inputRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder={`和 ${ASSISTANT_NAME} 聊聊…`}

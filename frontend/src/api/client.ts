@@ -159,7 +159,13 @@ export const api = {
     http.get<{ messages: ChatMessage[] }>("/ai/chat/history").then((r) => r.data.messages),
   sendChat: (message: string) =>
     http
-      .post<{ userMessage: ChatMessage; reply: ChatMessage }>("/ai/chat", { message })
+      .post<{
+        userMessage: ChatMessage;
+        reply: ChatMessage;
+        mealLogged: boolean;
+        workoutLogged: boolean;
+        loggedDate: string | null;
+      }>("/ai/chat", { message })
       .then((r) => r.data),
   clearChat: () => http.delete<void>("/ai/chat/history").then(() => undefined),
 };

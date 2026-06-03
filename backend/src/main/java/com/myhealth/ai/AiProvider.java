@@ -39,6 +39,32 @@ public interface AiProvider {
     record ChatTurn(boolean fromUser, String content) {
     }
 
+    /**
+     * Decide whether a chat message is the user logging a meal they ate (vs. asking
+     * for advice), and extract the slot + food description. Returns {@link MealLog#none()}
+     * on anything that isn't a clear logging intent, or on any model/parse failure.
+     */
+    MealLog detectMealLog(String userMessage);
+
+    record MealLog(boolean isMeal, String slot, String food) {
+        public static MealLog none() {
+            return new MealLog(false, null, null);
+        }
+    }
+
+    /**
+     * Decide whether a chat message is the user asking to plan/arrange a workout (vs. a
+     * how-to question), and extract category, duration and intensity. Returns
+     * {@link WorkoutRequest#none()} on anything that isn't a clear plan request or on failure.
+     */
+    WorkoutRequest detectWorkoutRequest(String userMessage);
+
+    record WorkoutRequest(boolean isWorkout, String category, int durationMin, String intensity) {
+        public static WorkoutRequest none() {
+            return new WorkoutRequest(false, null, 0, null);
+        }
+    }
+
     record ExerciseItem(
             @NotBlank @Size(max = 80) String name,
             @Min(1) @Max(6) int sets,

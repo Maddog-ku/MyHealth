@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,6 +30,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @ExtendWith(MockitoExtension.class)
 class WorkoutServiceTest {
@@ -42,7 +46,14 @@ class WorkoutServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new WorkoutService(workouts, aiProvider, objectMapper);
+        // Run the persist callback inline (no real transaction). lenient() because not every
+        // test exercises the generate() path that calls transactionTemplate.execute.
+        TransactionTemplate transactionTemplate = mock(TransactionTemplate.class);
+        lenient().when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            TransactionCallback<?> cb = inv.getArgument(0);
+            return cb.doInTransaction(null);
+        });
+        service = new WorkoutService(workouts, aiProvider, objectMapper, transactionTemplate);
         owner = userWithId(1L);
         other = userWithId(99L);
     }

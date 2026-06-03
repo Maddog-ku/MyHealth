@@ -2,21 +2,34 @@ package com.myhealth.chat;
 
 import com.myhealth.ai.AiProvider;
 import com.myhealth.ai.AiProvider.ChatTurn;
+import com.myhealth.ai.AiProvider.MealLog;
+import com.myhealth.ai.AiProvider.WorkoutRequest;
 import com.myhealth.chat.ChatDtos.ChatMessageResponse;
 import com.myhealth.chat.ChatDtos.ChatReplyResponse;
 import com.myhealth.meal.Meal;
+import com.myhealth.meal.MealDtos.MealResponse;
 import com.myhealth.meal.MealRepository;
+import com.myhealth.meal.MealService;
 import com.myhealth.stats.StatsDtos.DailyStatsResponse;
 import com.myhealth.stats.StatsService;
 import com.myhealth.user.AppUser;
 import com.myhealth.user.Profile;
+import com.myhealth.workout.WorkoutCategory;
+import com.myhealth.workout.WorkoutIntensity;
+import com.myhealth.workout.WorkoutDtos.GenerateWorkoutRequest;
+import com.myhealth.workout.WorkoutDtos.WorkoutPlanResponse;
 import com.myhealth.workout.WorkoutPlan;
 import com.myhealth.workout.WorkoutPlanRepository;
+import com.myhealth.workout.WorkoutService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,22 +39,38 @@ public class ChatService {
     /** How many prior messages to feed back into the model as context. */
     private static final int HISTORY_WINDOW = 12;
 
+    private static final Logger log = LoggerFactory.getLogger(ChatService.class);
+
     /** Cap on how many of today's logged items are listed in context, to keep the prompt bounded. */
     private static final int MAX_LOGGED_ITEMS = 8;
+
+    /** Cheap pre-gate: only run the (costly) meal-intent classifier when the text hints at eating/logging. */
+    private static final Set<String> MEAL_CUES = Set.of(
+            "吃", "喝", "早餐", "午餐", "晚餐", "宵夜", "點心", "餐", "記錄", "紀錄", "記一下", "幫我記", "剛");
+
+    /** Cheap pre-gate for the workout-plan classifier. */
+    private static final Set<String> WORKOUT_CUES = Set.of(
+            "練", "訓練", "運動", "健身", "菜單", "課表", "深蹲", "棒式", "伏地", "重訓", "有氧", "腹肌", "核心",
+            "腿", "胸", "背", "臀", "手臂", "二頭", "三頭", "暖身", "拉伸", "伸展");
 
     private final ChatMessageRepository messages;
     private final AiProvider provider;
     private final StatsService stats;
     private final MealRepository meals;
     private final WorkoutPlanRepository workouts;
+    private final MealService mealService;
+    private final WorkoutService workoutService;
 
     public ChatService(ChatMessageRepository messages, AiProvider provider, StatsService stats,
-                       MealRepository meals, WorkoutPlanRepository workouts) {
+                       MealRepository meals, WorkoutPlanRepository workouts, MealService mealService,
+                       WorkoutService workoutService) {
         this.messages = messages;
         this.provider = provider;
         this.stats = stats;
         this.meals = meals;
         this.workouts = workouts;
+        this.mealService = mealService;
+        this.workoutService = workoutService;
     }
 
     @Transactional(readOnly = true)
@@ -51,7 +80,11 @@ public class ChatService {
                 .toList();
     }
 
-    @Transactional
+    /**
+     * Deliberately NOT @Transactional: the AI calls below can take tens of seconds, and
+     * we must not hold a DB connection open for that long. Each repository.save() commits
+     * on its own, and MealService.create() manages its own transaction internally.
+     */
     public ChatReplyResponse send(AppUser user, String message) {
         String text = message.strip();
 
@@ -67,14 +100,152 @@ public class ChatService {
 
         ChatMessage userMessage = messages.save(new ChatMessage(user, "user", text));
 
-        String reply = provider.chat(buildContext(user), turns, text);
+        // Detect actionable intents (record a meal / plan a workout); otherwise plain chat.
+        MealLog mealLog = mightBeMealLog(text) ? provider.detectMealLog(text) : MealLog.none();
+        WorkoutRequest workoutReq = (!mealLog.isMeal() && mightBeWorkout(text))
+                ? provider.detectWorkoutRequest(text) : WorkoutRequest.none();
+
+        String reply;
+        boolean mealLogged = false;
+        boolean workoutLogged = false;
+        LocalDate today = LocalDate.now();
+        if (mealLog.isMeal()) {
+            try {
+                String slot = resolveSlot(mealLog.slot());
+                // requireFoodHint=false: the model already classified this as a meal; the
+                // keyword whitelist would wrongly reject valid foods like 芒果.
+                MealResponse meal = mealService.create(user, null, mealLog.food(), slot, today, false);
+                reply = buildMealLoggedReply(user, slot, meal, today);
+                mealLogged = true;
+            } catch (RuntimeException ex) {
+                log.warn("Chat meal logging failed: {}", ex.getMessage());
+                reply = "我想幫你記下這一餐，但這次沒記成功 😣 你可以到「飲食追蹤」再記一次，或換個說法告訴我吃了什麼。";
+            }
+        } else if (workoutReq.isWorkout()) {
+            try {
+                WorkoutPlanResponse plan = workoutService.generate(user, new GenerateWorkoutRequest(
+                        today, resolveCategory(workoutReq.category()),
+                        clampDuration(workoutReq.durationMin()), resolveIntensity(workoutReq.intensity()), null));
+                reply = buildWorkoutPlannedReply(plan);
+                workoutLogged = true;
+            } catch (RuntimeException ex) {
+                log.warn("Chat workout planning failed: {}", ex.getMessage());
+                reply = "我想幫你排一份訓練菜單，但這次沒成功 😣 你可以到「運動菜單」再試一次，或換個說法告訴我想練哪裡。";
+            }
+        } else {
+            reply = provider.chat(buildContext(user), turns, text);
+        }
         if (reply == null || reply.isBlank()) {
             // content is NOT NULL; never let a misbehaving provider trigger a constraint error.
             reply = "抱歉，我現在無法回覆，請稍後再試一次。";
         }
         ChatMessage assistantMessage = messages.save(new ChatMessage(user, "assistant", reply));
 
-        return new ChatReplyResponse(ChatMessageResponse.from(userMessage), ChatMessageResponse.from(assistantMessage));
+        return new ChatReplyResponse(
+                ChatMessageResponse.from(userMessage),
+                ChatMessageResponse.from(assistantMessage),
+                mealLogged,
+                workoutLogged,
+                (mealLogged || workoutLogged) ? today.toString() : null);
+    }
+
+    private boolean mightBeMealLog(String text) {
+        return MEAL_CUES.stream().anyMatch(text::contains);
+    }
+
+    private boolean mightBeWorkout(String text) {
+        return WORKOUT_CUES.stream().anyMatch(text::contains);
+    }
+
+    /** Map the model's category string to the enum; fall back to a safe full-body plan. */
+    private WorkoutCategory resolveCategory(String category) {
+        if (category != null) {
+            try {
+                return WorkoutCategory.valueOf(category.strip().toLowerCase());
+            } catch (IllegalArgumentException ignored) {
+                // fall through to default
+            }
+        }
+        return WorkoutCategory.full_body;
+    }
+
+    private WorkoutIntensity resolveIntensity(String intensity) {
+        if (intensity != null) {
+            try {
+                return WorkoutIntensity.valueOf(intensity.strip().toLowerCase());
+            } catch (IllegalArgumentException ignored) {
+                // fall through to default
+            }
+        }
+        return WorkoutIntensity.medium;
+    }
+
+    private int clampDuration(int durationMin) {
+        return Math.max(10, Math.min(180, durationMin <= 0 ? 30 : durationMin));
+    }
+
+    /** Deterministic summary of the generated plan, built from the real saved entity. */
+    private String buildWorkoutPlannedReply(WorkoutPlanResponse plan) {
+        StringBuilder r = new StringBuilder();
+        r.append("好的，我幫你排好「").append(categoryLabel(plan.category())).append("」的菜單了 💪\n");
+        plan.items().forEach(item ->
+                r.append("・").append(item.name()).append(" ").append(item.sets()).append(" 組 × ")
+                        .append(item.reps()).append('\n'));
+        r.append("預估消耗約 ").append(plan.totalKcal()).append(" 大卡。完成後記得到「運動菜單」打卡喔！");
+        return r.toString().strip();
+    }
+
+    /** Use the model's slot when valid, else infer from the current time of day. */
+    private String resolveSlot(String slot) {
+        if (slot != null) {
+            String s = slot.strip().toLowerCase();
+            if (s.equals("breakfast") || s.equals("lunch") || s.equals("dinner") || s.equals("snack")) {
+                return s;
+            }
+        }
+        int hour = LocalTime.now().getHour();
+        if (hour >= 5 && hour < 11) return "breakfast";
+        if (hour >= 11 && hour < 15) return "lunch";
+        if (hour >= 15 && hour < 21) return "dinner";
+        return "snack";
+    }
+
+    /** Deterministic, fully grounded confirmation — built from the real saved meal + today's totals. */
+    private String buildMealLoggedReply(AppUser user, String slot, MealResponse meal, LocalDate today) {
+        StringBuilder r = new StringBuilder();
+        String food = meal.description() != null ? meal.description() : mealLogFoodFallback(meal);
+        if (meal.totalKcal() <= 0) {
+            r.append("我先幫你把「").append(food).append("」記到").append(slotLabel(slot))
+                    .append("了 📝 不過這次 AI 估不出熱量，你可以到「飲食追蹤」手動補上數字 🙏\n");
+        } else {
+            r.append("好的，我幫你記到").append(slotLabel(slot)).append("了 📝\n");
+            r.append("・").append(food).append('\n');
+            r.append("・約 ").append(meal.totalKcal()).append(" 大卡");
+            r.append("（蛋白 ").append(plain(meal.totalProtein())).append("g／脂肪 ")
+                    .append(plain(meal.totalFat())).append("g／碳水 ").append(plain(meal.totalCarb()))
+                    .append("g，AI 估算）\n");
+        }
+        if (meal.aiSuggestion() != null && !meal.aiSuggestion().isBlank()) {
+            r.append(meal.aiSuggestion().strip()).append('\n');
+        }
+        try {
+            DailyStatsResponse s = stats.daily(user, today);
+            r.append("今日累計攝取約 ").append(s.intakeKcal()).append(" / 目標 ").append(s.goalKcal()).append(" 大卡。");
+        } catch (RuntimeException ex) {
+            // totals are a nice-to-have; omit on failure
+        }
+        return r.toString().strip();
+    }
+
+    private String mealLogFoodFallback(MealResponse meal) {
+        if (meal.items() != null && !meal.items().isEmpty()) {
+            return meal.items().get(0).name();
+        }
+        return "這一餐";
+    }
+
+    private String plain(BigDecimal value) {
+        return value == null ? "0" : value.stripTrailingZeros().toPlainString();
     }
 
     @Transactional

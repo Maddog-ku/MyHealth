@@ -1,10 +1,14 @@
 package com.myhealth.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.myhealth.ai.OllamaClient.OllamaException;
 import com.myhealth.config.AppProperties;
 import java.io.IOException;
+import java.util.Map;
 import java.net.Authenticator;
 import java.net.CookieHandler;
 import java.net.ProxySelector;
@@ -67,12 +71,90 @@ class OllamaClientTest {
         assertThat(httpClient.calls()).isEqualTo(3);
     }
 
+    @Test
+    void chat_streamingHappyPath_concatenatesContentFragments() {
+        FakeHttpClient httpClient = new FakeHttpClient(List.of(
+                Stream.of(
+                        "{\"message\":{\"content\":\"Hel\"},\"done\":false}",
+                        "{\"message\":{\"content\":\"lo\"},\"done\":true}")));
+        OllamaClient client = new OllamaClient(properties, objectMapper, httpClient);
+
+        String response = client.chat("gemma4:e4b", "system", "user", false, Duration.ofSeconds(5));
+
+        assertThat(response).isEqualTo("Hello");
+        assertThat(httpClient.calls()).isEqualTo(1);
+    }
+
+    @Test
+    void converse_streamingHappyPath_returnsContent() {
+        FakeHttpClient httpClient = new FakeHttpClient(List.of(
+                Stream.of("{\"message\":{\"content\":\"嗨，今天想練什麼？\"},\"done\":true}")));
+        OllamaClient client = new OllamaClient(properties, objectMapper, httpClient);
+
+        String response = client.converse("gemma4:e4b",
+                List.of(Map.of("role", "system", "content", "s"), Map.of("role", "user", "content", "u")),
+                Duration.ofSeconds(5));
+
+        assertThat(response).isEqualTo("嗨，今天想練什麼？");
+        assertThat(httpClient.calls()).isEqualTo(1);
+    }
+
+    @Test
+    void converse_truncatedStream_fallsBackToBufferedOnce() {
+        FakeHttpClient httpClient = new FakeHttpClient(List.of(
+                Stream.of("{\"message\":{\"content\":\"partial\"},\"done\":false}"),
+                "{\"message\":{\"content\":\"完整回覆\"},\"done\":true}"));
+        OllamaClient client = new OllamaClient(properties, objectMapper, httpClient);
+
+        String response = client.converse("gemma4:e4b",
+                List.of(Map.of("role", "user", "content", "u")), Duration.ofSeconds(5));
+
+        assertThat(response).isEqualTo("完整回覆");
+        // converse does NOT retry streaming — straight to buffered after one truncation.
+        assertThat(httpClient.calls()).isEqualTo(2);
+    }
+
+    @Test
+    void chat_nonSuccessStatus_throwsOllamaException() {
+        FakeHttpClient httpClient = new FakeHttpClient(
+                List.of(Stream.of("{\"message\":{\"content\":\"x\"},\"done\":true}")), 500);
+        OllamaClient client = new OllamaClient(properties, objectMapper, httpClient);
+
+        assertThatThrownBy(() -> client.chat("gemma4:e4b", "system", "user", true, Duration.ofSeconds(5)))
+                .isInstanceOf(OllamaException.class)
+                .hasMessageContaining("500");
+    }
+
+    @Test
+    void chat_emptyContent_throwsOllamaException() {
+        FakeHttpClient httpClient = new FakeHttpClient(List.of(
+                Stream.of("{\"message\":{\"content\":\"\"},\"done\":true}")));
+        OllamaClient client = new OllamaClient(properties, objectMapper, httpClient);
+
+        assertThatThrownBy(() -> client.chat("gemma4:e4b", "system", "user", false, Duration.ofSeconds(5)))
+                .isInstanceOf(OllamaException.class)
+                .hasMessageContaining("no message.content");
+    }
+
+    @Test
+    void unload_swallowsExceptions() {
+        // Empty body list makes send() throw; unload must absorb it (best-effort).
+        OllamaClient client = new OllamaClient(properties, objectMapper, new FakeHttpClient(List.of()));
+        assertThatCode(() -> client.unload("gemma4:e4b")).doesNotThrowAnyException();
+    }
+
     private static class FakeHttpClient extends HttpClient {
         private final List<Object> bodies;
+        private final int status;
         private final AtomicInteger calls = new AtomicInteger();
 
         FakeHttpClient(List<Object> bodies) {
+            this(bodies, 200);
+        }
+
+        FakeHttpClient(List<Object> bodies, int status) {
             this.bodies = bodies;
+            this.status = status;
         }
 
         int calls() {
@@ -84,7 +166,7 @@ class OllamaClientTest {
         public <T> HttpResponse<T> send(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler)
                 throws IOException, InterruptedException {
             int index = calls.getAndIncrement();
-            return new FakeHttpResponse<>((T) bodies.get(index));
+            return new FakeHttpResponse<>((T) bodies.get(index), status);
         }
 
         @Override
@@ -148,10 +230,10 @@ class OllamaClientTest {
         }
     }
 
-    private record FakeHttpResponse<T>(T body) implements HttpResponse<T> {
+    private record FakeHttpResponse<T>(T body, int status) implements HttpResponse<T> {
         @Override
         public int statusCode() {
-            return 200;
+            return status;
         }
 
         @Override

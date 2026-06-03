@@ -644,10 +644,17 @@ Content-Type：`multipart/form-data`
 ```json
 {
   "userMessage": { "id": 14, "role": "user", "content": "晚餐吃什麼比較好？", "createdAt": "2026-06-03T14:05:00Z" },
-  "reply": { "id": 15, "role": "assistant", "content": "可以選高蛋白、低油的雞胸搭蔬菜 🥗", "createdAt": "2026-06-03T14:05:07Z" }
+  "reply": { "id": 15, "role": "assistant", "content": "可以選高蛋白、低油的雞胸搭蔬菜 🥗", "createdAt": "2026-06-03T14:05:07Z" },
+  "mealLogged": false,
+  "workoutLogged": false,
+  "loggedDate": null
 }
 ```
 > `message` 必填，最長 1000 字。本機 AI 不可用時 `reply` 會回退為提示訊息（不報錯）。
+
+**對話直接記錄餐點**：若訊息是在敘述「吃了什麼」（例如「我午餐吃了雞胸肉沙拉」），助手會自動判斷意圖、抽取時段與內容，走 `MealService` 的 AI 估算流程把該餐寫進「飲食追蹤」（等同 `POST /meals` 的文字記錄），`reply` 回傳含估算熱量／營養與建議的確認訊息，並設 `mealLogged=true`、`loggedDate` 為記錄日期（前端據此刷新餐點與當日統計）。純詢問（如「晚餐吃什麼比較好」）不會記錄。時段（早/午/晚/點心）優先取訊息中的詞，無法判斷時依當下時間推定。
+
+**對話直接排運動菜單**：若訊息是要求安排訓練（例如「幫我排個練腿菜單」「我想練胸 30 分鐘」），助手會抽取分類／時長／強度，走 `WorkoutService.generate` 產生並存進「運動菜單」（等同 `POST /workouts/generate`），`reply` 摘要動作清單與預估消耗，並設 `workoutLogged=true`、`loggedDate` 為日期（前端據此刷新運動與當日統計）。單純問動作怎麼做（如「深蹲怎麼做」）不會產生菜單。分類無法判斷時退為全身（full_body）、強度退為 medium、時長夾在 10–180 分鐘。
 
 **清除歷史** — `DELETE /ai/chat/history`  *(需登入)* → `204 No Content`
 

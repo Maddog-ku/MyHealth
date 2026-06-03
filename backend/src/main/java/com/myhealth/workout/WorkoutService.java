@@ -1,11 +1,11 @@
 package com.myhealth.workout;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.myhealth.ai.AiProvider;
 import com.myhealth.ai.AiProvider.ExerciseItem;
 import com.myhealth.common.ApiException;
+import com.myhealth.common.JsonColumns;
 import com.myhealth.common.ErrorCode;
 import com.myhealth.user.AppUser;
 import com.myhealth.workout.WorkoutDtos.GenerateWorkoutRequest;
@@ -18,33 +18,40 @@ import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class WorkoutService {
     private final WorkoutPlanRepository workouts;
     private final AiProvider aiProvider;
     private final ObjectMapper objectMapper;
+    private final TransactionTemplate transactionTemplate;
 
-    public WorkoutService(WorkoutPlanRepository workouts, AiProvider aiProvider, ObjectMapper objectMapper) {
+    public WorkoutService(WorkoutPlanRepository workouts, AiProvider aiProvider, ObjectMapper objectMapper,
+                          TransactionTemplate transactionTemplate) {
         this.workouts = workouts;
         this.aiProvider = aiProvider;
         this.objectMapper = objectMapper;
+        this.transactionTemplate = transactionTemplate;
     }
 
-    @Transactional
     public WorkoutPlanResponse generate(AppUser user, GenerateWorkoutRequest request) {
         int duration = request.durationMin() == null ? 30 : request.durationMin();
         WorkoutIntensity intensity = request.intensity() == null ? WorkoutIntensity.medium : request.intensity();
         String category = request.category().name();
+        // Run the AI generation OUTSIDE any transaction — it can take tens of seconds, and we
+        // must not hold a DB connection for that long. Only the persist below is transactional.
         List<ExerciseItem> items = aiProvider.generateWorkout(category, duration, intensity.name());
 
-        WorkoutPlan plan = new WorkoutPlan();
-        plan.setUser(user);
-        plan.setDate(request.date());
-        plan.setCategory(category);
-        plan.setItemsJson(writeItems(items));
-        plan.setTotalKcal(items.stream().mapToInt(ExerciseItem::kcal).sum());
-        return toResponse(workouts.save(plan));
+        return transactionTemplate.execute(status -> {
+            WorkoutPlan plan = new WorkoutPlan();
+            plan.setUser(user);
+            plan.setDate(request.date());
+            plan.setCategory(category);
+            plan.setItemsJson(writeItems(items));
+            plan.setTotalKcal(items.stream().mapToInt(ExerciseItem::kcal).sum());
+            return toResponse(workouts.save(plan));
+        });
     }
 
     public List<WorkoutPlanResponse> list(AppUser user, LocalDate date) {
@@ -125,19 +132,11 @@ public class WorkoutService {
     }
 
     private String writeItems(List<ExerciseItem> items) {
-        try {
-            return objectMapper.writeValueAsString(items);
-        } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("Unable to serialize workout items", ex);
-        }
+        return JsonColumns.write(objectMapper, items);
     }
 
     private List<ExerciseItem> readItems(String itemsJson) {
-        try {
-            return objectMapper.readValue(itemsJson, new TypeReference<>() {
-            });
-        } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("Unable to deserialize workout items", ex);
-        }
+        return JsonColumns.read(objectMapper, itemsJson, new TypeReference<List<ExerciseItem>>() {
+        });
     }
 }

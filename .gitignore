@@ -61,8 +61,3 @@ Thumbs.db
 local/
 tmp/
 .tmp/
-
-# AI assistant avatar design sources (large originals). The optimized, background-removed
-# versions actually used by the app live in frontend/public/assistant/ and ARE tracked.
-/boy.png
-/girl.png

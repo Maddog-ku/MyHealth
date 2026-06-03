@@ -277,6 +277,103 @@ public class LocalAiProvider implements AiProvider {
         }
     }
 
+    private static final String MEAL_INTENT_SYSTEM = """
+            你是一個嚴格的意圖判斷器，判斷使用者訊息是否「在敘述他已經吃了某餐，或明確要求把某餐記錄下來」。
+            只輸出 JSON，不要任何其他文字、說明或 Markdown。
+
+            判斷規則：
+            1. 只有當訊息明確包含『實際吃了哪些食物』或『要求記錄某餐』時，action 才是 "log_meal"。
+            2. 純粹詢問建議（例如「晚餐吃什麼比較好」「我可以吃雞排嗎」「幫我排菜單」）一律是 "none"。
+            3. 沒有具體食物內容時也是 "none"。
+            4. slot 由訊息判斷：早餐=breakfast、午餐=lunch、晚餐或晚上=dinner、點心或宵夜=snack；無法判斷給空字串。
+            5. food 只擷取吃的食物描述（保留份量字眼，例如「150g」「一碗」），不要包含時段詞或多餘字。
+
+            只允許回傳此格式：
+            {"action":"log_meal"或"none","slot":"breakfast/lunch/dinner/snack或空字串","food":"食物描述或空字串"}
+
+            範例：
+            「我午餐吃了雞胸肉沙拉跟半碗糙米飯」=> {"action":"log_meal","slot":"lunch","food":"雞胸肉沙拉跟半碗糙米飯"}
+            「幫我記晚餐 牛肉麵一碗」=> {"action":"log_meal","slot":"dinner","food":"牛肉麵一碗"}
+            「晚餐吃什麼比較好？」=> {"action":"none","slot":"","food":""}
+            「深蹲怎麼做」=> {"action":"none","slot":"","food":""}
+            """;
+
+    @Override
+    public MealLog detectMealLog(String userMessage) {
+        JsonNode root = classifyIntent(MEAL_INTENT_SYSTEM, userMessage, "meal");
+        if (root == null) {
+            return MealLog.none();
+        }
+        boolean isLog = "log_meal".equalsIgnoreCase(root.path("action").asText(""));
+        String food = root.path("food").asText("").strip();
+        if (!isLog || food.isBlank()) {
+            return MealLog.none();
+        }
+        return new MealLog(true, root.path("slot").asText("").strip().toLowerCase(), food);
+    }
+
+    /**
+     * Run a JSON-mode intent classification as a chat pre-step. Returns the parsed JSON, or
+     * null on blank input / model / parse failure (callers map null to their "none" result).
+     * Intentionally does NOT unload: a follow-up text-model call (chat / analyzeMeal /
+     * generateWorkout) reuses the warm model and unloads at the end, avoiding a costly
+     * ~10GB reload between the two calls. The AiIdleWatcher is the safety net.
+     */
+    private JsonNode classifyIntent(String system, String userMessage, String label) {
+        if (userMessage == null || userMessage.isBlank()) {
+            return null;
+        }
+        markUsed();
+        try {
+            String raw = ollama.chat(properties.ai().textModel(), system, userMessage.strip(), true, Duration.ofSeconds(30));
+            return objectMapper.readTree(extractFirstJsonObject(raw));
+        } catch (OllamaClient.OllamaException ex) {
+            log.warn("Ollama {} intent classification failed: {}", label, ex.getMessage());
+            return null;
+        } catch (Exception ex) {
+            log.warn("{} intent parse failed: {}", label, summarizeException(ex));
+            return null;
+        }
+    }
+
+    private static final String WORKOUT_INTENT_SYSTEM = """
+            你是一個嚴格的意圖判斷器，判斷使用者訊息是否「要求安排／產生一份運動訓練菜單」。
+            只輸出 JSON，不要任何其他文字、說明或 Markdown。
+
+            判斷規則：
+            1. 只有當訊息明確要求『幫我排課表／菜單』或『我想練某部位』時，action 才是 "plan_workout"。
+            2. 單純問動作怎麼做（例如「深蹲怎麼做」「棒式正確姿勢」）一律是 "none"。
+            3. category 從訊息對應到下列其一（無法判斷給空字串）：
+               腹肌/核心=abs、腰腹=waist、腿/深蹲/下肢=legs、胸=chest、背=back、手臂/二頭/三頭=arms、
+               臀/翹臀=glutes、有氧/跑步/心肺=cardio、全身=full_body。
+            4. durationMin 取訊息中的分鐘數整數；沒提到給 30。
+            5. intensity：輕鬆/低=low、普通/中等=medium、高/激烈=high；沒提到給 medium。
+
+            只允許回傳此格式：
+            {"action":"plan_workout"或"none","category":"上列代碼或空字串","durationMin":30,"intensity":"low/medium/high"}
+
+            範例：
+            「幫我排個練腿的菜單 30 分鐘」=> {"action":"plan_workout","category":"legs","durationMin":30,"intensity":"medium"}
+            「我想練胸，強度高一點」=> {"action":"plan_workout","category":"chest","durationMin":30,"intensity":"high"}
+            「深蹲怎麼做」=> {"action":"none","category":"","durationMin":30,"intensity":"medium"}
+            """;
+
+    @Override
+    public WorkoutRequest detectWorkoutRequest(String userMessage) {
+        JsonNode root = classifyIntent(WORKOUT_INTENT_SYSTEM, userMessage, "workout");
+        if (root == null) {
+            return WorkoutRequest.none();
+        }
+        boolean isPlan = "plan_workout".equalsIgnoreCase(root.path("action").asText(""));
+        String category = root.path("category").asText("").strip().toLowerCase();
+        if (!isPlan || category.isBlank()) {
+            return WorkoutRequest.none();
+        }
+        return new WorkoutRequest(true, category,
+                root.path("durationMin").asInt(30),
+                root.path("intensity").asText("medium").strip().toLowerCase());
+    }
+
     private String fallbackChatReply() {
         return "我現在連不上本機 AI 模型，沒辦法好好回覆你 😣 "
                 + "請確認 Ollama 是否已啟動（scripts/dev.sh --ai），稍後再跟我聊聊吧！";

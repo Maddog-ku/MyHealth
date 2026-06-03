@@ -32,6 +32,17 @@ final class MealInputGuard {
     }
 
     static void validateDescription(String description) {
+        validateDescription(description, true);
+    }
+
+    /**
+     * @param requireFoodHint when true, the text must contain a recognised food keyword.
+     *                        The chat-logging path passes false: the model already judged
+     *                        this to be a meal, and the keyword whitelist can never cover
+     *                        every food (e.g. 芒果), so enforcing it there wrongly rejects
+     *                        valid meals. Length + prompt-injection checks always apply.
+     */
+    static void validateDescription(String description, boolean requireFoodHint) {
         String normalized = normalizeDescription(description);
         if (normalized == null) {
             return;
@@ -43,7 +54,7 @@ final class MealInputGuard {
         if (PROMPT_INJECTION_HINT.matcher(lower).find()) {
             throw invalid("請只輸入餐點內容，不要輸入指令、角色扮演或系統提示文字。");
         }
-        if (!FOOD_HINT.matcher(lower).find()) {
+        if (requireFoodHint && !FOOD_HINT.matcher(lower).find()) {
             throw invalid("請確認輸入內容是否為飲食或餐點描述，例如「雞胸肉 150g、白飯一碗」。");
         }
     }
