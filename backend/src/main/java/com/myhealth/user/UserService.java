@@ -46,6 +46,7 @@ public class UserService {
         profile.setGoal(request.goal());
         profile.setEquipment(normalizeEquipment(request.equipment()));
         profile.setExperience(request.experience());
+        profile.setAssistantAvatar(request.assistantAvatar());
         profile.setTheme(request.theme() == null ? "system" : request.theme());
         profile.setLanguage(request.language() == null ? "zh-TW" : request.language());
         profile.touch();

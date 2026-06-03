@@ -15,8 +15,17 @@ export interface Profile {
   goal?: Goal;
   equipment: string[];
   experience?: Experience;
+  /** Which coach persona to show. Backend resolves null → gender, so this is always set on read. */
+  assistantAvatar?: "male" | "female";
   theme: "light" | "dark" | "system";
   language: "zh-TW" | "en";
+}
+
+export interface ChatMessage {
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
 }
 
 export interface User {

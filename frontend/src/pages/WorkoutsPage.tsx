@@ -109,7 +109,7 @@ export function WorkoutsPage() {
       {/* Generate Routine Card */}
       <Card className="border border-slate-100/80 dark:border-slate-900/60 bg-white/70 dark:bg-slate-950/40 backdrop-blur-xl shadow-xl shadow-slate-100/50 dark:shadow-none rounded-3xl overflow-hidden accent-glow">
         <CardHeader className="pb-3">
-          <CardTitle className="text-md font-bold flex items-center gap-2">
+          <CardTitle className="text-lg font-bold flex items-center gap-2">
             <Sparkles className="size-4.5 text-emerald-500" />
             AI 智慧菜單規劃
           </CardTitle>

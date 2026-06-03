@@ -22,4 +22,5 @@ export const qk = {
   workouts: (date: string) => ["workouts", date] as const,
   meals: (date: string) => ["meals", date] as const,
   aiStatus: ["ai", "status"] as const,
+  chat: ["ai", "chat"] as const,
 };

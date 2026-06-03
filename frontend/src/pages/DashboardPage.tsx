@@ -103,7 +103,7 @@ export function DashboardPage() {
         <Card className="lg:col-span-2 border border-slate-100/80 dark:border-slate-900/60 bg-white/70 dark:bg-slate-950/40 backdrop-blur-xl shadow-xl shadow-slate-100/50 dark:shadow-none rounded-3xl overflow-hidden card-hover-effect">
           <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
             <div>
-              <CardTitle className="text-md font-bold flex items-center gap-2">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <TrendingUp className="size-4.5 text-emerald-500" />
                 近七日身體量測趨勢
               </CardTitle>
@@ -199,7 +199,7 @@ export function DashboardPage() {
         <Card className="border border-slate-100/80 dark:border-slate-900/60 bg-white/70 dark:bg-slate-950/40 backdrop-blur-xl shadow-xl shadow-slate-100/50 dark:shadow-none rounded-3xl overflow-hidden card-hover-effect flex flex-col justify-between">
           <div>
             <CardHeader className="pb-3">
-              <CardTitle className="text-md font-bold flex items-center gap-2">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <Cpu className="size-4.5 text-emerald-500" />
                 AI 核心智能引擎
               </CardTitle>

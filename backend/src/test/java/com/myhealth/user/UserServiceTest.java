@@ -89,6 +89,7 @@ class UserServiceTest {
                 Goal.muscle_gain,
                 List.of("barbell", "rack"),
                 Experience.intermediate,
+                "male",
                 "dark",
                 "zh-TW");
 
@@ -117,7 +118,8 @@ class UserServiceTest {
                 Gender.female, new BigDecimal("160"), new BigDecimal("50"),
                 null, null, null, null, null, null, null,
                 null,  // equipment
-                null,
+                null,  // experience
+                null,  // assistantAvatar
                 null,  // theme
                 null); // language
 
@@ -148,7 +150,7 @@ class UserServiceTest {
         sleepMillis(5);
         service.updateProfile(user, new ProfileUpdateRequest(
                 Gender.male, new BigDecimal("180"), new BigDecimal("70"),
-                null, null, null, null, null, null, null, null, null, null, null));
+                null, null, null, null, null, null, null, null, null, null, null, null));
         assertThat(profile.getUpdatedAt()).isAfter(before);
     }
 

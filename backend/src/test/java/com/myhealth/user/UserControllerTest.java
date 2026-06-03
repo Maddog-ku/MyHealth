@@ -65,7 +65,7 @@ class UserControllerTest {
         when(userService.updateProfile(any(), any())).thenReturn(new ProfileResponse(
                 Gender.male, new BigDecimal("175"), new BigDecimal("70"),
                 null, null, null, null, null, null,
-                Goal.maintain, List.of(), Experience.beginner, "dark", "zh-TW"));
+                Goal.maintain, List.of(), Experience.beginner, "male", "dark", "zh-TW"));
 
         String body = "{\"gender\":\"male\",\"heightCm\":175,\"weightKg\":70,\"theme\":\"dark\"}";
 

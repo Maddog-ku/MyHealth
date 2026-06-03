@@ -3,6 +3,7 @@ import { Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { RequireAuth } from "@/components/RequireAuth";
 import { useTheme } from "@/hooks/useTheme";
+import { useFontScale } from "@/hooks/useFontScale";
 
 const DashboardPage = lazy(() => import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
 const LoginPage = lazy(() => import("@/pages/LoginPage").then((m) => ({ default: m.LoginPage })));
@@ -13,6 +14,7 @@ const WorkoutsPage = lazy(() => import("@/pages/WorkoutsPage").then((m) => ({ de
 
 export function App() {
   useTheme();
+  useFontScale();
 
   return (
     <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">載入中…</div>}>

@@ -29,6 +29,7 @@ public final class UserDtos {
             Goal goal,
             @Size(max = 20) List<@NotBlank @Size(max = 30) @Pattern(regexp = "^[\\p{L}\\p{N}\\s._-]+$") String> equipment,
             Experience experience,
+            @Pattern(regexp = "male|female") String assistantAvatar,
             @Pattern(regexp = "light|dark|system") String theme,
             @Pattern(regexp = "zh-TW|en") String language
     ) {

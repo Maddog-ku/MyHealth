@@ -39,7 +39,7 @@ export function ProfilePage() {
       <Card className="border border-slate-100/80 dark:border-slate-900/60 bg-white/70 dark:bg-slate-950/40 backdrop-blur-xl shadow-xl shadow-slate-100/50 dark:shadow-none rounded-3xl overflow-hidden accent-glow">
         <form onSubmit={submit}>
           <CardHeader className="pb-3 border-b border-slate-50 dark:border-slate-900/30">
-            <CardTitle className="text-md font-bold flex items-center gap-2">
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
               <User className="size-4.5 text-emerald-500" />
               個人生理指標檔案
             </CardTitle>

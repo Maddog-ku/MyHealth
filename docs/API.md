@@ -342,10 +342,11 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 | `goal` | ✗ | string | `muscle_gain` \| `fat_loss` \| `maintain` |
 | `equipment` | ✗ | string[] | 元素 ≤ 30 字 |
 | `experience` | ✗ | string | `beginner` \| `intermediate` \| `advanced` |
+| `assistantAvatar` | ✗ | string | `male` \| `female`；省略時依 `gender` 自動推導 |
 | `theme` | ✗ | string | `light` \| `dark` \| `system` |
 | `language` | ✗ | string | `zh-TW` \| `en` |
 
-**Response 200**：回傳更新後的 `profile` 物件。
+**Response 200**：回傳更新後的 `profile` 物件（`assistantAvatar` 一律回傳已解析的 `male`/`female`）。
 
 > 每次更新身體數據（體重、體脂率、肌肉量、BMR、腰圍、體水分率）皆會在 `body_measurements` 新增一筆歷史紀錄，供趨勢圖使用。
 
@@ -616,6 +617,35 @@ Content-Type：`multipart/form-data`
 ```
 
 > 註：呼叫後下一次 AI 請求會自動 lazy load，預期延遲 1–10 秒。
+
+### 9.3 AI 小幫手對話
+
+對話以本機模型產生，並帶入使用者個人資料與當日數據作為背景；歷史會持久化（`DELETE /me` 連動刪除）。
+
+**取得歷史** — `GET /ai/chat/history`  *(需登入)*
+```json
+{
+  "messages": [
+    { "id": 12, "role": "user", "content": "今天適合做什麼運動？", "createdAt": "2026-06-03T14:02:11Z" },
+    { "id": 13, "role": "assistant", "content": "依你今天的活動量，建議做 20 分鐘核心 💪", "createdAt": "2026-06-03T14:02:18Z" }
+  ]
+}
+```
+
+**送出訊息** — `POST /ai/chat`  *(需登入；受 AI 速率限制)*
+```json
+{ "message": "晚餐吃什麼比較好？" }
+```
+**Response 200**
+```json
+{
+  "userMessage": { "id": 14, "role": "user", "content": "晚餐吃什麼比較好？", "createdAt": "2026-06-03T14:05:00Z" },
+  "reply": { "id": 15, "role": "assistant", "content": "可以選高蛋白、低油的雞胸搭蔬菜 🥗", "createdAt": "2026-06-03T14:05:07Z" }
+}
+```
+> `message` 必填，最長 1000 字。本機 AI 不可用時 `reply` 會回退為提示訊息（不報錯）。
+
+**清除歷史** — `DELETE /ai/chat/history`  *(需登入)* → `204 No Content`
 
 ---
 

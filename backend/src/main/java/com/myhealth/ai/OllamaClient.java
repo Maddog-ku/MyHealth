@@ -90,8 +90,10 @@ public class OllamaClient {
         // Don't pass keep_alive on the chat call — Ollama otherwise closes the
         // streaming connection early. LocalAiProvider calls unload() after every
         // request to release the model immediately regardless of Ollama's default.
-        HttpRequest request = buildChatRequest(model, systemPrompt, userPrompt, base64Images, jsonMode, timeout, true);
+        return runStreaming(buildChatRequest(model, systemPrompt, userPrompt, base64Images, jsonMode, timeout, true));
+    }
 
+    private String runStreaming(HttpRequest request) throws OllamaException {
         HttpResponse<Stream<String>> response;
         try {
             // ofLines() consumes the body as a UTF-8 stream of newline-delimited
@@ -138,7 +140,10 @@ public class OllamaClient {
 
     private String chatBuffered(String model, String systemPrompt, String userPrompt, List<String> base64Images,
                                 boolean jsonMode, Duration timeout) throws OllamaException {
-        HttpRequest request = buildChatRequest(model, systemPrompt, userPrompt, base64Images, jsonMode, timeout, false);
+        return runBuffered(buildChatRequest(model, systemPrompt, userPrompt, base64Images, jsonMode, timeout, false));
+    }
+
+    private String runBuffered(HttpRequest request) throws OllamaException {
         HttpResponse<String> response;
         try {
             response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
@@ -159,6 +164,20 @@ public class OllamaClient {
         return content;
     }
 
+    /**
+     * Multi-turn, free-text conversation (no JSON mode). {@code messages} is a
+     * ready-built list of {@code {role, content}} maps including the system prompt.
+     * Used by the chat assistant; reuses the same streaming/buffered fallback path.
+     */
+    public String converse(String model, List<Map<String, Object>> messages, Duration timeout) throws OllamaException {
+        try {
+            return runStreaming(buildMessagesRequest(model, messages, false, timeout, true));
+        } catch (StreamTruncatedException first) {
+            log.warn("Ollama converse stream truncated, falling back to non-streaming request");
+            return runBuffered(buildMessagesRequest(model, messages, false, timeout, false));
+        }
+    }
+
     private HttpRequest buildChatRequest(String model, String systemPrompt, String userPrompt, List<String> base64Images,
                                          boolean jsonMode, Duration timeout, boolean stream) {
         Map<String, Object> userMessage = new LinkedHashMap<>();
@@ -171,7 +190,11 @@ public class OllamaClient {
         List<Map<String, Object>> messages = new ArrayList<>();
         messages.add(Map.of("role", "system", "content", systemPrompt));
         messages.add(userMessage);
+        return buildMessagesRequest(model, messages, jsonMode, timeout, stream);
+    }
 
+    private HttpRequest buildMessagesRequest(String model, List<Map<String, Object>> messages,
+                                             boolean jsonMode, Duration timeout, boolean stream) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", model);
         body.put("messages", messages);

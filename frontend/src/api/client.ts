@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
-import type { AuthResponse, DailyStats, FoodItem, Meal, PageEnvelope, Profile, User, WorkoutPlan } from "@/types/api";
+import type { AuthResponse, ChatMessage, DailyStats, FoodItem, Meal, PageEnvelope, Profile, User, WorkoutPlan } from "@/types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -154,4 +154,12 @@ export const api = {
       )
       .then((r) => r.data),
   aiUnload: () => http.post<{ unloaded: boolean }>("/ai/unload", {}).then((r) => r.data),
+
+  chatHistory: () =>
+    http.get<{ messages: ChatMessage[] }>("/ai/chat/history").then((r) => r.data.messages),
+  sendChat: (message: string) =>
+    http
+      .post<{ userMessage: ChatMessage; reply: ChatMessage }>("/ai/chat", { message })
+      .then((r) => r.data),
+  clearChat: () => http.delete<void>("/ai/chat/history").then(() => undefined),
 };

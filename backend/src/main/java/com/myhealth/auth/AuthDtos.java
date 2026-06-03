@@ -95,6 +95,7 @@ public final class AuthDtos {
             Goal goal,
             List<String> equipment,
             Experience experience,
+            String assistantAvatar,
             String theme,
             String language
     ) {

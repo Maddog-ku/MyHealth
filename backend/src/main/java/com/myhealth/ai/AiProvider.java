@@ -29,6 +29,16 @@ public interface AiProvider {
 
     MealAnalysis analyzeMeal(String description, MealImage image);
 
+    /**
+     * Free-text coaching reply. {@code context} is a short factual block about the
+     * user (profile + today's numbers) injected into the system prompt; {@code history}
+     * is the prior conversation (oldest first) and {@code userMessage} the new turn.
+     */
+    String chat(String context, List<ChatTurn> history, String userMessage);
+
+    record ChatTurn(boolean fromUser, String content) {
+    }
+
     record ExerciseItem(
             @NotBlank @Size(max = 80) String name,
             @Min(1) @Max(6) int sets,

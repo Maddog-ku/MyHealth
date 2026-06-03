@@ -41,6 +41,7 @@ public final class AuthMapper {
                 profile.getGoal(),
                 equipment,
                 profile.getExperience(),
+                profile.resolvedAssistantAvatar(),
                 profile.getTheme(),
                 profile.getLanguage());
     }

@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLogout, useMe } from "@/hooks/useAuth";
+import { AssistantWidget } from "@/components/AssistantWidget";
 
 const navItems = [
   { to: "/", label: "儀表板", icon: Activity, end: true },
@@ -185,6 +186,9 @@ export function AppShell() {
           ))}
         </nav>
       </div>
+
+      {/* Floating AI assistant — present on every page */}
+      <AssistantWidget />
     </div>
   );
 }

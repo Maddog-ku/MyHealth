@@ -60,6 +60,10 @@ public class Profile {
     @Enumerated(EnumType.STRING)
     private Experience experience;
 
+    /** Preferred assistant avatar: "male" / "female". Null means follow {@link #gender}. */
+    @Column(name = "assistant_avatar")
+    private String assistantAvatar;
+
     @Column(nullable = false)
     private String theme = "system";
 
@@ -175,6 +179,22 @@ public class Profile {
 
     public void setExperience(Experience experience) {
         this.experience = experience;
+    }
+
+    public String getAssistantAvatar() {
+        return assistantAvatar;
+    }
+
+    public void setAssistantAvatar(String assistantAvatar) {
+        this.assistantAvatar = assistantAvatar;
+    }
+
+    /** The avatar actually shown: explicit preference, else derived from gender. */
+    public String resolvedAssistantAvatar() {
+        if (assistantAvatar != null && !assistantAvatar.isBlank()) {
+            return assistantAvatar;
+        }
+        return gender == Gender.male ? "male" : "female";
     }
 
     public String getTheme() {
