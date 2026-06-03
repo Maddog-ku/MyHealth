@@ -122,7 +122,7 @@ export function AssistantWidget() {
                   嗨{user?.name ? ` ${user.name}` : ""}！我是 {ASSISTANT_NAME} 👋
                 </p>
                 <p className="text-xs text-muted-foreground max-w-[15rem] leading-relaxed">
-                  運動、飲食、體態有任何問題都可以問我。下面也有幾個常見的起手式：
+                  我專門陪你聊<strong>運動與飲食</strong>，其他主題就幫不上忙囉。下面有幾個常見的起手式：
                 </p>
                 <div className="flex flex-col gap-2 w-full mt-1">
                   {QUICK_PROMPTS.map((q) => (

@@ -169,12 +169,20 @@ public class OllamaClient {
      * ready-built list of {@code {role, content}} maps including the system prompt.
      * Used by the chat assistant; reuses the same streaming/buffered fallback path.
      */
+    // Structured (workout/meal) JSON generation: large budget so JSON isn't truncated;
+    // temperature low enough to keep output parseable.
+    private static final Map<String, Object> JSON_OPTIONS = Map.of("num_predict", 4096, "temperature", 0.3);
+    // Free-text chat: tighter, more grounded decoding to curb hallucination — lower
+    // temperature, nucleus + repeat penalty, and a small budget for short replies.
+    private static final Map<String, Object> CHAT_OPTIONS =
+            Map.of("num_predict", 512, "temperature", 0.2, "top_p", 0.9, "repeat_penalty", 1.1);
+
     public String converse(String model, List<Map<String, Object>> messages, Duration timeout) throws OllamaException {
         try {
-            return runStreaming(buildMessagesRequest(model, messages, false, timeout, true));
+            return runStreaming(buildMessagesRequest(model, messages, false, timeout, true, CHAT_OPTIONS));
         } catch (StreamTruncatedException first) {
             log.warn("Ollama converse stream truncated, falling back to non-streaming request");
-            return runBuffered(buildMessagesRequest(model, messages, false, timeout, false));
+            return runBuffered(buildMessagesRequest(model, messages, false, timeout, false, CHAT_OPTIONS));
         }
     }
 
@@ -190,19 +198,18 @@ public class OllamaClient {
         List<Map<String, Object>> messages = new ArrayList<>();
         messages.add(Map.of("role", "system", "content", systemPrompt));
         messages.add(userMessage);
-        return buildMessagesRequest(model, messages, jsonMode, timeout, stream);
+        return buildMessagesRequest(model, messages, jsonMode, timeout, stream, JSON_OPTIONS);
     }
 
     private HttpRequest buildMessagesRequest(String model, List<Map<String, Object>> messages,
-                                             boolean jsonMode, Duration timeout, boolean stream) {
+                                             boolean jsonMode, Duration timeout, boolean stream,
+                                             Map<String, Object> options) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", model);
         body.put("messages", messages);
         body.put("stream", stream);
         body.put("format", jsonMode ? "json" : "");
-        // num_predict=4096 ensures structured outputs aren't truncated mid-JSON;
-        // temperature=0.3 keeps responses repeatable enough for downstream parsing.
-        body.put("options", Map.of("num_predict", 4096, "temperature", 0.3));
+        body.put("options", options);
 
         try {
             return HttpRequest.newBuilder()
