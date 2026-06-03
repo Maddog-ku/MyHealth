@@ -58,8 +58,8 @@ class WorkoutControllerTest {
     WorkoutPlanResponse stubPlan(long id) {
         return new WorkoutPlanResponse(
                 id, LocalDate.of(2026, 5, 30), "abs",
-                List.of(new ExerciseItem("捲腹", 4, "15", 45, 40, "n", List.of())),
-                40, false, Instant.parse("2026-05-30T00:00:00Z"));
+                List.of(new ExerciseItem("捲腹", 4, "15", 45, 45, 40, "n", List.of())),
+                40, null, false, Instant.parse("2026-05-30T00:00:00Z"));
     }
 
     @Test
@@ -84,8 +84,8 @@ class WorkoutControllerTest {
         when(currentUser.require()).thenReturn(stubUser());
         WorkoutPlanResponse waistPlan = new WorkoutPlanResponse(
                 9L, LocalDate.of(2026, 5, 30), "waist",
-                List.of(new ExerciseItem("側棒式", 3, "每側30s", 45, 35, "髖部抬高", List.of())),
-                35, false, Instant.parse("2026-05-30T00:00:00Z"));
+                List.of(new ExerciseItem("側棒式", 3, "每側30s", 45, 60, 35, "髖部抬高", List.of())),
+                35, null, false, Instant.parse("2026-05-30T00:00:00Z"));
         when(workoutService.generate(any(), any())).thenReturn(waistPlan);
 
         String body = "{\"date\":\"2026-05-30\",\"category\":\"waist\",\"durationMin\":30,\"intensity\":\"medium\"}";
@@ -187,12 +187,13 @@ class WorkoutControllerTest {
         when(currentUser.require()).thenReturn(stubUser());
         WorkoutPlanResponse done = new WorkoutPlanResponse(
                 7L, LocalDate.of(2026, 5, 30), "abs",
-                List.of(), 0, true, Instant.parse("2026-05-30T00:00:00Z"));
-        when(workoutService.complete(any(), eq(7L))).thenReturn(done);
+                List.of(), 80, 50, true, Instant.parse("2026-05-30T00:00:00Z"));
+        when(workoutService.complete(any(), eq(7L), any())).thenReturn(done);
 
         mockMvc.perform(post("/api/v1/workouts/7/complete"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.done").value(true));
+                .andExpect(jsonPath("$.done").value(true))
+                .andExpect(jsonPath("$.burnedKcal").value(50));
     }
 
     @Test
@@ -203,6 +204,25 @@ class WorkoutControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("note")));
+    }
+
+    @Test
+    void removeItems_returns200_andCallsService() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        when(workoutService.removeItems(any(), eq(5L), eq(List.of(0, 2)))).thenReturn(stubPlan(5L));
+
+        mockMvc.perform(post("/api/v1/workouts/5/items/remove")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"indices\":[0,2]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(5));
+    }
+
+    @Test
+    void removeItems_returns400_whenIndicesEmpty() throws Exception {
+        mockMvc.perform(post("/api/v1/workouts/5/items/remove")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"indices\":[]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"));
     }
 
     @Test

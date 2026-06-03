@@ -6,6 +6,7 @@ import com.myhealth.common.PageEnvelope;
 import com.myhealth.user.AppUser;
 import com.myhealth.workout.WorkoutDtos.CompleteWorkoutRequest;
 import com.myhealth.workout.WorkoutDtos.GenerateWorkoutRequest;
+import com.myhealth.workout.WorkoutDtos.RemoveItemsRequest;
 import com.myhealth.workout.WorkoutDtos.WorkoutPlanResponse;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -54,7 +55,13 @@ public class WorkoutController {
 
     @PostMapping("/{id}/complete")
     WorkoutPlanResponse complete(@PathVariable Long id, @Valid @RequestBody(required = false) CompleteWorkoutRequest request) {
-        return workoutService.complete(currentUser.require(), id);
+        Integer actualKcal = request == null ? null : request.actualKcal();
+        return workoutService.complete(currentUser.require(), id, actualKcal);
+    }
+
+    @PostMapping("/{id}/items/remove")
+    WorkoutPlanResponse removeItems(@PathVariable Long id, @Valid @RequestBody RemoveItemsRequest request) {
+        return workoutService.removeItems(currentUser.require(), id, request.indices());
     }
 
     @DeleteMapping("/{id}")

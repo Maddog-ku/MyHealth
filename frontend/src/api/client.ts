@@ -135,7 +135,11 @@ export const api = {
   workouts: (date: string) => http.get<PageEnvelope<WorkoutPlan>>(`/workouts`, { params: { date } }).then((r) => r.data),
   generateWorkout: (body: Record<string, unknown>) =>
     http.post<WorkoutPlan>("/workouts/generate", body).then((r) => r.data),
-  completeWorkout: (id: number) => http.post<WorkoutPlan>(`/workouts/${id}/complete`, {}).then((r) => r.data),
+  completeWorkout: (id: number, actualKcal?: number) =>
+    http.post<WorkoutPlan>(`/workouts/${id}/complete`, actualKcal === undefined ? {} : { actualKcal }).then((r) => r.data),
+  removeWorkoutItems: (id: number, indices: number[]) =>
+    http.post<WorkoutPlan>(`/workouts/${id}/items/remove`, { indices }).then((r) => r.data),
+  deleteWorkout: (id: number) => http.delete(`/workouts/${id}`).then(() => undefined),
 
   meals: (date: string) => http.get<PageEnvelope<Meal>>(`/meals`, { params: { date } }).then((r) => r.data),
   createMeal: (form: FormData) => http.post<Meal>("/meals", form).then((r) => r.data),

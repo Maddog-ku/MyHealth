@@ -391,13 +391,16 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
   "date": "2026-05-25",
   "category": "abs",
   "items": [
-    { "name": "捲腹", "sets": 4, "reps": 15, "restSec": 45, "kcal": 30, "note": "下背貼地", "alt": ["反向捲腹"] }
+    { "name": "捲腹", "sets": 4, "reps": "15", "restSec": 45, "durationSec": 45, "kcal": 30, "note": "下背貼地", "alt": ["反向捲腹"] }
   ],
   "totalKcal": 220,
+  "burnedKcal": null,
   "done": false,
   "createdAt": "2026-05-25T12:30:00Z"
 }
 ```
+
+> `durationSec` 是 AI 估算的「單組工作秒數」，供前端計時引導使用（舊菜單可能為 0，前端會依 reps 推算）。`burnedKcal` 在完成前為 `null`。
 
 **Errors**：`400 BAD_REQUEST`（不支援的 category/intensity）、`400 VALIDATION_ERROR`（日期缺漏或時長超出範圍）、`429 RATE_LIMITED`（AI 產生請求過於頻繁）
 
@@ -417,20 +420,41 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 
 ---
 
-### 6.4 完成打卡
+### 6.4 完成訓練
 
 `POST /workouts/{id}/complete`
+
+使用者在前端的計時引導中逐組完成動作。只有「做滿設定秒數」的動作才計入消耗，前端把已完成動作的 `kcal` 加總成 `actualKcal` 送出。
 
 **Request**（可選）
 ```json
 { "actualKcal": 230, "note": "完成全部組數" }
 ```
 
-**Response 200**：更新後的 `WorkoutPlan`
+`actualKcal` 會被夾在 `[0, totalKcal]`，避免竄改後灌水超過菜單規劃量；省略 body 時視為完成整份菜單（`burnedKcal = totalKcal`）。當日統計的 `burnKcal` 以 `burnedKcal` 為準（舊資料 `null` 時回退 `totalKcal`）。
+
+**Response 200**：更新後的 `WorkoutPlan`（`done: true`、`burnedKcal` 已填）
 
 ---
 
-### 6.5 刪除菜單
+### 6.5 取消動作
+
+`POST /workouts/{id}/items/remove`
+
+從菜單中取消（移除）指定的動作，可單個或批次。送出要移除的動作索引（對應目前 `items` 陣列順序），後端移除後重算 `totalKcal`。
+
+**Request**
+```json
+{ "indices": [1, 2] }
+```
+
+**Response 200**：更新後的 `WorkoutPlan`（已移除指定動作）。若移除後菜單已無任何動作，後端會直接刪除整份菜單（避免留下空卡片），回傳的菜單 `items` 為空。
+
+**Errors**：`400 VALIDATION_ERROR`（`indices` 為空或超出範圍）、`400 BAD_REQUEST`（沒有任何索引命中）、`409 CONFLICT`（已完成的菜單不可編輯）、`404 NOT_FOUND`
+
+---
+
+### 6.6 刪除菜單
 
 `DELETE /workouts/{id}` → 204
 
@@ -602,8 +626,9 @@ Content-Type：`multipart/form-data`
 |---|---|---|
 | `name` | string | 動作名稱 |
 | `sets` | int | 組數 |
-| `reps` | int \| string | 次數（可為 `"30s"` 表時間） |
+| `reps` | string | 次數（可為 `"30s"` 表時間） |
 | `restSec` | int | 組間休息秒數 |
+| `durationSec` | int | 單組工作秒數（計時引導用；10–600） |
 | `kcal` | int | 預估消耗 |
 | `note` | string | 提示要點 |
 | `alt` | string[] | 替代動作 |

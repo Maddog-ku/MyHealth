@@ -34,6 +34,7 @@ public interface AiProvider {
             @Min(1) @Max(6) int sets,
             @NotBlank @Size(max = 20) @Pattern(regexp = "^[\\p{L}\\p{N}\\s/.-]+$") String reps,
             @Min(15) @Max(180) int restSec,
+            @Min(10) @Max(600) int durationSec,
             @Min(5) @Max(250) int kcal,
             @NotBlank @Size(max = 60) String note,
             @Size(max = 2) List<@NotBlank @Size(max = 80) String> alt

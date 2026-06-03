@@ -39,6 +39,9 @@ public class WorkoutPlan {
     @Column(name = "total_kcal", nullable = false)
     private int totalKcal;
 
+    @Column(name = "burned_kcal")
+    private Integer burnedKcal;
+
     @Column(nullable = false)
     private boolean done;
 
@@ -87,6 +90,19 @@ public class WorkoutPlan {
 
     public void setTotalKcal(int totalKcal) {
         this.totalKcal = totalKcal;
+    }
+
+    public Integer getBurnedKcal() {
+        return burnedKcal;
+    }
+
+    public void setBurnedKcal(Integer burnedKcal) {
+        this.burnedKcal = burnedKcal;
+    }
+
+    /** Energy actually burned for a done plan: the recorded partial amount, or the full plan total for legacy rows. */
+    public int effectiveBurnKcal() {
+        return burnedKcal != null ? burnedKcal : totalKcal;
     }
 
     public boolean isDone() {

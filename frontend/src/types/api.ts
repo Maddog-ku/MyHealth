@@ -41,6 +41,8 @@ export interface ExerciseItem {
   sets: number;
   reps: string;
   restSec: number;
+  /** Per-set work seconds the user actually times against. May be 0 on legacy plans (derive from reps). */
+  durationSec: number;
   kcal: number;
   note: string;
   alt: string[];
@@ -52,6 +54,8 @@ export interface WorkoutPlan {
   category: string;
   items: ExerciseItem[];
   totalKcal: number;
+  /** Energy actually burned once completed; null until the timed session is finished. */
+  burnedKcal: number | null;
   done: boolean;
   createdAt: string;
 }

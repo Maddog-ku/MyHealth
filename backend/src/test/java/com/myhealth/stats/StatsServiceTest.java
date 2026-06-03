@@ -157,6 +157,20 @@ class StatsServiceTest {
     }
 
     @Test
+    void daily_burn_usesPartialBurnedKcal_whenRecorded() {
+        LocalDate today = LocalDate.of(2026, 5, 30);
+        when(meals.findByUserIdAndDateOrderByCreatedAtDesc(1L, today)).thenReturn(List.of());
+        WorkoutPlan partial = workout(today, 200, true);
+        partial.setBurnedKcal(70);  // only some exercises were actually completed
+        WorkoutPlan legacy = workout(today, 50, true);  // burnedKcal null → falls back to total
+        when(workouts.findByUserIdAndDateOrderByCreatedAtDesc(1L, today)).thenReturn(List.of(partial, legacy));
+
+        DailyStatsResponse response = service.daily(owner, today);
+
+        assertThat(response.burnKcal()).isEqualTo(120);  // 70 (partial) + 50 (legacy total)
+    }
+
+    @Test
     void daily_netKcalIsIntakeMinusBurn() {
         LocalDate today = LocalDate.of(2026, 5, 30);
         when(meals.findByUserIdAndDateOrderByCreatedAtDesc(1L, today)).thenReturn(List.of(meal(today, 500, 0, 0, 0)));

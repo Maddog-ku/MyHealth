@@ -11,7 +11,10 @@ import com.myhealth.user.AppUser;
 import com.myhealth.workout.WorkoutDtos.GenerateWorkoutRequest;
 import com.myhealth.workout.WorkoutDtos.WorkoutPlanResponse;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,9 +58,47 @@ public class WorkoutService {
     }
 
     @Transactional
-    public WorkoutPlanResponse complete(AppUser user, Long id) {
+    public WorkoutPlanResponse complete(AppUser user, Long id, Integer actualKcal) {
         WorkoutPlan plan = findOwned(user, id);
         plan.setDone(true);
+        // Only the exercises whose timer was finished count. Clamp the client-reported
+        // amount to [0, totalKcal] so a tampered request can never inflate burn beyond
+        // the planned total; a null body means "completed the whole plan".
+        int burned = actualKcal == null ? plan.getTotalKcal() : Math.max(0, Math.min(actualKcal, plan.getTotalKcal()));
+        plan.setBurnedKcal(burned);
+        return toResponse(workouts.save(plan));
+    }
+
+    /**
+     * Cancel selected exercises from a plan: drop the given item indices, recompute
+     * the planned total, and persist. A completed plan is immutable, and at least one
+     * index must actually match — otherwise the whole plan should be deleted instead.
+     */
+    @Transactional
+    public WorkoutPlanResponse removeItems(AppUser user, Long id, List<Integer> indices) {
+        WorkoutPlan plan = findOwned(user, id);
+        if (plan.isDone()) {
+            throw new ApiException(HttpStatus.CONFLICT, ErrorCode.CONFLICT, "Completed workout cannot be edited");
+        }
+        List<ExerciseItem> items = readItems(plan.getItemsJson());
+        Set<Integer> remove = new HashSet<>(indices);
+        List<ExerciseItem> kept = new ArrayList<>();
+        for (int i = 0; i < items.size(); i++) {
+            if (!remove.contains(i)) {
+                kept.add(items.get(i));
+            }
+        }
+        if (kept.size() == items.size()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "No matching exercises to cancel");
+        }
+        plan.setItemsJson(writeItems(kept));
+        plan.setTotalKcal(kept.stream().mapToInt(ExerciseItem::kcal).sum());
+        if (kept.isEmpty()) {
+            // Cancelling every exercise leaves nothing to train — drop the whole plan
+            // rather than keeping an empty card around.
+            workouts.delete(plan);
+            return toResponse(plan);
+        }
         return toResponse(workouts.save(plan));
     }
 
@@ -78,6 +119,7 @@ public class WorkoutService {
                 plan.getCategory(),
                 readItems(plan.getItemsJson()),
                 plan.getTotalKcal(),
+                plan.getBurnedKcal(),
                 plan.isDone(),
                 plan.getCreatedAt());
     }

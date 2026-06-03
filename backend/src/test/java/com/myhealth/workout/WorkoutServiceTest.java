@@ -65,9 +65,9 @@ class WorkoutServiceTest {
     @Test
     void generate_callsAi_persistsPlan_andSumsTotalKcal() {
         List<ExerciseItem> aiItems = List.of(
-                new ExerciseItem("捲腹", 4, "15", 45, 40, "n", List.of("死蟲式")),
-                new ExerciseItem("棒式", 3, "45s", 45, 35, "n", List.of()),
-                new ExerciseItem("登山者", 3, "30s", 60, 55, "n", List.of()));
+                new ExerciseItem("捲腹", 4, "15", 45, 45, 40, "n", List.of("死蟲式")),
+                new ExerciseItem("棒式", 3, "45s", 45, 45, 35, "n", List.of()),
+                new ExerciseItem("登山者", 3, "30s", 60, 30, 55, "n", List.of()));
         when(aiProvider.generateWorkout("abs", 30, "medium")).thenReturn(aiItems);
         when(workouts.save(any(WorkoutPlan.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -91,7 +91,7 @@ class WorkoutServiceTest {
     @Test
     void generate_appliesDefaults_whenDurationOrIntensityNull() {
         when(aiProvider.generateWorkout("legs", 30, "medium")).thenReturn(List.of(
-                new ExerciseItem("深蹲", 4, "12", 60, 70, "", List.of())));
+                new ExerciseItem("深蹲", 4, "12", 60, 40, 70, "", List.of())));
         when(workouts.save(any(WorkoutPlan.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.generate(owner, new GenerateWorkoutRequest(LocalDate.now(), WorkoutCategory.legs, null, null, null));
@@ -124,16 +124,92 @@ class WorkoutServiceTest {
     }
 
     @Test
-    void complete_flipsDoneAndSaves() {
+    void complete_flipsDoneAndRecordsActualBurn() {
         WorkoutPlan plan = buildPlan(owner, 5L);
+        plan.setTotalKcal(100);
         assertThat(plan.isDone()).isFalse();
         when(workouts.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(plan));
         when(workouts.save(plan)).thenAnswer(inv -> inv.getArgument(0));
 
-        WorkoutPlanResponse response = service.complete(owner, 5L);
+        WorkoutPlanResponse response = service.complete(owner, 5L, 60);
 
         assertThat(plan.isDone()).isTrue();
         assertThat(response.done()).isTrue();
+        assertThat(response.burnedKcal()).isEqualTo(60);
+    }
+
+    @Test
+    void complete_clampsActualBurnToPlanTotal() {
+        WorkoutPlan plan = buildPlan(owner, 6L);
+        plan.setTotalKcal(80);
+        when(workouts.findByIdAndUserId(6L, 1L)).thenReturn(Optional.of(plan));
+        when(workouts.save(plan)).thenAnswer(inv -> inv.getArgument(0));
+
+        // A tampered request can't claim more burn than the plan was worth.
+        assertThat(service.complete(owner, 6L, 9999).burnedKcal()).isEqualTo(80);
+        // A null body means "did the whole plan".
+        assertThat(service.complete(owner, 6L, null).burnedKcal()).isEqualTo(80);
+    }
+
+    @Test
+    void removeItems_dropsSelectedAndRecomputesTotal() {
+        WorkoutPlan plan = buildPlan(owner, 8L);
+        plan.setItemsJson(objectMapper.valueToTree(List.of(
+                new ExerciseItem("捲腹", 4, "15", 45, 45, 40, "n", List.of()),
+                new ExerciseItem("棒式", 3, "45s", 45, 45, 35, "n", List.of()),
+                new ExerciseItem("登山者", 3, "30s", 60, 30, 55, "n", List.of()))).toString());
+        plan.setTotalKcal(130);
+        when(workouts.findByIdAndUserId(8L, 1L)).thenReturn(Optional.of(plan));
+        when(workouts.save(plan)).thenAnswer(inv -> inv.getArgument(0));
+
+        WorkoutPlanResponse response = service.removeItems(owner, 8L, List.of(1));
+
+        assertThat(response.items()).hasSize(2);
+        assertThat(response.items()).extracting(ExerciseItem::name).containsExactly("捲腹", "登山者");
+        assertThat(response.totalKcal()).isEqualTo(95);  // 40 + 55, 棒式 dropped
+    }
+
+    @Test
+    void removeItems_deletesWholePlan_whenAllExercisesRemoved() {
+        WorkoutPlan plan = buildPlan(owner, 11L);
+        plan.setItemsJson(objectMapper.valueToTree(List.of(
+                new ExerciseItem("捲腹", 4, "15", 45, 45, 40, "n", List.of()),
+                new ExerciseItem("棒式", 3, "45s", 45, 45, 35, "n", List.of()))).toString());
+        plan.setTotalKcal(75);
+        when(workouts.findByIdAndUserId(11L, 1L)).thenReturn(Optional.of(plan));
+
+        WorkoutPlanResponse response = service.removeItems(owner, 11L, List.of(0, 1));
+
+        verify(workouts).delete(plan);
+        verify(workouts, never()).save(any());
+        assertThat(response.items()).isEmpty();
+    }
+
+    @Test
+    void removeItems_throws409_whenPlanAlreadyDone() {
+        WorkoutPlan plan = buildPlan(owner, 9L);
+        plan.setDone(true);
+        when(workouts.findByIdAndUserId(9L, 1L)).thenReturn(Optional.of(plan));
+
+        assertThatThrownBy(() -> service.removeItems(owner, 9L, List.of(0)))
+                .isInstanceOf(ApiException.class)
+                .extracting(e -> ((ApiException) e).status())
+                .isEqualTo(HttpStatus.CONFLICT);
+        verify(workouts, never()).save(any());
+    }
+
+    @Test
+    void removeItems_throws400_whenNoIndexMatches() {
+        WorkoutPlan plan = buildPlan(owner, 10L);
+        plan.setItemsJson(objectMapper.valueToTree(List.of(
+                new ExerciseItem("捲腹", 4, "15", 45, 45, 40, "n", List.of()))).toString());
+        when(workouts.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(plan));
+
+        assertThatThrownBy(() -> service.removeItems(owner, 10L, List.of(5)))
+                .isInstanceOf(ApiException.class)
+                .extracting(e -> ((ApiException) e).status())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        verify(workouts, never()).save(any());
     }
 
     @Test

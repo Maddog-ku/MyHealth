@@ -30,12 +30,18 @@ public final class WorkoutDtos {
     ) {
     }
 
+    public record RemoveItemsRequest(
+            @NotNull @Size(min = 1, max = 20) List<@NotNull @Min(0) @Max(20) Integer> indices
+    ) {
+    }
+
     public record WorkoutPlanResponse(
             Long id,
             LocalDate date,
             String category,
             List<ExerciseItem> items,
             int totalKcal,
+            Integer burnedKcal,
             boolean done,
             Instant createdAt
     ) {

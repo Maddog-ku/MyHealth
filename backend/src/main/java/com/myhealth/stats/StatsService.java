@@ -45,7 +45,7 @@ public class StatsService {
         BigDecimal protein = sum(dayMeals.stream().map(Meal::getTotalProtein).toList());
         BigDecimal fat = sum(dayMeals.stream().map(Meal::getTotalFat).toList());
         BigDecimal carb = sum(dayMeals.stream().map(Meal::getTotalCarb).toList());
-        int burn = dayWorkouts.stream().filter(WorkoutPlan::isDone).mapToInt(WorkoutPlan::getTotalKcal).sum();
+        int burn = dayWorkouts.stream().filter(WorkoutPlan::isDone).mapToInt(WorkoutPlan::effectiveBurnKcal).sum();
         int done = (int) dayWorkouts.stream().filter(WorkoutPlan::isDone).count();
 
         return new DailyStatsResponse(
@@ -107,7 +107,7 @@ public class StatsService {
                     .sum();
             int burn = rangeWorkouts.stream()
                     .filter(workout -> workout.getDate().equals(current) && workout.isDone())
-                    .mapToInt(WorkoutPlan::getTotalKcal)
+                    .mapToInt(WorkoutPlan::effectiveBurnKcal)
                     .sum();
             series.add(new SeriesPoint(current, intake, burn,
                     currentWeight, currentBodyFat, currentMuscle, currentWaist, currentWater));

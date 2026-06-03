@@ -108,9 +108,11 @@ public class LocalAiProvider implements AiProvider {
                 6. 必須推薦 3 到 6 個 items；每個 item 代表一個獨立動作。
                 7. sets 必須是 1 到 6 的整數；reps 必須是清楚的次數或秒數字串，例如 "12"、"每側10"、"30s"。
                 8. restSec 必須是 15 到 180 的整數；kcal 必須是 5 到 250 的整數，且只是粗估。
-                9. note 必須是一句繁體中文動作要點，避免空字串，最多 30 字。
-                10. alt 最多 2 個替代動作；替代動作也必須低風險且常見。
-                11. 不可輸出 Markdown、註解、推理過程、額外欄位或 JSON 以外的文字。
+                9. durationSec 必須是 10 到 600 的整數，代表「使用者在 App 內實際操作這個動作『單組』所需的工作秒數」，
+                   供前端計時引導使用。請依 reps 與動作節奏合理估算：例如 12 下約 30 到 45 秒、30s 計時動作就填 30。
+                10. note 必須是一句繁體中文動作要點，避免空字串，最多 30 字。
+                11. alt 最多 2 個替代動作；替代動作也必須低風險且常見。
+                12. 不可輸出 Markdown、註解、推理過程、額外欄位或 JSON 以外的文字。
 
                 強度限制：
                 - low：低衝擊、休息較長，避免跳躍與力竭。
@@ -120,7 +122,7 @@ public class LocalAiProvider implements AiProvider {
                 只允許回傳下列 JSON schema：
                 {"items":[
                   {"name":"動作中文名","sets":4,"reps":"次數或秒數（字串）",
-                   "restSec":45,"kcal":40,"note":"動作要點","alt":["替代動作1","替代動作2"]}
+                   "restSec":45,"durationSec":40,"kcal":40,"note":"動作要點","alt":["替代動作1","替代動作2"]}
                 ]}
                 """;
         String user = "分類: %s%n時長: %d 分鐘%n強度: %s".formatted(category, durationMin, intensity);
@@ -218,6 +220,7 @@ public class LocalAiProvider implements AiProvider {
         }
         return items.stream()
                 .filter(this::validExerciseItem)
+                .map(this::normalizeDuration)
                 .limit(6)
                 .toList();
     }
@@ -236,6 +239,42 @@ public class LocalAiProvider implements AiProvider {
                 && item.kcal() <= 250
                 && item.note() != null
                 && !item.note().isBlank();
+    }
+
+    /**
+     * The model is asked for a per-set work duration, but smaller models routinely
+     * omit it or return something nonsensical. Rather than drop an otherwise-valid
+     * exercise, fill/repair {@code durationSec} by estimating from the reps string.
+     */
+    private ExerciseItem normalizeDuration(ExerciseItem item) {
+        if (item.durationSec() >= 10 && item.durationSec() <= 600) {
+            return item;
+        }
+        return new ExerciseItem(item.name(), item.sets(), item.reps(), item.restSec(),
+                deriveDurationSec(item.reps()), item.kcal(), item.note(), item.alt());
+    }
+
+    /**
+     * Estimate the seconds of work for a single set from a reps string such as
+     * "12", "每側10" or "30s": a time-based reps value (s/秒) is taken as-is,
+     * otherwise each rep is assumed to take ~3 seconds (doubled for per-side work).
+     */
+    static int deriveDurationSec(String reps) {
+        int fallback = 40;
+        if (reps == null || reps.isBlank()) {
+            return fallback;
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\d+").matcher(reps);
+        if (!matcher.find()) {
+            return fallback;
+        }
+        int number = Integer.parseInt(matcher.group());
+        boolean timeBased = reps.contains("s") || reps.contains("S") || reps.contains("秒");
+        int seconds = timeBased ? number : number * 3;
+        if (reps.contains("每側") || reps.contains("每邊") || reps.contains("左右")) {
+            seconds *= 2;
+        }
+        return Math.max(10, Math.min(600, seconds));
     }
 
     MealAnalysis parseMealAnalysis(String json) throws Exception {
@@ -334,25 +373,25 @@ public class LocalAiProvider implements AiProvider {
     private List<ExerciseItem> fallbackWorkout(String category) {
         Map<String, List<ExerciseItem>> templates = Map.of(
                 "abs", List.of(
-                        new ExerciseItem("捲腹", 4, "15", 45, 40, "下背貼地，避免用脖子出力", List.of("死蟲式")),
-                        new ExerciseItem("棒式", 3, "45s", 45, 35, "身體維持一直線", List.of("跪姿棒式")),
-                        new ExerciseItem("登山者", 3, "30s", 60, 55, "穩定核心，膝蓋朝胸口收", List.of("慢速登山者"))),
+                        new ExerciseItem("捲腹", 4, "15", 45, 45, 40, "下背貼地，避免用脖子出力", List.of("死蟲式")),
+                        new ExerciseItem("棒式", 3, "45s", 45, 45, 35, "身體維持一直線", List.of("跪姿棒式")),
+                        new ExerciseItem("登山者", 3, "30s", 60, 30, 55, "穩定核心，膝蓋朝胸口收", List.of("慢速登山者"))),
                 "waist", List.of(
-                        new ExerciseItem("側棒式", 3, "每側30s", 45, 35, "髖部抬高，身體呈一直線", List.of("跪姿側棒式")),
-                        new ExerciseItem("俄羅斯轉體", 4, "每側12", 45, 45, "轉動軀幹，骨盆保持穩定", List.of("徒手轉體")),
-                        new ExerciseItem("站姿側屈", 3, "每側15", 30, 30, "緩慢側彎，感受側腹收縮", List.of("坐姿側屈"))),
+                        new ExerciseItem("側棒式", 3, "每側30s", 45, 60, 35, "髖部抬高，身體呈一直線", List.of("跪姿側棒式")),
+                        new ExerciseItem("俄羅斯轉體", 4, "每側12", 45, 50, 45, "轉動軀幹，骨盆保持穩定", List.of("徒手轉體")),
+                        new ExerciseItem("站姿側屈", 3, "每側15", 30, 50, 30, "緩慢側彎，感受側腹收縮", List.of("坐姿側屈"))),
                 "legs", List.of(
-                        new ExerciseItem("深蹲", 4, "12", 60, 70, "膝蓋朝腳尖方向", List.of("椅子深蹲")),
-                        new ExerciseItem("弓箭步", 3, "每側10", 60, 65, "保持軀幹穩定", List.of("反向弓箭步")),
-                        new ExerciseItem("臀橋", 4, "15", 45, 45, "頂端夾臀一秒", List.of("單腳臀橋"))),
+                        new ExerciseItem("深蹲", 4, "12", 60, 40, 70, "膝蓋朝腳尖方向", List.of("椅子深蹲")),
+                        new ExerciseItem("弓箭步", 3, "每側10", 60, 60, 65, "保持軀幹穩定", List.of("反向弓箭步")),
+                        new ExerciseItem("臀橋", 4, "15", 45, 40, 45, "頂端夾臀一秒", List.of("單腳臀橋"))),
                 "cardio", List.of(
-                        new ExerciseItem("開合跳", 4, "45s", 45, 80, "落地保持輕盈", List.of("踏步開合")),
-                        new ExerciseItem("高抬腿", 4, "30s", 45, 75, "核心收緊", List.of("原地快走")),
-                        new ExerciseItem("波比跳", 3, "10", 75, 95, "依能力調整速度", List.of("半波比"))));
+                        new ExerciseItem("開合跳", 4, "45s", 45, 45, 80, "落地保持輕盈", List.of("踏步開合")),
+                        new ExerciseItem("高抬腿", 4, "30s", 45, 30, 75, "核心收緊", List.of("原地快走")),
+                        new ExerciseItem("波比跳", 3, "10", 75, 40, 95, "依能力調整速度", List.of("半波比"))));
         return templates.getOrDefault(category, List.of(
-                new ExerciseItem("動態暖身", 3, "60s", 30, 30, "活動肩髖關節", List.of("快走暖身")),
-                new ExerciseItem("徒手深蹲", 3, "12", 60, 55, "控制下放速度", List.of("椅子深蹲")),
-                new ExerciseItem("棒式", 3, "30s", 45, 35, "維持呼吸", List.of("跪姿棒式"))));
+                new ExerciseItem("動態暖身", 3, "60s", 30, 60, 30, "活動肩髖關節", List.of("快走暖身")),
+                new ExerciseItem("徒手深蹲", 3, "12", 60, 40, 55, "控制下放速度", List.of("椅子深蹲")),
+                new ExerciseItem("棒式", 3, "30s", 45, 30, 35, "維持呼吸", List.of("跪姿棒式"))));
     }
 
     private MealAnalysis fallbackMeal(String description, boolean hasImage) {

@@ -339,11 +339,24 @@ class LocalAiProviderTest {
     }
 
     @Test
-    void analyzeMeal_fallsBackToStub_whenItemsArrayEmpty() {
+    void analyzeMeal_fallsBackToConservativeEstimate_whenItemsArrayEmptyButDescriptionMatches() {
         when(ollama.chat(any(), any(), any(), anyList(), anyBoolean(), any()))
                 .thenReturn("{\"items\":[],\"suggestion\":\"…\"}");
 
         MealAnalysis result = provider.analyzeMeal("白飯", null);
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().get(0).name()).isEqualTo("白飯");
+        assertThat(result.items().get(0).confidence()).isEqualTo(0.35);
+        assertThat(result.suggestion()).contains("保守估算");
+    }
+
+    @Test
+    void analyzeMeal_fallsBackToStub_whenItemsArrayEmptyAndNoKeywordMatch() {
+        when(ollama.chat(any(), any(), any(), anyList(), anyBoolean(), any()))
+                .thenReturn("{\"items\":[],\"suggestion\":\"…\"}");
+
+        MealAnalysis result = provider.analyzeMeal("焗烤起司", null);
 
         assertThat(result.items()).isEmpty();
         assertThat(result.suggestion()).contains("AI 無法可靠辨識");

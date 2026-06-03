@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// Mocked-backend e2e (same pattern as auth.spec.ts).
+// Mocked-backend e2e (same pattern as auth.spec.ts). Workouts are now performed
+// in a timed player rather than checked off, so we drive the countdown with
+// Playwright's clock API instead of waiting in real time.
 
 const USER = {
   id: 1, email: "demo@example.com", name: "Demo", role: "USER",
@@ -8,34 +10,41 @@ const USER = {
   createdAt: "2026-05-30T00:00:00Z",
 };
 
+// Single exercise, single set, 12s of work and no trailing rest — one work phase.
+function singleExercisePlan(): Record<string, unknown> {
+  return {
+    id: 42, date: "2026-06-01", category: "abs",
+    items: [
+      { name: "捲腹", sets: 1, reps: "12", restSec: 30, durationSec: 12, kcal: 40, note: "下背貼地", alt: [] },
+    ],
+    totalKcal: 40, burnedKcal: null, done: false, createdAt: "2026-05-30T03:00:00Z",
+  };
+}
+
 async function seedAuth(page: Page) {
+  await page.clock.install();
   await page.addInitScript(() => {
     localStorage.setItem("accessToken", "t");
     localStorage.setItem("refreshToken", "t");
   });
-}
-
-test("workout 打卡 is gated behind ticking every exercise on the page", async ({ page }) => {
-  await seedAuth(page);
-
-  let plan: Record<string, unknown> = {
-    id: 42, date: "2026-06-01", category: "abs",
-    items: [
-      { name: "捲腹", sets: 4, reps: "15", restSec: 45, kcal: 40, note: "下背貼地", alt: [] },
-      { name: "棒式", sets: 3, reps: "45s", restSec: 45, kcal: 35, note: "一直線", alt: [] },
-    ],
-    totalKcal: 75, done: false, createdAt: "2026-05-30T03:00:00Z",
-  };
-  let completeCalled = false;
-
   await page.route("**/api/v1/me", (r) =>
     r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(USER) }),
   );
+  await page.route("**/api/v1/ai/**", (r) =>
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ loaded: true }) }),
+  );
+}
+
+test("finishing every timed set records actual kcal and marks the plan done", async ({ page }) => {
+  await seedAuth(page);
+  let plan = singleExercisePlan();
+  let completeBody: Record<string, unknown> | null = null;
+
   await page.route("**/api/v1/workouts**", async (route) => {
     const req = route.request();
     if (req.method() === "POST" && req.url().includes("/complete")) {
-      completeCalled = true;
-      plan = { ...plan, done: true };
+      completeBody = req.postDataJSON();
+      plan = { ...plan, done: true, burnedKcal: 40 };
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(plan) });
       return;
     }
@@ -51,73 +60,79 @@ test("workout 打卡 is gated behind ticking every exercise on the page", async 
 
   await page.goto("/workouts");
 
-  // Before any exercise is ticked, 打卡 is disabled and shows 0/2 progress.
-  const gate = page.getByRole("button", { name: "完成進度 0/2" });
-  await expect(gate).toBeVisible();
-  await expect(gate).toBeDisabled();
+  // Launch the timed player.
+  await page.getByRole("button", { name: "開始訓練" }).click();
+  await expect(page.getByRole("heading", { name: "捲腹" })).toBeVisible();
+  await expect(page.getByText("第 1/1 組")).toBeVisible();
+  await expect(page.getByText("0:12")).toBeVisible();
 
-  // Tick the first exercise → progress advances but still locked.
-  await page.getByRole("button", { name: /捲腹/ }).click();
-  await expect(page.getByRole("button", { name: "完成進度 1/2" })).toBeDisabled();
+  // Fast-forward through the 12s work countdown → session ends.
+  await page.clock.runFor(13_000);
 
-  // Tick the second → now 打卡 unlocks.
-  await page.getByRole("button", { name: /棒式/ }).click();
-  const ready = page.getByRole("button", { name: "完成打卡" });
-  await expect(ready).toBeEnabled();
-  expect(completeCalled).toBe(false); // not until the user actually clicks
+  await expect(page.getByRole("heading", { name: "訓練結束" })).toBeVisible();
+  const record = page.getByRole("button", { name: "完成並記錄" });
+  await expect(record).toBeVisible();
+  expect(completeBody).toBeNull(); // nothing sent until the user confirms
 
-  await ready.click();
+  await record.click();
 
-  // POST fired, and after refetch the plan reads as checked-in.
-  await expect(page.getByRole("button", { name: "已打卡完成" })).toBeVisible();
-  expect(completeCalled).toBe(true);
+  // POST carried the earned kcal, and the card reflects the completed state.
+  expect(completeBody).toEqual({ actualKcal: 40 });
+  await expect(page.getByText("已完成 · 消耗 40 kcal")).toBeVisible();
 });
 
-test("ticked exercises survive a page refresh", async ({ page }) => {
+test("skipping a work set leaves the exercise uncounted", async ({ page }) => {
   await seedAuth(page);
-  const plan = {
-    id: 99, date: "2026-06-01", category: "abs",
-    items: [
-      { name: "捲腹", sets: 4, reps: "15", restSec: 45, kcal: 40, note: "下背貼地", alt: [] },
-      { name: "棒式", sets: 3, reps: "45s", restSec: 45, kcal: 35, note: "一直線", alt: [] },
-    ],
-    totalKcal: 75, done: false, createdAt: "2026-05-30T03:00:00Z",
-  };
-  await page.route("**/api/v1/me", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(USER) }));
+  const plan = singleExercisePlan();
+  let completeCalled = false;
+
+  await page.route("**/api/v1/workouts**", async (route) => {
+    const req = route.request();
+    if (req.method() === "POST" && req.url().includes("/complete")) {
+      completeCalled = true;
+    }
+    await route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ data: [plan], page: 0, size: 20, total: 1 }),
+    });
+  });
+
+  await page.goto("/workouts");
+  await page.getByRole("button", { name: "開始訓練" }).click();
+
+  // Skip the only work set without finishing the seconds → it must not count.
+  await page.getByRole("button", { name: "跳過" }).click();
+
+  await expect(page.getByRole("heading", { name: "訓練結束" })).toBeVisible();
+  await expect(page.getByText("0/1 組 · 未完成")).toBeVisible();
+
+  // No "record" path when nothing was completed; closing sends no POST.
+  await page.getByRole("button", { name: /未完成任何動作/ }).click();
+  expect(completeCalled).toBe(false);
+});
+
+test("pausing freezes the countdown", async ({ page }) => {
+  await seedAuth(page);
+  const plan = singleExercisePlan();
+
   await page.route("**/api/v1/workouts**", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [plan], page: 0, size: 20, total: 1 }) }),
   );
 
   await page.goto("/workouts");
-  await page.getByRole("button", { name: /捲腹/ }).click();
-  await expect(page.getByRole("button", { name: "完成進度 1/2" })).toBeVisible();
+  await page.getByRole("button", { name: "開始訓練" }).click();
 
-  await page.reload();
+  // Let 3s elapse, then pause.
+  await page.clock.runFor(3_000);
+  await expect(page.getByText("0:09")).toBeVisible();
+  await page.getByRole("button", { name: "暫停" }).click();
+  await expect(page.getByText("已暫停")).toBeVisible();
 
-  // Progress is restored from localStorage after the reload.
-  await expect(page.getByRole("button", { name: "完成進度 1/2" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /捲腹/ })).toHaveAttribute("aria-pressed", "true");
-});
+  // Time advances but the countdown is frozen while paused.
+  await page.clock.runFor(5_000);
+  await expect(page.getByText("0:09")).toBeVisible();
 
-test("a single click cannot complete a workout without ticking exercises", async ({ page }) => {
-  await seedAuth(page);
-  let completeCalled = false;
-  const plan = {
-    id: 7, date: "2026-06-01", category: "legs",
-    items: [{ name: "深蹲", sets: 4, reps: "12", restSec: 60, kcal: 70, note: "膝蓋朝腳尖", alt: [] }],
-    totalKcal: 70, done: false, createdAt: "2026-05-30T03:00:00Z",
-  };
-  await page.route("**/api/v1/me", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(USER) }));
-  await page.route("**/api/v1/workouts**", async (route) => {
-    if (route.request().method() === "POST") { completeCalled = true; }
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [plan], page: 0, size: 20, total: 1 }) });
-  });
-
-  await page.goto("/workouts");
-
-  // The gate button is present but disabled — clicking it does nothing.
-  const gate = page.getByRole("button", { name: "完成進度 0/1" });
-  await expect(gate).toBeDisabled();
-  await gate.click({ force: true }).catch(() => {});
-  expect(completeCalled).toBe(false);
+  // Resume keeps counting down.
+  await page.getByRole("button", { name: "繼續" }).click();
+  await expect(page.getByText("已暫停")).toBeHidden();
 });

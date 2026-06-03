@@ -177,3 +177,146 @@
     transition-duration: 1ms !important;
   }
 }
+
+/* --- Guided exercise figure (ExerciseAnimation.tsx) --- */
+.wk-figure {
+  width: 100%;
+  height: 100%;
+  color: currentColor;
+}
+.wk-figure .wk-bone {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 11;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.wk-figure .wk-head {
+  fill: currentColor;
+}
+.wk-figure .wk-ground {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.18;
+}
+/* Every animated group rotates about an explicit joint in view-box coordinates. */
+.wk-figure [class] { transform-box: view-box; }
+.wk-figure .hips { transform-origin: 60px 63px; }
+.wk-figure .up { transform-origin: 60px 63px; }
+.wk-figure .armL, .wk-figure .armR { transform-origin: 60px 34px; }
+.wk-figure .foreL { transform-origin: 48px 48px; }
+.wk-figure .foreR { transform-origin: 72px 48px; }
+.wk-figure .legL, .wk-figure .legR { transform-origin: 60px 63px; }
+.wk-figure .shinL { transform-origin: 51px 82px; }
+.wk-figure .shinR { transform-origin: 69px 82px; }
+.wk-figure .cr-up { transform-origin: 64px 92px; }
+.wk-figure .db-armL, .wk-figure .db-armR,
+.wk-figure .db-legL, .wk-figure .db-legR { transform-origin: 64px 92px; }
+.wk-figure .br-lift { transform-origin: 40px 92px; }
+.wk-figure .cl-legL, .wk-figure .cl-legR { transform-origin: 76px 86px; }
+.wk-figure .tw-arms { transform-origin: 52px 70px; }
+.wk-figure .sm-arm { transform-origin: 44px 90px; }
+.wk-figure .sm-leg { transform-origin: 74px 90px; }
+
+/* ----- Standing patterns (shared `standing` figure) ----- */
+.wk-figure--squat .hips { animation: wk-squat-hips 1.9s ease-in-out infinite; }
+.wk-figure--squat .legL { animation: wk-squat-thighL 1.9s ease-in-out infinite; }
+.wk-figure--squat .legR { animation: wk-squat-thighR 1.9s ease-in-out infinite; }
+.wk-figure--squat .shinL { animation: wk-squat-shinL 1.9s ease-in-out infinite; }
+.wk-figure--squat .shinR { animation: wk-squat-shinR 1.9s ease-in-out infinite; }
+
+.wk-figure--lunge .hips { animation: wk-lunge-hips 2s ease-in-out infinite; }
+.wk-figure--lunge .legL { animation: wk-lunge-front 2s ease-in-out infinite; }
+.wk-figure--lunge .shinL { animation: wk-lunge-frontShin 2s ease-in-out infinite; }
+.wk-figure--lunge .legR { animation: wk-lunge-back 2s ease-in-out infinite; }
+.wk-figure--lunge .shinR { animation: wk-lunge-backShin 2s ease-in-out infinite; }
+
+.wk-figure--jack .hips { animation: wk-hop 0.7s ease-in-out infinite; }
+.wk-figure--jack .armL { animation: wk-jackL 0.7s ease-in-out infinite; }
+.wk-figure--jack .armR { animation: wk-jackR 0.7s ease-in-out infinite; }
+.wk-figure--jack .legL { animation: wk-jackLegL 0.7s ease-in-out infinite; }
+.wk-figure--jack .legR { animation: wk-jackLegR 0.7s ease-in-out infinite; }
+
+.wk-figure--highKnees .hips { animation: wk-hop 0.6s ease-in-out infinite; }
+.wk-figure--highKnees .legL { animation: wk-knee 0.6s ease-in-out infinite; }
+.wk-figure--highKnees .legR { animation: wk-knee 0.6s ease-in-out infinite; animation-delay: -0.3s; }
+.wk-figure--highKnees .armL { animation: wk-pumpL 0.6s ease-in-out infinite; }
+.wk-figure--highKnees .armR { animation: wk-pumpL 0.6s ease-in-out infinite; animation-delay: -0.3s; }
+
+.wk-figure--sideBend .up { animation: wk-sidebend 2.2s ease-in-out infinite; }
+.wk-figure--curl .foreL { animation: wk-curlL 1.2s ease-in-out infinite; }
+.wk-figure--curl .foreR { animation: wk-curlR 1.2s ease-in-out infinite; }
+.wk-figure--generic .hips { animation: wk-bob 2.4s ease-in-out infinite; }
+.wk-figure--generic .armL { animation: wk-swayL 2.4s ease-in-out infinite; }
+.wk-figure--generic .armR { animation: wk-swayR 2.4s ease-in-out infinite; }
+
+.wk-figure--burpee .hips { animation: wk-burpee-hips 2.2s ease-in-out infinite; }
+.wk-figure--burpee .up { animation: wk-burpee-up 2.2s ease-in-out infinite; }
+
+/* ----- Floor / special patterns ----- */
+.wk-figure--crunch .cr-up { animation: wk-crunch 1.9s ease-in-out infinite; }
+.wk-figure--deadbug .db-armL { animation: wk-db-out 2.4s ease-in-out infinite; }
+.wk-figure--deadbug .db-legR { animation: wk-db-out 2.4s ease-in-out infinite; }
+.wk-figure--deadbug .db-armR { animation: wk-db-out 2.4s ease-in-out infinite; animation-delay: -1.2s; }
+.wk-figure--deadbug .db-legL { animation: wk-db-out 2.4s ease-in-out infinite; animation-delay: -1.2s; }
+.wk-figure--plank .pl-body { animation: wk-hold 2.6s ease-in-out infinite; }
+.wk-figure--sidePlank .sp-body { animation: wk-hold 2.6s ease-in-out infinite; }
+.wk-figure--pushup .pu-body { animation: wk-pushup 1.8s ease-in-out infinite; }
+.wk-figure--bridge .br-lift { animation: wk-bridge 1.8s ease-in-out infinite; }
+.wk-figure--climber .cl-legL { animation: wk-climbIn 0.7s ease-in-out infinite; }
+.wk-figure--climber .cl-legR { animation: wk-climbOut 0.7s ease-in-out infinite; }
+.wk-figure--twist .tw-arms { animation: wk-twist 1.4s ease-in-out infinite; }
+.wk-figure--superman .sm-arm { animation: wk-superman 2s ease-in-out infinite; }
+.wk-figure--superman .sm-leg { animation: wk-superman 2s ease-in-out infinite; }
+
+/* Rest / paused: stop every movement and idle with a gentle whole-body breath. */
+.wk-figure--rest [class] { animation: none !important; }
+.wk-figure--rest .wk-fig {
+  transform-origin: 60px 70px;
+  animation: wk-idle 3.6s ease-in-out infinite !important;
+}
+
+@keyframes wk-idle { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+@keyframes wk-hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+@keyframes wk-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+@keyframes wk-hold { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes wk-sidebend { 0%, 100% { transform: rotate(-24deg); } 50% { transform: rotate(24deg); } }
+
+/* squat: hips sink, thighs open, shins counter-rotate to keep feet planted */
+@keyframes wk-squat-hips { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(20px); } }
+@keyframes wk-squat-thighL { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(30deg); } }
+@keyframes wk-squat-thighR { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-30deg); } }
+@keyframes wk-squat-shinL { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-30deg); } }
+@keyframes wk-squat-shinR { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(30deg); } }
+
+@keyframes wk-lunge-hips { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(16px); } }
+@keyframes wk-lunge-front { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-38deg); } }
+@keyframes wk-lunge-frontShin { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(38deg); } }
+@keyframes wk-lunge-back { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(32deg); } }
+@keyframes wk-lunge-backShin { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-54deg); } }
+
+@keyframes wk-jackL { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-160deg); } }
+@keyframes wk-jackR { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(160deg); } }
+@keyframes wk-jackLegL { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(24deg); } }
+@keyframes wk-jackLegR { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-24deg); } }
+
+@keyframes wk-knee { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-64deg); } }
+@keyframes wk-pumpL { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(55deg); } }
+
+@keyframes wk-curlL { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(135deg); } }
+@keyframes wk-curlR { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-135deg); } }
+@keyframes wk-swayL { 0%, 100% { transform: rotate(-12deg); } 50% { transform: rotate(12deg); } }
+@keyframes wk-swayR { 0%, 100% { transform: rotate(12deg); } 50% { transform: rotate(-12deg); } }
+
+@keyframes wk-burpee-hips { 0%, 100% { transform: translateY(-12px); } 25%, 75% { transform: translateY(0); } 50% { transform: translateY(32px); } }
+@keyframes wk-burpee-up { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(46deg); } }
+
+@keyframes wk-crunch { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-42deg); } }
+@keyframes wk-db-out { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-46deg); } }
+@keyframes wk-pushup { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(14px); } }
+@keyframes wk-bridge { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-26deg); } }
+@keyframes wk-climbIn { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-62deg); } }
+@keyframes wk-climbOut { 0%, 100% { transform: rotate(-62deg); } 50% { transform: rotate(0deg); } }
+@keyframes wk-twist { 0%, 100% { transform: rotate(-32deg); } 50% { transform: rotate(32deg); } }
+@keyframes wk-superman { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-24deg); } }
