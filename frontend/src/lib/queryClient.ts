@@ -21,6 +21,8 @@ export const qk = {
   dailyStats: (date: string) => ["stats", "daily", date] as const,
   workouts: (date: string) => ["workouts", date] as const,
   meals: (date: string) => ["meals", date] as const,
+  recentMeals: (date: string) => ["meals", "recent", date] as const,
+  favoriteMeals: ["meals", "favorites"] as const,
   aiStatus: ["ai", "status"] as const,
   chat: ["ai", "chat"] as const,
   weeklyReport: (weekStart: string) => ["reports", "weekly", weekStart] as const,
@@ -28,5 +30,6 @@ export const qk = {
   notifications: ["notifications"] as const,
   weightGoal: ["weight-goal"] as const,
   calorieBudget: (date: string) => ["stats", "budget", date] as const,
+  dailyHabits: (date: string) => ["habits", "daily", date] as const,
   search: (q: string) => ["search", q] as const,
 };

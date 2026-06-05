@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
-import type { AuthResponse, CalorieBudget, ChatMessage, DailyStats, FoodItem, Meal, NotificationFeed, PageEnvelope, Profile, SearchResponse, StreakSummary, User, WeeklyReport, WeightGoalResponse, WorkoutPlan } from "@/types/api";
+import type { AuthResponse, CalorieBudget, ChatMessage, DailyHabits, DailyStats, FavoriteMeal, FoodItem, HabitType, Meal, NotificationFeed, PageEnvelope, Profile, RecentMeal, SearchResponse, StreakSummary, User, WeeklyReport, WeightGoalResponse, WorkoutPlan } from "@/types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -142,9 +142,19 @@ export const api = {
   deleteWorkout: (id: number) => http.delete(`/workouts/${id}`).then(() => undefined),
 
   meals: (date: string) => http.get<PageEnvelope<Meal>>(`/meals`, { params: { date } }).then((r) => r.data),
+  recentMeals: (beforeDate: string, limit = 5) =>
+    http.get<PageEnvelope<RecentMeal>>("/meals/recent", { params: { beforeDate, limit } }).then((r) => r.data),
+  favoriteMeals: () => http.get<FavoriteMeal[]>("/meals/favorites").then((r) => r.data),
   createMeal: (form: FormData) => http.post<Meal>("/meals", form).then((r) => r.data),
   updateMeal: (id: number, body: { items: FoodItem[]; aiSuggestion: string | null }) =>
     http.put<Meal>(`/meals/${id}`, body).then((r) => r.data),
+  favoriteMeal: (id: number, name?: string) =>
+    http.post<FavoriteMeal>(`/meals/${id}/favorite`, name ? { name } : {}).then((r) => r.data),
+  copyMeal: (id: number, body: { date: string; slot?: string }) =>
+    http.post<Meal>(`/meals/${id}/copy`, body).then((r) => r.data),
+  copyFavoriteMeal: (id: number, body: { date: string; slot?: string }) =>
+    http.post<Meal>(`/meals/favorites/${id}/copy`, body).then((r) => r.data),
+  deleteFavoriteMeal: (id: number) => http.delete<void>(`/meals/favorites/${id}`).then(() => undefined),
   deleteMeal: (id: number) => http.delete<void>(`/meals/${id}`).then(() => undefined),
 
   aiStatus: () =>
@@ -184,6 +194,11 @@ export const api = {
 
   calorieBudget: (date: string) =>
     http.get<CalorieBudget>("/stats/budget", { params: { date } }).then((r) => r.data),
+
+  dailyHabits: (date: string) =>
+    http.get<DailyHabits>("/habits/daily", { params: { date } }).then((r) => r.data),
+  toggleHabit: (type: HabitType, body: { date: string; completed: boolean }) =>
+    http.post<DailyHabits>(`/habits/${type}/toggle`, body).then((r) => r.data),
 
   search: (q: string, limit?: number) =>
     http.get<SearchResponse>("/search", { params: { q, ...(limit ? { limit } : {}) } }).then((r) => r.data),

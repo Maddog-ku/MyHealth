@@ -8,13 +8,18 @@ import com.myhealth.ai.AiProvider.FoodItem;
 import com.myhealth.ai.AiProvider.MealImage;
 import com.myhealth.common.ApiException;
 import com.myhealth.common.ErrorCode;
+import com.myhealth.meal.MealDtos.CopyMealRequest;
+import com.myhealth.meal.MealDtos.FavoriteMealRequest;
+import com.myhealth.meal.MealDtos.FavoriteMealResponse;
 import com.myhealth.meal.FileStorageService.StoredFile;
 import com.myhealth.user.AppUser;
 import com.myhealth.meal.MealDtos.MealResponse;
+import com.myhealth.meal.MealDtos.RecentMealResponse;
 import com.myhealth.meal.MealDtos.UpdateMealRequest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,14 +35,17 @@ public class MealService {
     private static final Logger log = LoggerFactory.getLogger(MealService.class);
 
     private final MealRepository meals;
+    private final FavoriteMealRepository favoriteMeals;
     private final AiProvider aiProvider;
     private final FileStorageService fileStorage;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
 
-    public MealService(MealRepository meals, AiProvider aiProvider, FileStorageService fileStorage, ObjectMapper objectMapper,
+    public MealService(MealRepository meals, FavoriteMealRepository favoriteMeals,
+                       AiProvider aiProvider, FileStorageService fileStorage, ObjectMapper objectMapper,
                        TransactionTemplate transactionTemplate) {
         this.meals = meals;
+        this.favoriteMeals = favoriteMeals;
         this.aiProvider = aiProvider;
         this.fileStorage = fileStorage;
         this.objectMapper = objectMapper;
@@ -117,6 +125,20 @@ public class MealService {
                 .toList();
     }
 
+    public List<RecentMealResponse> recent(AppUser user, LocalDate beforeDate, Integer limit) {
+        int size = limit == null ? 5 : Math.max(1, Math.min(10, limit));
+        LocalDate cutoff = beforeDate == null ? LocalDate.now() : beforeDate;
+        return meals.findRecentBeforeDate(user.getId(), cutoff, PageRequest.of(0, size)).stream()
+                .map(this::toRecentResponse)
+                .toList();
+    }
+
+    public List<FavoriteMealResponse> favorites(AppUser user) {
+        return favoriteMeals.findByUserIdOrderByCreatedAtDesc(user.getId()).stream()
+                .map(this::toFavoriteResponse)
+                .toList();
+    }
+
     public MealResponse get(AppUser user, Long id) {
         return toResponse(findOwned(user, id));
     }
@@ -130,11 +152,71 @@ public class MealService {
     }
 
     @Transactional
+    public FavoriteMealResponse favorite(AppUser user, Long mealId, FavoriteMealRequest request) {
+        Meal meal = findOwned(user, mealId);
+        FavoriteMeal favorite = new FavoriteMeal();
+        favorite.setUser(user);
+        favorite.setSourceMealId(meal.getId());
+        favorite.setName(normalizeFavoriteName(request == null ? null : request.name(), meal));
+        favorite.setSlot(meal.getSlot());
+        favorite.setDescription(meal.getDescription());
+        favorite.setItemsJson(meal.getItemsJson());
+        favorite.setTotalKcal(meal.getTotalKcal());
+        favorite.setTotalProtein(meal.getTotalProtein());
+        favorite.setTotalFat(meal.getTotalFat());
+        favorite.setTotalCarb(meal.getTotalCarb());
+        favorite.setAiSuggestion(meal.getAiSuggestion());
+        return toFavoriteResponse(favoriteMeals.save(favorite));
+    }
+
+    @Transactional
+    public MealResponse copyMeal(AppUser user, Long mealId, CopyMealRequest request) {
+        Meal source = findOwned(user, mealId);
+        Meal copied = new Meal();
+        copied.setUser(user);
+        copied.setDate(copyDate(request));
+        copied.setSlot(copySlot(request, source.getSlot()));
+        copied.setDescription(source.getDescription());
+        copied.setImageUrl(null);
+        copied.setItemsJson(source.getItemsJson());
+        copied.setTotalKcal(source.getTotalKcal());
+        copied.setTotalProtein(source.getTotalProtein());
+        copied.setTotalFat(source.getTotalFat());
+        copied.setTotalCarb(source.getTotalCarb());
+        copied.setAiSuggestion(source.getAiSuggestion());
+        return toResponse(meals.save(copied));
+    }
+
+    @Transactional
+    public MealResponse copyFavorite(AppUser user, Long favoriteId, CopyMealRequest request) {
+        FavoriteMeal source = findOwnedFavorite(user, favoriteId);
+        Meal copied = new Meal();
+        copied.setUser(user);
+        copied.setDate(copyDate(request));
+        copied.setSlot(copySlot(request, source.getSlot()));
+        copied.setDescription(source.getDescription());
+        copied.setImageUrl(null);
+        copied.setItemsJson(source.getItemsJson());
+        copied.setTotalKcal(source.getTotalKcal());
+        copied.setTotalProtein(source.getTotalProtein());
+        copied.setTotalFat(source.getTotalFat());
+        copied.setTotalCarb(source.getTotalCarb());
+        copied.setAiSuggestion(source.getAiSuggestion());
+        return toResponse(meals.save(copied));
+    }
+
+    @Transactional
     public MealResponse update(AppUser user, Long id, UpdateMealRequest request) {
         Meal meal = findOwned(user, id);
         applyItems(meal, request.items());
         meal.setAiSuggestion(request.aiSuggestion());
         return toResponse(meals.save(meal));
+    }
+
+    @Transactional
+    public void deleteFavorite(AppUser user, Long id) {
+        FavoriteMeal favorite = findOwnedFavorite(user, id);
+        favoriteMeals.delete(favorite);
     }
 
     @Transactional
@@ -155,6 +237,11 @@ public class MealService {
     private Meal findOwned(AppUser user, Long id) {
         return meals.findByIdAndUserId(id, user.getId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.NOT_FOUND, "Meal not found"));
+    }
+
+    private FavoriteMeal findOwnedFavorite(AppUser user, Long id) {
+        return favoriteMeals.findByIdAndUserId(id, user.getId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.NOT_FOUND, "Favorite meal not found"));
     }
 
     private void applyItems(Meal meal, List<FoodItem> items) {
@@ -180,6 +267,73 @@ public class MealService {
                 meal.getTotalCarb(),
                 meal.getAiSuggestion(),
                 meal.getCreatedAt());
+    }
+
+    private RecentMealResponse toRecentResponse(Meal meal) {
+        return new RecentMealResponse(
+                meal.getId(),
+                meal.getDate(),
+                displayName(meal),
+                meal.getSlot(),
+                meal.getDescription(),
+                readItems(meal.getItemsJson()),
+                meal.getTotalKcal(),
+                meal.getTotalProtein(),
+                meal.getTotalFat(),
+                meal.getTotalCarb(),
+                meal.getCreatedAt());
+    }
+
+    private FavoriteMealResponse toFavoriteResponse(FavoriteMeal favorite) {
+        return new FavoriteMealResponse(
+                favorite.getId(),
+                favorite.getName(),
+                favorite.getSlot(),
+                favorite.getDescription(),
+                readItems(favorite.getItemsJson()),
+                favorite.getTotalKcal(),
+                favorite.getTotalProtein(),
+                favorite.getTotalFat(),
+                favorite.getTotalCarb(),
+                favorite.getAiSuggestion(),
+                favorite.getCreatedAt());
+    }
+
+    private LocalDate copyDate(CopyMealRequest request) {
+        return request == null || request.date() == null ? LocalDate.now() : request.date();
+    }
+
+    private String copySlot(CopyMealRequest request, String fallback) {
+        return request == null || request.slot() == null ? fallback : request.slot().name();
+    }
+
+    private String normalizeFavoriteName(String name, Meal meal) {
+        String normalized = name == null ? null : name.strip().replaceAll("\\s+", " ");
+        if (normalized != null && !normalized.isBlank()) {
+            return normalized.length() > 80 ? normalized.substring(0, 80) : normalized;
+        }
+        return displayName(meal);
+    }
+
+    private String displayName(Meal meal) {
+        List<FoodItem> items = readItems(meal.getItemsJson());
+        if (!items.isEmpty()) {
+            return items.stream()
+                    .limit(2)
+                    .map(FoodItem::name)
+                    .reduce((left, right) -> left + " + " + right)
+                    .orElse("常用餐點");
+        }
+        String description = MealInputGuard.normalizeDescription(meal.getDescription());
+        if (description != null) {
+            return description.length() > 24 ? description.substring(0, 24) : description;
+        }
+        return switch (meal.getSlot()) {
+            case "breakfast" -> "早餐紀錄";
+            case "dinner" -> "晚餐紀錄";
+            case "snack" -> "點心紀錄";
+            default -> "午餐紀錄";
+        };
     }
 
     private BigDecimal sum(double value) {

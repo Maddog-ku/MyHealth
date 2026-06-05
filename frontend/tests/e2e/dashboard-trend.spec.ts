@@ -33,6 +33,7 @@ test("the trend chart switches metric, and shows an empty state for one without 
   await page.route("**/api/v1/stats/daily**", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ date: today(), intakeKcal: 0, burnKcal: 0, netKcal: 0, protein: 0, fat: 0, carb: 0, weightKg: 54.6, goalKcal: 1700, workoutsDone: 0, workoutsPlanned: 0 }) }));
   await page.route("**/api/v1/stats/range**", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ from: "", to: "", series }) }));
   await page.route("**/api/v1/ai/status**", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ provider: "local", textModel: "x", visionModel: "x", loaded: false, idleTimeoutSec: 60 }) }));
+  await page.route("**/api/v1/habits/daily**", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ date: today(), completed: 0, total: 4, items: [] }) }));
 
   await page.goto("/");
 

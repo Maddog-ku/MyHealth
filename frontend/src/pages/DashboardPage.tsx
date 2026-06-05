@@ -11,6 +11,7 @@ import { WeeklyReportCard } from "@/components/WeeklyReportCard";
 import { StreakCard } from "@/components/StreakCard";
 import { WeightGoalCard } from "@/components/WeightGoalCard";
 import { CalorieBudgetRing } from "@/components/CalorieBudgetRing";
+import { DailyHabitsCard } from "@/components/DailyHabitsCard";
 import { useDailyStats } from "@/hooks/useDailyStats";
 import { useAiStatus } from "@/hooks/useAiStatus";
 import { useMe } from "@/hooks/useAuth";
@@ -279,6 +280,9 @@ export function DashboardPage() {
 
       {/* Daily calorie budget ring */}
       <CalorieBudgetRing />
+
+      {/* Daily habit checklist */}
+      <DailyHabitsCard date={today} />
 
       {/* Weight goal & progress */}
       <WeightGoalCard />

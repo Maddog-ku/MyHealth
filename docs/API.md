@@ -17,10 +17,11 @@ OpenAPI JSON（非 prod）：`http://localhost:8080/v3/api-docs`
 6. [Workouts（運動菜單）](#6-workouts運動菜單)
 7. [Meals（飲食紀錄）](#7-meals飲食紀錄)
 8. [Stats（統計）](#8-stats統計)
-9. [AI Gateway](#9-ai-gateway)
-10. [資料型別參考](#10-資料型別參考)
-11. [HTTP 狀態碼](#11-http-狀態碼)
-12. [速率限制與分頁](#12-速率限制與分頁)
+9. [Habits（每日習慣）](#9-habits每日習慣)
+10. [AI Gateway](#10-ai-gateway)
+11. [資料型別參考](#11-資料型別參考)
+12. [HTTP 狀態碼](#12-http-狀態碼)
+13. [速率限制與分頁](#13-速率限制與分頁)
 
 ---
 
@@ -514,7 +515,80 @@ Content-Type：`multipart/form-data`
 
 `GET /meals/{id}`
 
-### 7.4 更新餐點（手動修正 AI 結果）
+### 7.4 最近可重用餐點
+
+`GET /meals/recent?beforeDate=2026-06-01&limit=5`
+
+回傳 `beforeDate` 之前的最近餐點，用於快速複製到今天。`limit` 範圍 1–10，預設 5。
+
+**Response 200**
+```json
+{
+  "data": [
+    {
+      "id": 42,
+      "date": "2026-05-31",
+      "displayName": "鮭魚 + 白飯",
+      "slot": "dinner",
+      "description": "鮭魚與白飯",
+      "items": [
+        { "name": "鮭魚", "grams": 120, "kcal": 240, "protein": 26, "fat": 14, "carb": 0, "confidence": 1 }
+      ],
+      "totalKcal": 420,
+      "totalProtein": 30,
+      "totalFat": 15,
+      "totalCarb": 48,
+      "createdAt": "2026-05-31T10:00:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "total": 1
+}
+```
+
+### 7.5 常用餐點
+
+`GET /meals/favorites`
+
+回傳使用者收藏的常用餐點模板。常用餐點不保存照片，只保存描述、餐別、營養明細與總量。
+
+`POST /meals/{id}/favorite`
+
+把既有餐點收藏為常用餐點。
+
+**Request**
+```json
+{ "name": "健身午餐" }
+```
+
+`name` 可省略；後端會用食物明細或描述產生預設名稱。
+
+`DELETE /meals/favorites/{id}` → 204
+
+### 7.6 複製餐點
+
+`POST /meals/{id}/copy`
+
+從既有餐點複製成新的每日紀錄。
+
+`POST /meals/favorites/{id}/copy`
+
+從常用餐點複製成新的每日紀錄。
+
+**Request**
+```json
+{
+  "date": "2026-06-01",
+  "slot": "dinner"
+}
+```
+
+`date` 必填；`slot` 可省略，省略時沿用來源餐別。複製不會重新執行 AI，也不會複製原餐點照片。
+
+**Response 201**：同 `MealResponse`
+
+### 7.7 更新餐點（手動修正 AI 結果）
 
 `PUT /meals/{id}`
 
@@ -529,7 +603,7 @@ Content-Type：`multipart/form-data`
 ```
 後端會依 `items` 重新計算 `total*` 欄位。
 
-### 7.5 刪除餐點
+### 7.8 刪除餐點
 
 `DELETE /meals/{id}` → 204
 
@@ -613,9 +687,62 @@ Content-Type：`multipart/form-data`
 
 ---
 
-## 9. AI Gateway
+## 9. Habits（每日習慣）
 
-### 9.1 取得狀態
+每日習慣是系統內建的輕量 checklist，目前固定 4 項：`WATER`、`STRETCH`、`PROTEIN`、`SLEEP`。每位使用者同一天同一項最多只有一筆完成紀錄。
+
+### 9.1 取得每日習慣
+
+`GET /habits/daily?date=2026-06-06`
+
+**Response 200**
+```json
+{
+  "date": "2026-06-06",
+  "completed": 1,
+  "total": 4,
+  "items": [
+    {
+      "type": "WATER",
+      "title": "喝水",
+      "description": "今天至少補足 6 杯水",
+      "completed": true,
+      "completedAt": "2026-06-06T02:14:12Z"
+    },
+    {
+      "type": "STRETCH",
+      "title": "伸展",
+      "description": "完成 5 分鐘伸展或活動度練習",
+      "completed": false,
+      "completedAt": null
+    }
+  ]
+}
+```
+
+### 9.2 切換習慣完成狀態
+
+`POST /habits/{type}/toggle`
+
+`type` 可為：`WATER`、`STRETCH`、`PROTEIN`、`SLEEP`。
+
+**Request**
+```json
+{
+  "date": "2026-06-06",
+  "completed": true
+}
+```
+
+`completed=true` 時建立完成紀錄；`completed=false` 時刪除該日期該習慣的完成紀錄。重複送出同一狀態是 idempotent。
+
+**Response 200**：同 `GET /habits/daily`
+
+---
+
+## 10. AI Gateway
+
+### 10.1 取得狀態
 
 `GET /ai/status`  *(公開)*
 
@@ -631,7 +758,7 @@ Content-Type：`multipart/form-data`
 }
 ```
 
-### 9.2 手動釋放本地模型
+### 10.2 手動釋放本地模型
 
 `POST /ai/unload`  *(需登入；admin 或本機請求)*
 
@@ -642,7 +769,7 @@ Content-Type：`multipart/form-data`
 
 > 註：呼叫後下一次 AI 請求會自動 lazy load，預期延遲 1–10 秒。
 
-### 9.3 AI 小幫手對話
+### 10.3 AI 小幫手對話
 
 對話以本機模型產生，並帶入使用者個人資料與當日數據作為背景；歷史會持久化（`DELETE /me` 連動刪除）。
 
@@ -854,9 +981,9 @@ Content-Type：`multipart/form-data`
 
 ---
 
-## 10. 資料型別參考
+## 11. 資料型別參考
 
-### 10.1 `Exercise`
+### 11.1 `Exercise`
 | 欄位 | 型別 | 說明 |
 |---|---|---|
 | `name` | string | 動作名稱 |
@@ -868,7 +995,7 @@ Content-Type：`multipart/form-data`
 | `note` | string | 提示要點 |
 | `alt` | string[] | 替代動作 |
 
-### 10.2 `FoodItem`
+### 11.2 `FoodItem`
 | 欄位 | 型別 | 說明 |
 |---|---|---|
 | `name` | string | 食物名稱 |
@@ -879,7 +1006,7 @@ Content-Type：`multipart/form-data`
 | `carb` | number | 碳水（g） |
 | `confidence` | number | 0–1，AI 信心度（手動輸入為 1.0） |
 
-### 10.3 列舉
+### 11.3 列舉
 
 | 名稱 | 可選值 |
 |---|---|
@@ -892,7 +1019,7 @@ Content-Type：`multipart/form-data`
 
 ---
 
-## 11. HTTP 狀態碼
+## 12. HTTP 狀態碼
 
 | Code | 用途 |
 |---|---|
@@ -912,9 +1039,9 @@ Content-Type：`multipart/form-data`
 
 ---
 
-## 12. 速率限制與分頁
+## 13. 速率限制與分頁
 
-### 12.1 速率限制
+### 13.1 速率限制
 | 範疇 | 限制 | 狀態 |
 |---|---|---|
 | `POST /auth/register` | 5 req / min / IP | ✅ 已實作；預設 memory fixed window，可切 Redis Bucket4j token bucket |
@@ -925,7 +1052,7 @@ Content-Type：`multipart/form-data`
 
 超限回 `429 RATE_LIMITED`。設定 `RATE_LIMIT_BACKEND=redis` 時，限流狀態會存放在 Redis，適合多台 backend 共用；Redis 不可用時預設 `RATE_LIMIT_REDIS_FAIL_OPEN=false`，會回 `503`，正式環境建議維持 fail-closed。預設不信任 `X-Forwarded-For`；只有後端部署在可信任 reverse proxy 後方時才設定 `RATE_LIMIT_TRUST_FORWARDED_FOR=true`。目前限流不回傳 `X-RateLimit-*` header。
 
-### 12.2 分頁
+### 13.2 分頁
 列表端點支援：
 - `page`：頁碼（0 起算），預設 `0`
 - `size`：每頁筆數，預設 `20`，上限 `100`

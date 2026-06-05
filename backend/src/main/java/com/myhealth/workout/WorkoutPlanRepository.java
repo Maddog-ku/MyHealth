@@ -29,6 +29,6 @@ public interface WorkoutPlanRepository extends JpaRepository<WorkoutPlan, Long> 
 
     /** Keyword search over a plan's category and exercise items ({@code :q} is a lowercased %like%). */
     @Query("select w from WorkoutPlan w where w.user.id = :userId and ("
-            + "lower(w.category) like :q or lower(w.itemsJson) like :q)")
+            + "lower(w.category) like :q or lower(cast(w.itemsJson as string)) like :q)")
     List<WorkoutPlan> search(@Param("userId") Long userId, @Param("q") String q, Pageable pageable);
 }

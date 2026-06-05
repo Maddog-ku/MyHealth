@@ -27,8 +27,13 @@ public interface MealRepository extends JpaRepository<Meal, Long> {
     @Query("select m.imageUrl from Meal m where m.user.id = :userId and m.imageUrl is not null and m.imageUrl <> ''")
     List<String> findImageUrlsByUserId(@Param("userId") Long userId);
 
+    @Query("select m from Meal m where m.user.id = :userId and m.date < :beforeDate order by m.date desc, m.createdAt desc")
+    List<Meal> findRecentBeforeDate(@Param("userId") Long userId,
+                                    @Param("beforeDate") LocalDate beforeDate,
+                                    Pageable pageable);
+
     /** Keyword search over a meal's description, food items and slot ({@code :q} is a lowercased %like%). */
     @Query("select m from Meal m where m.user.id = :userId and ("
-            + "lower(m.description) like :q or lower(m.itemsJson) like :q or lower(m.slot) like :q)")
+            + "lower(m.description) like :q or lower(cast(m.itemsJson as string)) like :q or lower(m.slot) like :q)")
     List<Meal> search(@Param("userId") Long userId, @Param("q") String q, Pageable pageable);
 }

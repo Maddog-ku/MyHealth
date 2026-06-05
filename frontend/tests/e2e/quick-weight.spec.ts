@@ -49,6 +49,9 @@ async function mockDashboard(page: Page, onProfilePut?: (body: any) => void) {
       body: JSON.stringify({ provider: "local", textModel: "gemma4:e4b", visionModel: "gemma4:e4b", loaded: false, idleTimeoutSec: 60 }),
     }),
   );
+  await page.route("**/api/v1/habits/daily**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ date: todayLocalISO(), completed: 0, total: 4, items: [] }) }),
+  );
 }
 
 test("tapping the current-weight metric opens a quick editor that logs a new weight", async ({ page }) => {

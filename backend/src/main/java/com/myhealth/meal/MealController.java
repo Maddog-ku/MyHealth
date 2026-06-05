@@ -4,11 +4,16 @@ import com.myhealth.ai.AiEndpointRateLimiter;
 import com.myhealth.auth.CurrentUser;
 import com.myhealth.common.PageEnvelope;
 import com.myhealth.meal.FileStorageService.StoredFile;
+import com.myhealth.meal.MealDtos.CopyMealRequest;
+import com.myhealth.meal.MealDtos.FavoriteMealRequest;
+import com.myhealth.meal.MealDtos.FavoriteMealResponse;
 import com.myhealth.meal.MealDtos.MealResponse;
+import com.myhealth.meal.MealDtos.RecentMealResponse;
 import com.myhealth.user.AppUser;
 import com.myhealth.meal.MealDtos.UpdateMealRequest;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
+import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -58,6 +63,18 @@ public class MealController {
         return PageEnvelope.unpaged(mealService.list(currentUser.require(), date));
     }
 
+    @GetMapping("/recent")
+    PageEnvelope<RecentMealResponse> recent(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate beforeDate,
+            @RequestParam(required = false) Integer limit) {
+        return PageEnvelope.unpaged(mealService.recent(currentUser.require(), beforeDate, limit));
+    }
+
+    @GetMapping("/favorites")
+    List<FavoriteMealResponse> favorites() {
+        return mealService.favorites(currentUser.require());
+    }
+
     @GetMapping("/{id}")
     MealResponse get(@PathVariable Long id) {
         return mealService.get(currentUser.require(), id);
@@ -79,6 +96,32 @@ public class MealController {
     @PutMapping("/{id}")
     MealResponse update(@PathVariable Long id, @Valid @RequestBody UpdateMealRequest request) {
         return mealService.update(currentUser.require(), id, request);
+    }
+
+    @PostMapping("/{id}/favorite")
+    ResponseEntity<FavoriteMealResponse> favorite(
+            @PathVariable Long id,
+            @Valid @RequestBody(required = false) FavoriteMealRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(mealService.favorite(currentUser.require(), id, request));
+    }
+
+    @PostMapping("/{id}/copy")
+    ResponseEntity<MealResponse> copyMeal(@PathVariable Long id, @Valid @RequestBody CopyMealRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(mealService.copyMeal(currentUser.require(), id, request));
+    }
+
+    @PostMapping("/favorites/{id}/copy")
+    ResponseEntity<MealResponse> copyFavorite(@PathVariable Long id, @Valid @RequestBody CopyMealRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(mealService.copyFavorite(currentUser.require(), id, request));
+    }
+
+    @DeleteMapping("/favorites/{id}")
+    ResponseEntity<Void> deleteFavorite(@PathVariable Long id) {
+        mealService.deleteFavorite(currentUser.require(), id);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}")

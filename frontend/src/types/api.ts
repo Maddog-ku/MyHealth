@@ -94,6 +94,34 @@ export interface Meal {
   createdAt: string;
 }
 
+export interface FavoriteMeal {
+  id: number;
+  name: string;
+  slot: string;
+  description?: string;
+  items: FoodItem[];
+  totalKcal: number;
+  totalProtein: number;
+  totalFat: number;
+  totalCarb: number;
+  aiSuggestion?: string;
+  createdAt: string;
+}
+
+export interface RecentMeal {
+  id: number;
+  date: string;
+  displayName: string;
+  slot: string;
+  description?: string;
+  items: FoodItem[];
+  totalKcal: number;
+  totalProtein: number;
+  totalFat: number;
+  totalCarb: number;
+  createdAt: string;
+}
+
 export interface DailyStats {
   date: string;
   intakeKcal: number;
@@ -188,6 +216,23 @@ export interface CalorieBudget {
   consumedPct: number;
   over: boolean;
   macros: MacroBudget[];
+}
+
+export type HabitType = "WATER" | "STRETCH" | "PROTEIN" | "SLEEP";
+
+export interface HabitItem {
+  type: HabitType;
+  title: string;
+  description: string;
+  completed: boolean;
+  completedAt: string | null;
+}
+
+export interface DailyHabits {
+  date: string;
+  completed: number;
+  total: number;
+  items: HabitItem[];
 }
 
 export interface WeightGoalProgress {

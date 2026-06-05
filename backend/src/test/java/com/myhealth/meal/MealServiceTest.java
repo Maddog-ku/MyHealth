@@ -41,6 +41,7 @@ import org.springframework.web.multipart.MultipartFile;
 class MealServiceTest {
 
     @Mock MealRepository meals;
+    @Mock FavoriteMealRepository favoriteMeals;
     @Mock AiProvider aiProvider;
     @Mock FileStorageService fileStorage;
 
@@ -58,7 +59,7 @@ class MealServiceTest {
             TransactionCallback<?> cb = inv.getArgument(0);
             return cb.doInTransaction(null);
         });
-        service = new MealService(meals, aiProvider, fileStorage, objectMapper, transactionTemplate);
+        service = new MealService(meals, favoriteMeals, aiProvider, fileStorage, objectMapper, transactionTemplate);
         owner = userWithId(1L);
     }
 
@@ -232,6 +233,23 @@ class MealServiceTest {
     }
 
     @Test
+    void recent_returnsMealsBeforeTodayOnly_withDisplayName() {
+        Meal meal = mealWithId(3L, owner);
+        meal.setDate(LocalDate.of(2026, 5, 29));
+        meal.setItemsJson("[{\"name\":\"鮭魚\",\"grams\":120,\"kcal\":240,\"protein\":26,\"fat\":14,\"carb\":0,\"confidence\":1}]");
+        meal.setTotalKcal(240);
+        when(meals.findRecentBeforeDate(eq(1L), eq(LocalDate.of(2026, 5, 30)), any()))
+                .thenReturn(List.of(meal));
+
+        var response = service.recent(owner, LocalDate.of(2026, 5, 30), 5);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.getFirst().id()).isEqualTo(3L);
+        assertThat(response.getFirst().displayName()).isEqualTo("鮭魚");
+        assertThat(response.getFirst().totalKcal()).isEqualTo(240);
+    }
+
+    @Test
     void get_throws404_whenNotOwned() {
         when(meals.findByIdAndUserId(99L, 1L)).thenReturn(Optional.empty());
 
@@ -290,6 +308,72 @@ class MealServiceTest {
                 .isEqualTo(HttpStatus.NOT_FOUND);
 
         verify(meals, never()).save(any());
+    }
+
+    @Test
+    void favorite_copiesOwnedMealIntoReusableTemplate() {
+        Meal meal = mealWithId(7L, owner);
+        meal.setDescription("雞胸肉沙拉");
+        meal.setItemsJson("[{\"name\":\"雞胸肉\",\"grams\":150,\"kcal\":248,\"protein\":46.5,\"fat\":5.4,\"carb\":0,\"confidence\":1}]");
+        meal.setTotalKcal(248);
+        meal.setTotalProtein(new java.math.BigDecimal("46.50"));
+        meal.setTotalFat(new java.math.BigDecimal("5.40"));
+        meal.setTotalCarb(new java.math.BigDecimal("0.00"));
+        when(meals.findByIdAndUserId(7L, 1L)).thenReturn(Optional.of(meal));
+        when(favoriteMeals.save(any(FavoriteMeal.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = service.favorite(owner, 7L, new MealDtos.FavoriteMealRequest("健身午餐"));
+
+        ArgumentCaptor<FavoriteMeal> captor = ArgumentCaptor.forClass(FavoriteMeal.class);
+        verify(favoriteMeals).save(captor.capture());
+        FavoriteMeal saved = captor.getValue();
+        assertThat(saved.getUser()).isSameAs(owner);
+        assertThat(saved.getSourceMealId()).isEqualTo(7L);
+        assertThat(saved.getName()).isEqualTo("健身午餐");
+        assertThat(saved.getItemsJson()).isEqualTo(meal.getItemsJson());
+        assertThat(response.name()).isEqualTo("健身午餐");
+        assertThat(response.items()).hasSize(1);
+    }
+
+    @Test
+    void copyMeal_createsNewMealWithoutImageOrAiCall() {
+        Meal source = mealWithId(7L, owner);
+        source.setDescription("雞胸肉沙拉");
+        source.setImageUrl("2026/05/30/x.jpg");
+        source.setItemsJson("[{\"name\":\"雞胸肉\",\"grams\":150,\"kcal\":248,\"protein\":46.5,\"fat\":5.4,\"carb\":0,\"confidence\":1}]");
+        source.setTotalKcal(248);
+        source.setTotalProtein(new java.math.BigDecimal("46.50"));
+        source.setTotalFat(new java.math.BigDecimal("5.40"));
+        source.setTotalCarb(new java.math.BigDecimal("0.00"));
+        when(meals.findByIdAndUserId(7L, 1L)).thenReturn(Optional.of(source));
+        when(meals.save(any(Meal.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = service.copyMeal(owner, 7L,
+                new MealDtos.CopyMealRequest(LocalDate.of(2026, 6, 1), MealSlot.dinner));
+
+        ArgumentCaptor<Meal> captor = ArgumentCaptor.forClass(Meal.class);
+        verify(meals).save(captor.capture());
+        Meal copied = captor.getValue();
+        assertThat(copied.getDate()).isEqualTo(LocalDate.of(2026, 6, 1));
+        assertThat(copied.getSlot()).isEqualTo("dinner");
+        assertThat(copied.getImageUrl()).isNull();
+        assertThat(copied.getTotalKcal()).isEqualTo(248);
+        assertThat(response.description()).isEqualTo("雞胸肉沙拉");
+        verify(aiProvider, never()).analyzeMeal(any(), any());
+    }
+
+    @Test
+    void deleteFavorite_removesOwnedTemplate() {
+        FavoriteMeal favorite = new FavoriteMeal();
+        favorite.setUser(owner);
+        favorite.setName("健身午餐");
+        favorite.setSlot("lunch");
+        favorite.setItemsJson("[]");
+        when(favoriteMeals.findByIdAndUserId(4L, 1L)).thenReturn(Optional.of(favorite));
+
+        service.deleteFavorite(owner, 4L);
+
+        verify(favoriteMeals).delete(favorite);
     }
 
     @Test

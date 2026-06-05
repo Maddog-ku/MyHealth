@@ -52,6 +52,19 @@ test("user can manually correct an AI meal estimate and totals update", async ({
 
   await page.route("**/api/v1/meals**", async (route) => {
     const request = route.request();
+    const url = request.url();
+    if (request.method() === "GET" && url.includes("/meals/favorites")) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+      return;
+    }
+    if (request.method() === "GET" && url.includes("/meals/recent")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: [], page: 0, size: 20, total: 0 }),
+      });
+      return;
+    }
     if (request.method() === "GET") {
       await route.fulfill({
         status: 200,
@@ -131,6 +144,19 @@ test("user can add a food item manually when the AI returned nothing", async ({ 
 
   await page.route("**/api/v1/meals**", async (route) => {
     const request = route.request();
+    const url = request.url();
+    if (request.method() === "GET" && url.includes("/meals/favorites")) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+      return;
+    }
+    if (request.method() === "GET" && url.includes("/meals/recent")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: [], page: 0, size: 20, total: 0 }),
+      });
+      return;
+    }
     if (request.method() === "GET") {
       await route.fulfill({
         status: 200,
@@ -165,4 +191,131 @@ test("user can add a food item manually when the AI returned nothing", async ({ 
   expect(lastPutBody.items).toHaveLength(1);
   expect(lastPutBody.items[0].name).toBe("地瓜");
   expect(lastPutBody.items[0].kcal).toBe(110);
+});
+
+test("user can reuse a recent meal and save today's meal as a favorite", async ({ page }) => {
+  await seedAuth(page);
+
+  let meals: Array<Record<string, any>> = [
+    {
+      id: 1,
+      date: "2026-06-01",
+      slot: "lunch",
+      description: "雞胸肉沙拉",
+      items: [{ name: "雞胸肉", grams: 150, kcal: 248, protein: 46.5, fat: 5.4, carb: 0, confidence: 0.9 }],
+      totalKcal: 248,
+      totalProtein: 46.5,
+      totalFat: 5.4,
+      totalCarb: 0,
+      aiSuggestion: "蛋白足夠",
+      createdAt: "2026-05-30T03:00:00Z",
+    },
+  ];
+  let favorites: Array<Record<string, unknown>> = [];
+  let copyBody: Record<string, unknown> | null = null;
+  let favoriteCalled = false;
+
+  await page.route("**/api/v1/me", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(USER) }),
+  );
+
+  await page.route("**/api/v1/meals**", async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (request.method() === "GET" && url.includes("/meals/favorites")) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(favorites) });
+      return;
+    }
+    if (request.method() === "GET" && url.includes("/meals/recent")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [
+            {
+              id: 2,
+              date: "2026-05-31",
+              displayName: "鮭魚飯",
+              slot: "dinner",
+              description: "鮭魚與白飯",
+              items: [{ name: "鮭魚", grams: 120, kcal: 240, protein: 26, fat: 14, carb: 0, confidence: 1 }],
+              totalKcal: 420,
+              totalProtein: 30,
+              totalFat: 15,
+              totalCarb: 48,
+              createdAt: "2026-05-31T10:00:00Z",
+            },
+          ],
+          page: 0,
+          size: 20,
+          total: 1,
+        }),
+      });
+      return;
+    }
+    if (request.method() === "POST" && url.includes("/meals/2/copy")) {
+      copyBody = JSON.parse(request.postData() ?? "{}");
+      meals = [
+        {
+          id: 3,
+          date: String(copyBody.date),
+          slot: String(copyBody.slot),
+          description: "鮭魚與白飯",
+          items: [{ name: "鮭魚", grams: 120, kcal: 240, protein: 26, fat: 14, carb: 0, confidence: 1 }],
+          totalKcal: 420,
+          totalProtein: 30,
+          totalFat: 15,
+          totalCarb: 48,
+          aiSuggestion: null,
+          createdAt: "2026-06-01T05:00:00Z",
+        },
+        ...meals,
+      ];
+      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(meals[0]) });
+      return;
+    }
+    if (request.method() === "POST" && url.includes("/meals/1/favorite")) {
+      favoriteCalled = true;
+      favorites = [
+        {
+          id: 9,
+          name: "雞胸肉",
+          slot: "lunch",
+          description: "雞胸肉沙拉",
+          items: meals[0].items,
+          totalKcal: 248,
+          totalProtein: 46.5,
+          totalFat: 5.4,
+          totalCarb: 0,
+          aiSuggestion: null,
+          createdAt: "2026-06-01T06:00:00Z",
+        },
+      ];
+      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(favorites[0]) });
+      return;
+    }
+    if (request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: meals, page: 0, size: 20, total: meals.length }),
+      });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+
+  await page.goto("/meals");
+
+  await expect(page.getByText("快速重用")).toBeVisible();
+  await page.getByRole("button", { name: "晚餐" }).click();
+  await page.getByRole("button", { name: "複製鮭魚飯到今日" }).click();
+
+  expect(copyBody).not.toBeNull();
+  expect(copyBody!.slot).toBe("dinner");
+  await expect.poll(async () => page.getByText("鮭魚與白飯").count()).toBeGreaterThanOrEqual(2);
+
+  await page.getByRole("button", { name: "收藏此餐為常用餐點" }).last().click();
+  expect(favoriteCalled).toBe(true);
+  await expect.poll(async () => page.getByText("雞胸肉", { exact: true }).count()).toBeGreaterThanOrEqual(2);
 });

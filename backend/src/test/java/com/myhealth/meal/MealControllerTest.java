@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -21,7 +22,9 @@ import com.myhealth.auth.JwtAuthenticationFilter;
 import com.myhealth.common.ApiException;
 import com.myhealth.common.ErrorCode;
 import com.myhealth.common.GlobalExceptionHandler;
+import com.myhealth.meal.MealDtos.FavoriteMealResponse;
 import com.myhealth.meal.MealDtos.MealResponse;
+import com.myhealth.meal.MealDtos.RecentMealResponse;
 import com.myhealth.user.AppUser;
 import com.myhealth.user.Role;
 import java.math.BigDecimal;
@@ -68,6 +71,14 @@ class MealControllerTest {
                 List.of(new FoodItem("雞胸肉", 150, 248, 46.5, 5.4, 0.0, 0.92)),
                 248, new BigDecimal("46.5"), new BigDecimal("5.4"), new BigDecimal("0.0"),
                 "good", Instant.parse("2026-05-30T00:00:00Z"));
+    }
+
+    FavoriteMealResponse stubFavorite(long id) {
+        return new FavoriteMealResponse(
+                id, "健身午餐", "lunch", "雞胸肉沙拉",
+                List.of(new FoodItem("雞胸肉", 150, 248, 46.5, 5.4, 0.0, 1.0)),
+                248, new BigDecimal("46.5"), new BigDecimal("5.4"), new BigDecimal("0.0"),
+                null, Instant.parse("2026-05-30T00:00:00Z"));
     }
 
     @Test
@@ -147,6 +158,32 @@ class MealControllerTest {
     }
 
     @Test
+    void recent_returnsPageEnvelope() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        when(mealService.recent(any(), eq(LocalDate.of(2026, 6, 1)), eq(3)))
+                .thenReturn(List.of(new RecentMealResponse(
+                        1L, LocalDate.of(2026, 5, 30), "雞胸肉", "lunch", "雞胸肉沙拉",
+                        List.of(), 248, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                        Instant.parse("2026-05-30T00:00:00Z"))));
+
+        mockMvc.perform(get("/api/v1/meals/recent").param("beforeDate", "2026-06-01").param("limit", "3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].displayName").value("雞胸肉"))
+                .andExpect(jsonPath("$.total").value(1));
+    }
+
+    @Test
+    void favorites_returnsList() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        when(mealService.favorites(any())).thenReturn(List.of(stubFavorite(9L)));
+
+        mockMvc.perform(get("/api/v1/meals/favorites"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(9))
+                .andExpect(jsonPath("$[0].name").value("健身午餐"));
+    }
+
+    @Test
     void get_returns404_whenNotOwned() throws Exception {
         when(currentUser.require()).thenReturn(stubUser());
         when(mealService.get(any(), eq(99L)))
@@ -210,6 +247,74 @@ class MealControllerTest {
         mockMvc.perform(put("/api/v1/meals/1").contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("aiSuggestion")));
+    }
+
+    @Test
+    void favorite_returns201_andDelegatesToService() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        when(mealService.favorite(any(), eq(5L), any())).thenReturn(stubFavorite(10L));
+
+        mockMvc.perform(post("/api/v1/meals/5/favorite")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"健身午餐\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(10))
+                .andExpect(jsonPath("$.name").value("健身午餐"));
+
+        verify(mealService).favorite(any(), eq(5L), any());
+    }
+
+    @Test
+    void favorite_returns400_whenNameContainsMarkup() throws Exception {
+        mockMvc.perform(post("/api/v1/meals/5/favorite")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"<script>\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("name")));
+    }
+
+    @Test
+    void copyMeal_returns201() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        when(mealService.copyMeal(any(), eq(5L), any())).thenReturn(stubMeal(11L));
+
+        mockMvc.perform(post("/api/v1/meals/5/copy")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-06-01\",\"slot\":\"dinner\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(11));
+    }
+
+    @Test
+    void copyMeal_returns400_whenDateMissing() throws Exception {
+        mockMvc.perform(post("/api/v1/meals/5/copy")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"slot\":\"dinner\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("date")));
+    }
+
+    @Test
+    void copyFavorite_returns201() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        when(mealService.copyFavorite(any(), eq(9L), any())).thenReturn(stubMeal(12L));
+
+        mockMvc.perform(post("/api/v1/meals/favorites/9/copy")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-06-01\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(12));
+    }
+
+    @Test
+    void deleteFavorite_returns204() throws Exception {
+        AppUser user = stubUser();
+        when(currentUser.require()).thenReturn(user);
+
+        mockMvc.perform(delete("/api/v1/meals/favorites/9"))
+                .andExpect(status().isNoContent());
+
+        verify(mealService).deleteFavorite(eq(user), eq(9L));
     }
 
     @Test

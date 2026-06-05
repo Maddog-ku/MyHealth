@@ -7,6 +7,14 @@ export function useMeals(date: string) {
   return useQuery({ queryKey: qk.meals(date), queryFn: () => api.meals(date) });
 }
 
+export function useRecentMeals(date: string) {
+  return useQuery({ queryKey: qk.recentMeals(date), queryFn: () => api.recentMeals(date, 5) });
+}
+
+export function useFavoriteMeals() {
+  return useQuery({ queryKey: qk.favoriteMeals, queryFn: () => api.favoriteMeals() });
+}
+
 export function useCreateMeal(date: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -14,6 +22,49 @@ export function useCreateMeal(date: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.meals(date) });
       qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
+    },
+  });
+}
+
+export function useCopyMeal(date: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, slot }: { id: number; slot?: string }) => api.copyMeal(id, { date, slot }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.meals(date) });
+      qc.invalidateQueries({ queryKey: qk.recentMeals(date) });
+      qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
+    },
+  });
+}
+
+export function useCopyFavoriteMeal(date: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, slot }: { id: number; slot?: string }) => api.copyFavoriteMeal(id, { date, slot }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.meals(date) });
+      qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
+    },
+  });
+}
+
+export function useFavoriteMeal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, name }: { id: number; name?: string }) => api.favoriteMeal(id, name),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.favoriteMeals });
+    },
+  });
+}
+
+export function useDeleteFavoriteMeal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.deleteFavoriteMeal(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.favoriteMeals });
     },
   });
 }

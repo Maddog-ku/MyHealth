@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Send, X, Trash2, Sparkles, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -7,8 +7,11 @@ import { useMe } from "@/hooks/useAuth";
 import { useChatHistory, useClearChat, useSendChat } from "@/hooks/useChat";
 
 const ASSISTANT_NAME = "AI 小助手";
+const AssistantAvatar3D = lazy(() =>
+  import("@/components/AssistantAvatar3D").then((mod) => ({ default: mod.AssistantAvatar3D })),
+);
 
-/** Resolve the avatar image from the user's preference (backend already falls back to gender). */
+/** Resolve the original assistant artwork from the user's preference. */
 function avatarSrc(avatar?: "male" | "female") {
   return avatar === "female" ? "/assistant/coach-female.png" : "/assistant/coach-male.png";
 }
@@ -30,8 +33,10 @@ export function AssistantWidget() {
   const send = useSendChat();
   const clear = useClearChat();
 
-  const avatar = useMemo(() => avatarSrc(user?.profile?.assistantAvatar), [user?.profile?.assistantAvatar]);
+  const persona = useMemo(() => user?.profile?.assistantAvatar ?? "male", [user?.profile?.assistantAvatar]);
+  const avatar = useMemo(() => avatarSrc(persona), [persona]);
   const pending = send.isPending;
+  const avatarMood = pending ? "thinking" : open ? "active" : "idle";
 
   // Assistant messages already revealed (loaded from history, or finished typing).
   // Only brand-new replies animate; history and re-opens render instantly.
@@ -77,9 +82,9 @@ export function AssistantWidget() {
           type="button"
           onClick={() => setOpen(true)}
           aria-label="開啟 AI 小幫手"
-          className="fixed z-50 bottom-28 right-5 md:bottom-6 md:right-6 group flex items-center justify-center size-24 rounded-full shadow-xl shadow-violet-500/30 bg-gradient-to-tr from-violet-500 to-indigo-500 ring-4 ring-white/70 dark:ring-slate-950/70 transition-transform duration-300 hover:scale-105 active:scale-95"
+          className="fixed z-50 bottom-28 right-5 md:bottom-6 md:right-6 group flex items-center justify-center size-24 rounded-full border border-white/70 dark:border-slate-800/70 bg-white/75 dark:bg-slate-950/70 shadow-2xl shadow-emerald-500/20 backdrop-blur-xl ring-4 ring-white/70 dark:ring-slate-950/70 transition-transform duration-300 hover:scale-105 active:scale-95"
         >
-          <img src={avatar} alt="" className="size-24 rounded-full object-cover object-top" />
+          <AssistantAvatar avatarSrc={avatar} persona={persona} mood={avatarMood} className="rounded-full" />
           <span className="absolute top-0.5 right-0.5 flex size-6 items-center justify-center rounded-full bg-emerald-500 text-white shadow ring-2 ring-white/80 dark:ring-slate-950/80">
             <Sparkles className="size-3.5" />
           </span>
@@ -92,7 +97,9 @@ export function AssistantWidget() {
           {/* Header */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-900 bg-gradient-to-r from-violet-500/10 to-indigo-500/5">
             <div className="relative">
-              <img src={avatar} alt="" className="size-14 rounded-full object-cover object-top ring-2 ring-violet-300/50 dark:ring-violet-800/50 bg-gradient-to-br from-violet-100 to-indigo-100 dark:from-violet-900/40 dark:to-indigo-900/40" />
+              <div className="size-14 rounded-full overflow-hidden ring-2 ring-emerald-300/50 dark:ring-emerald-800/50 bg-white/70 dark:bg-slate-950/50">
+                <AssistantAvatar avatarSrc={avatar} persona={persona} mood={avatarMood} />
+              </div>
               <span className="absolute bottom-0 right-0 size-3 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-950" />
             </div>
             <div className="flex-1 min-w-0">
@@ -126,9 +133,11 @@ export function AssistantWidget() {
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
             {messages.length === 0 && !pending && (
               <div className="flex flex-col items-center text-center gap-3 pt-6">
-                <img src={avatar} alt="" className="size-40 rounded-2xl object-contain p-2 bg-gradient-to-br from-violet-100 to-indigo-100 dark:from-violet-950/40 dark:to-indigo-950/40 shadow-lg shadow-violet-500/10" />
+                <div className="size-40 overflow-hidden rounded-3xl bg-white/55 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-100/80 dark:bg-slate-950/40 dark:ring-emerald-900/40">
+                  <AssistantAvatar avatarSrc={avatar} persona={persona} mood="active" />
+                </div>
                 <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                  嗨{user?.name ? ` ${user.name}` : ""}！我是 {ASSISTANT_NAME} 👋
+                  嗨{user?.name ? ` ${user.name}` : ""}！我是 {ASSISTANT_NAME}
                 </p>
                 <p className="text-xs text-muted-foreground max-w-[16rem] leading-relaxed">
                   我專門陪你聊<strong>運動與飲食</strong>。說「<strong>我午餐吃了雞胸肉沙拉</strong>」我幫你記到飲食追蹤；
@@ -152,7 +161,9 @@ export function AssistantWidget() {
             {messages.map((m) => (
               <div key={m.id} className={cn("flex items-end gap-2", m.role === "user" ? "justify-end" : "justify-start")}>
                 {m.role === "assistant" && (
-                  <img src={avatar} alt="" className="size-7 rounded-full object-cover object-top bg-violet-100 dark:bg-violet-950/40 shrink-0" />
+                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 dark:text-emerald-300">
+                    <Sparkles className="size-3.5" />
+                  </span>
                 )}
                 <div
                   className={cn(
@@ -178,7 +189,9 @@ export function AssistantWidget() {
 
             {pending && (
               <div className="flex items-end gap-2 justify-start">
-                <img src={avatar} alt="" className="size-7 rounded-full object-cover shrink-0" />
+                <div className="size-9 shrink-0 overflow-hidden rounded-full bg-white/70 ring-1 ring-emerald-500/20 dark:bg-slate-950/50">
+                  <AssistantAvatar avatarSrc={avatar} persona={persona} mood="thinking" />
+                </div>
                 <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-slate-100 dark:bg-slate-900">
                   <span className="flex gap-1">
                     <span className="size-2 rounded-full bg-violet-400 animate-bounce [animation-delay:-0.3s]" />
@@ -225,6 +238,37 @@ export function AssistantWidget() {
         </div>
       )}
     </>
+  );
+}
+
+function AssistantAvatar({
+  avatarSrc,
+  persona,
+  mood,
+  className,
+}: {
+  avatarSrc: string;
+  persona: "male" | "female";
+  mood: "idle" | "active" | "thinking";
+  className?: string;
+}) {
+  return (
+    <Suspense
+      fallback={
+        <div
+          data-testid="assistant-avatar-3d-loading"
+          className={cn(
+            "grid h-full w-full place-items-center bg-[radial-gradient(circle_at_35%_30%,rgba(94,234,212,0.28),rgba(255,255,255,0.55)_42%,rgba(99,102,241,0.18)_78%)]",
+            className,
+          )}
+          aria-hidden="true"
+        >
+          <img src={avatarSrc} alt="" className="h-full w-full object-contain p-1" />
+        </div>
+      }
+    >
+      <AssistantAvatar3D avatarSrc={avatarSrc} persona={persona} mood={mood} className={className} />
+    </Suspense>
   );
 }
 

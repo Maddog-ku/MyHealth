@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useRef, useState } from "react";
-import { Apple, Image as ImageIcon, Pencil, Plus, Save, Trash2, X, Sparkles, UtensilsCrossed } from "lucide-react";
+import { Apple, Copy, Image as ImageIcon, Pencil, Plus, Save, Sparkles, Star, Trash2, UtensilsCrossed, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,10 +8,21 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AiGenerationPanel } from "@/components/AiGenerationPanel";
-import { useCreateMeal, useDeleteMeal, useMeals, useUpdateMeal } from "@/hooks/useMeals";
+import {
+  useCopyFavoriteMeal,
+  useCopyMeal,
+  useCreateMeal,
+  useDeleteFavoriteMeal,
+  useDeleteMeal,
+  useFavoriteMeal,
+  useFavoriteMeals,
+  useMeals,
+  useRecentMeals,
+  useUpdateMeal,
+} from "@/hooks/useMeals";
 import { ApiError } from "@/api/client";
 import { todayLocalISO } from "@/lib/date";
-import type { FoodItem, Meal } from "@/types/api";
+import type { FavoriteMeal, FoodItem, Meal, RecentMeal } from "@/types/api";
 
 const SLOTS = [
   { value: "breakfast", label: "早餐", time: "上午 06:00 - 09:00" },
@@ -35,6 +46,10 @@ function mealDescriptionWarning(value: string) {
   return null;
 }
 
+function slotLabel(value: string): string {
+  return SLOTS.find((s) => s.value === value)?.label ?? value;
+}
+
 export function MealsPage() {
   const today = useMemo(() => todayLocalISO(), []);
   const [slot, setSlot] = useState("lunch");
@@ -45,7 +60,13 @@ export function MealsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const meals = useMeals(today);
+  const recentMeals = useRecentMeals(today);
+  const favoriteMeals = useFavoriteMeals();
   const createMeal = useCreateMeal(today);
+  const copyMeal = useCopyMeal(today);
+  const copyFavoriteMeal = useCopyFavoriteMeal(today);
+  const favoriteMeal = useFavoriteMeal();
+  const deleteFavoriteMeal = useDeleteFavoriteMeal();
   const deleteMeal = useDeleteMeal(today);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -203,6 +224,18 @@ export function MealsPage() {
         </CardContent>
       </Card>
 
+      <QuickReusePanel
+        selectedSlot={slot}
+        recent={recentMeals.data?.data ?? []}
+        favorites={favoriteMeals.data ?? []}
+        loading={recentMeals.isLoading || favoriteMeals.isLoading}
+        copying={copyMeal.isPending || copyFavoriteMeal.isPending}
+        deletingFavorite={deleteFavoriteMeal.isPending}
+        onCopyRecent={(id) => copyMeal.mutate({ id, slot })}
+        onCopyFavorite={(id) => copyFavoriteMeal.mutate({ id, slot })}
+        onDeleteFavorite={(id) => deleteFavoriteMeal.mutate(id)}
+      />
+
       {/* Meals History List */}
       <div className="space-y-4">
         <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 px-1 tracking-wider uppercase">今日餐點日誌</h2>
@@ -221,7 +254,7 @@ export function MealsPage() {
                   </div>
                   <div>
                     <CardTitle className="text-sm font-bold">
-                      {SLOTS.find((s) => s.value === meal.slot)?.label ?? meal.slot}
+                      {slotLabel(meal.slot)}
                     </CardTitle>
                     <CardDescription className="text-[10px] mt-0.5">
                       紀錄於 {new Date(meal.createdAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}
@@ -234,15 +267,27 @@ export function MealsPage() {
                     {meal.items.length > 0 && meal.items.every((i) => i.confidence === 1) ? "已手動修正" : "AI 估算"}
                   </Badge>
                   {editingId !== meal.id && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setEditingId(meal.id)}
-                      className="rounded-full text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/5 size-8 transition-colors duration-300"
-                      aria-label="手動修正此餐紀錄"
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={favoriteMeal.isPending}
+                        onClick={() => favoriteMeal.mutate({ id: meal.id })}
+                        className="rounded-full text-muted-foreground hover:text-amber-500 hover:bg-amber-500/5 size-8 transition-colors duration-300"
+                        aria-label="收藏此餐為常用餐點"
+                      >
+                        <Star className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditingId(meal.id)}
+                        className="rounded-full text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/5 size-8 transition-colors duration-300"
+                        aria-label="手動修正此餐紀錄"
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                    </>
                   )}
                   <Button
                     variant="ghost"
@@ -331,6 +376,157 @@ export function MealsPage() {
         ) : null}
       </div>
     </section>
+  );
+}
+
+function QuickReusePanel({
+  selectedSlot,
+  recent,
+  favorites,
+  loading,
+  copying,
+  deletingFavorite,
+  onCopyRecent,
+  onCopyFavorite,
+  onDeleteFavorite,
+}: {
+  selectedSlot: string;
+  recent: RecentMeal[];
+  favorites: FavoriteMeal[];
+  loading: boolean;
+  copying: boolean;
+  deletingFavorite: boolean;
+  onCopyRecent: (id: number) => void;
+  onCopyFavorite: (id: number) => void;
+  onDeleteFavorite: (id: number) => void;
+}) {
+  if (loading) {
+    return <Skeleton className="h-32 w-full rounded-3xl" />;
+  }
+
+  if (recent.length === 0 && favorites.length === 0) {
+    return null;
+  }
+
+  return (
+    <Card className="border border-slate-100/80 dark:border-slate-900/60 bg-white/60 dark:bg-slate-950/35 backdrop-blur-xl shadow-xl shadow-slate-100/40 dark:shadow-none rounded-3xl overflow-hidden">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-bold flex items-center gap-2">
+          <Copy className="size-4 text-sky-500" />
+          快速重用
+        </CardTitle>
+        <CardDescription className="text-xs">
+          複製後會加入今日{slotLabel(selectedSlot)}，不重新執行 AI 分析
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 px-6 pb-6 lg:grid-cols-2">
+        <ReuseColumn
+          title="常用餐點"
+          empty="尚未收藏常用餐點"
+          items={favorites.map((f) => ({
+            id: f.id,
+            title: f.name,
+            meta: `${slotLabel(f.slot)} · ${f.totalKcal} kcal`,
+            description: f.description,
+            removable: true,
+          }))}
+          copying={copying}
+          deleting={deletingFavorite}
+          onCopy={onCopyFavorite}
+          onDelete={onDeleteFavorite}
+        />
+        <ReuseColumn
+          title="最近餐點"
+          empty="沒有可重用的歷史餐點"
+          items={recent.map((m) => ({
+            id: m.id,
+            title: m.displayName,
+            meta: `${new Date(`${m.date}T00:00:00`).toLocaleDateString("zh-TW", {
+              month: "numeric",
+              day: "numeric",
+            })} · ${slotLabel(m.slot)} · ${m.totalKcal} kcal`,
+            description: m.description,
+            removable: false,
+          }))}
+          copying={copying}
+          deleting={false}
+          onCopy={onCopyRecent}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReuseColumn({
+  title,
+  empty,
+  items,
+  copying,
+  deleting,
+  onCopy,
+  onDelete,
+}: {
+  title: string;
+  empty: string;
+  items: Array<{ id: number; title: string; meta: string; description?: string; removable: boolean }>;
+  copying: boolean;
+  deleting: boolean;
+  onCopy: (id: number) => void;
+  onDelete?: (id: number) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">{title}</span>
+        <span className="text-[10px] text-muted-foreground font-semibold">{items.length}</span>
+      </div>
+      {items.length > 0 ? (
+        <div className="space-y-2">
+          {items.map((item) => (
+            <div
+              key={`${title}-${item.id}`}
+              className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 dark:border-slate-900/50 bg-white/45 dark:bg-slate-950/20 p-3"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-xs font-bold text-slate-700 dark:text-slate-300">{item.title}</p>
+                <p className="mt-0.5 truncate text-[10px] font-medium text-muted-foreground">{item.meta}</p>
+                {item.description && <p className="mt-1 truncate text-[10px] text-muted-foreground">{item.description}</p>}
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={copying}
+                  onClick={() => onCopy(item.id)}
+                  aria-label={`複製${item.title}到今日`}
+                  className="size-8 rounded-full text-muted-foreground hover:bg-sky-500/5 hover:text-sky-500"
+                >
+                  <Copy className="size-4" />
+                </Button>
+                {item.removable && onDelete && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={deleting}
+                    onClick={() => onDelete(item.id)}
+                    aria-label={`移除常用餐點${item.title}`}
+                    className="size-8 rounded-full text-muted-foreground hover:bg-rose-500/5 hover:text-rose-500"
+                  >
+                    <X className="size-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-4 text-center text-xs text-muted-foreground">
+          {empty}
+        </div>
+      )}
+    </div>
   );
 }
 
