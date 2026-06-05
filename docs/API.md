@@ -768,6 +768,46 @@ Content-Type：`multipart/form-data`
 
 ---
 
+## 9e. 體重目標（Weight Goal）
+
+每位使用者一個體重目標。設定時會把「起始體重／起始日」快照下來作為錨點;**目前體重、每週速率、預估達標日與是否如期**全部即時計算(不快取)。
+
+**取得目標與進度** — `GET /weight-goal`  *(需登入)* — `progress` 為 `null` 代表尚未設定。
+
+**設定／更新** — `PUT /weight-goal`  *(需登入)* — 重新把起始錨點設為「現在」。
+```json
+{ "targetWeightKg": 70.0, "targetDate": "2026-08-01" }
+```
+- `targetWeightKg` 必填(20–400);`targetDate` 選填(無期限)。
+
+**移除** — `DELETE /weight-goal`  *(需登入)* — 回 `204`。
+
+進度欄位(`progress`,帶正負號保留方向,負值=減少)：
+| 欄位 | 說明 |
+| --- | --- |
+| `currentWeightKg` | 最新體重(無紀錄則回退 Profile 體重) |
+| `remainingKg` / `changeSoFarKg` | 目標−目前 / 目前−起始 |
+| `progressPct` | 0–100,只計入朝目標方向的進展 |
+| `ratePerWeekKg` | 自起始日起的平均週速率;不足 7 天或無變化為 `null` |
+| `projectedDate` | 依目前速率預估達標日;無法推估為 `null` |
+| `onTrack` | 預估是否在 `targetDate` 前達成;已達標為 `true`,無法判斷為 `null` |
+| `achieved` | 是否已達標(依目標方向判定) |
+
+**Response 200**
+```json
+{
+  "progress": {
+    "targetWeightKg": 70.0, "startWeightKg": 80.0, "currentWeightKg": 76.0,
+    "startDate": "2026-05-23", "targetDate": "2026-08-01",
+    "remainingKg": -6.0, "changeSoFarKg": -4.0, "progressPct": 40,
+    "ratePerWeekKg": -2.0, "projectedDate": "2026-06-27",
+    "onTrack": true, "achieved": false, "createdAt": "2026-05-23T00:00:00Z"
+  }
+}
+```
+
+---
+
 ## 10. 資料型別參考
 
 ### 10.1 `Exercise`

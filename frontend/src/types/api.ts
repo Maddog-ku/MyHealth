@@ -157,6 +157,27 @@ export interface StreakSummary {
   newlyUnlocked: string[];
 }
 
+export interface WeightGoalProgress {
+  targetWeightKg: number;
+  startWeightKg: number;
+  currentWeightKg: number;
+  startDate: string;
+  targetDate: string | null;
+  remainingKg: number;
+  changeSoFarKg: number;
+  progressPct: number;
+  ratePerWeekKg: number | null;
+  projectedDate: string | null;
+  onTrack: boolean | null;
+  achieved: boolean;
+  createdAt: string;
+}
+
+/** `progress` is null when the user has no weight goal set. */
+export interface WeightGoalResponse {
+  progress: WeightGoalProgress | null;
+}
+
 export type NotificationType = "ACHIEVEMENT" | "MEAL_REMINDER" | "STREAK_RISK" | "WEIGHT_REMINDER";
 export type NotificationSeverity = "success" | "info" | "warning";
 

@@ -9,6 +9,7 @@ import { WeightCheckInDialog } from "@/components/WeightCheckInDialog";
 import { QuickWeightDialog } from "@/components/QuickWeightDialog";
 import { WeeklyReportCard } from "@/components/WeeklyReportCard";
 import { StreakCard } from "@/components/StreakCard";
+import { WeightGoalCard } from "@/components/WeightGoalCard";
 import { useDailyStats } from "@/hooks/useDailyStats";
 import { useAiStatus } from "@/hooks/useAiStatus";
 import { useMe } from "@/hooks/useAuth";
@@ -274,6 +275,9 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Weight goal & progress */}
+      <WeightGoalCard />
 
       {/* Streaks & achievements */}
       <StreakCard />

@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
-import type { AuthResponse, ChatMessage, DailyStats, FoodItem, Meal, NotificationFeed, PageEnvelope, Profile, StreakSummary, User, WeeklyReport, WorkoutPlan } from "@/types/api";
+import type { AuthResponse, ChatMessage, DailyStats, FoodItem, Meal, NotificationFeed, PageEnvelope, Profile, StreakSummary, User, WeeklyReport, WeightGoalResponse, WorkoutPlan } from "@/types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -181,4 +181,9 @@ export const api = {
 
   notifications: () => http.get<NotificationFeed>("/notifications").then((r) => r.data),
   markNotificationsRead: () => http.post<NotificationFeed>("/notifications/read").then((r) => r.data),
+
+  weightGoal: () => http.get<WeightGoalResponse>("/weight-goal").then((r) => r.data),
+  setWeightGoal: (body: { targetWeightKg: number; targetDate?: string | null }) =>
+    http.put<WeightGoalResponse>("/weight-goal", body).then((r) => r.data),
+  deleteWeightGoal: () => http.delete<void>("/weight-goal").then(() => undefined),
 };
