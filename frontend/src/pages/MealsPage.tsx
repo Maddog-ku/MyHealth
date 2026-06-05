@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useRef, useState } from "react";
-import { Apple, Image as ImageIcon, Pencil, Plus, Save, Trash2, X, Sparkles, ChevronRight, UtensilsCrossed } from "lucide-react";
+import { Apple, Image as ImageIcon, Pencil, Plus, Save, Trash2, X, Sparkles, UtensilsCrossed } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

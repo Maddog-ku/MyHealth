@@ -1,4 +1,4 @@
-import { Activity, Dumbbell, LogOut, Salad, Settings as SettingsIcon, UserRound, Sparkles, Moon, Sun, Flame } from "lucide-react";
+import { Activity, Dumbbell, LogOut, Salad, Settings as SettingsIcon, UserRound, Sparkles } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
