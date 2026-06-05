@@ -663,6 +663,41 @@ Content-Type：`multipart/form-data`
 
 ---
 
+## 9b. 每週健康報告（Weekly Report）
+
+把一整週（自然週，週一–週日）的飲食、運動與體重整合成一份由本機 AI 產生的回顧。**關鍵數字每次即時計算**（永遠反映最新資料），只有 **AI 敘述**會依 `(使用者, 週起始日)` 持久化快取。
+
+**取得報告** — `GET /reports/weekly?weekStart=YYYY-MM-DD`  *(需登入)*
+- `weekStart` 選填，可為該週任一日（後端正規化到週一）；省略則取當週。
+- 涵蓋區間為 `weekStart … min(weekStart+6, 今天)`。
+- **不**觸發 AI；`narrative` 為已快取的敘述，未生成過則為 `null`。
+
+**Response 200**
+```json
+{
+  "weekStart": "2026-06-01",
+  "weekEnd": "2026-06-07",
+  "summary": {
+    "totalIntakeKcal": 12600, "avgIntakeKcal": 1800, "totalBurnKcal": 1400,
+    "netKcal": 11200, "goalKcal": 1700,
+    "weightStart": 70.0, "weightEnd": 69.4, "weightDelta": -0.6,
+    "workoutsDone": 3, "mealsLogged": 14, "daysCovered": 7
+  },
+  "narrative": "攝取：本週平均約 1800 大卡…\n運動：完成 3 次訓練…\n體重：約下降 0.6 公斤…\n本週建議：…",
+  "generatedAt": "2026-06-05T10:00:00Z"
+}
+```
+
+**產生／重新生成** — `POST /reports/weekly/generate`  *(需登入；受 AI 速率限制)*
+```json
+{ "weekStart": "2026-06-01" }
+```
+- body 與 `weekStart` 皆選填；省略則為當週。
+- 走 `ReportService.generate`：以即時 summary 組出 grounded context（只引用真實數字、未知標「未提供」），呼叫本機模型產生敘述，upsert 進 `weekly_reports`，回傳與 GET 相同結構。
+- 本機 AI 不可用時 `narrative` 回退為保守提示訊息（不報錯）。
+
+---
+
 ## 10. 資料型別參考
 
 ### 10.1 `Exercise`

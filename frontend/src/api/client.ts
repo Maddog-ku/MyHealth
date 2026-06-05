@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
-import type { AuthResponse, ChatMessage, DailyStats, FoodItem, Meal, PageEnvelope, Profile, User, WorkoutPlan } from "@/types/api";
+import type { AuthResponse, ChatMessage, DailyStats, FoodItem, Meal, PageEnvelope, Profile, User, WeeklyReport, WorkoutPlan } from "@/types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -169,4 +169,11 @@ export const api = {
       }>("/ai/chat", { message })
       .then((r) => r.data),
   clearChat: () => http.delete<void>("/ai/chat/history").then(() => undefined),
+
+  weeklyReport: (weekStart?: string) =>
+    http
+      .get<WeeklyReport>("/reports/weekly", { params: weekStart ? { weekStart } : undefined })
+      .then((r) => r.data),
+  generateWeeklyReport: (weekStart?: string) =>
+    http.post<WeeklyReport>("/reports/weekly/generate", weekStart ? { weekStart } : {}).then((r) => r.data),
 };

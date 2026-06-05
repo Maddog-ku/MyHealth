@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { WeightCheckInDialog } from "@/components/WeightCheckInDialog";
 import { QuickWeightDialog } from "@/components/QuickWeightDialog";
+import { WeeklyReportCard } from "@/components/WeeklyReportCard";
 import { useDailyStats } from "@/hooks/useDailyStats";
 import { useAiStatus } from "@/hooks/useAiStatus";
 import { useMe } from "@/hooks/useAuth";
@@ -272,6 +273,9 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* AI Weekly Health Report */}
+      <WeeklyReportCard />
     </section>
   );
 }

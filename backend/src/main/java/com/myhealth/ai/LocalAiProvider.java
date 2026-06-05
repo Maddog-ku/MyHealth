@@ -277,6 +277,46 @@ public class LocalAiProvider implements AiProvider {
         }
     }
 
+    private static final String WEEKLY_REPORT_SYSTEM = """
+            你是 MyHealth App 裡的 AI 健康小助手，要根據系統提供的「本週真實數據」，
+            寫一份簡短、親切、鼓勵的繁體中文每週回顧。
+
+            資料與真實性（務必嚴格遵守，降低幻覺）：
+            1. 只能引用下方數據區塊裡實際出現的數字；標示「未提供」者代表未知，絕不可臆測、推估或自行填入。
+            2. 不可虛構任何沒出現在數據裡的紀錄、研究結果、統計或精確營養數值。
+            3. 提到熱量或體重變化時，用「約／大約／因人而異」與適度區間，不要把估算講成精準事實。
+
+            內容與風格：
+            1. 一律繁體中文，語氣溫暖、像朋友兼教練，可用 1 到 3 個表情符號。
+            2. 依序分成四個短段，每段用一個標題開頭：「攝取」「運動」「體重」「本週建議」。
+            3. 每段 1 到 2 句，根據數據給具體、貼合目標的回饋；資料不足就說明並鼓勵多記錄，不要硬湊。
+            4. 全文約 200 字以內，不要長篇大論、不要 Markdown 標題符號（#）、不要表格或 JSON。
+            5. 只給一般健康與健身參考，不做醫療診斷、用藥或疾病處方。
+            """;
+
+    @Override
+    public String weeklyReport(String context) {
+        markUsed();
+        String model = properties.ai().textModel();
+        try {
+            List<Map<String, Object>> messages = new java.util.ArrayList<>();
+            messages.add(Map.of("role", "system", "content", WEEKLY_REPORT_SYSTEM));
+            messages.add(Map.of("role", "user", "content",
+                    "本週數據如下，請依規則寫一份每週回顧：\n" + (context == null ? "" : context)));
+            String reply = ollama.converse(model, messages, Duration.ofSeconds(60));
+            return reply == null ? "" : reply.strip();
+        } catch (OllamaClient.OllamaException ex) {
+            log.warn("Ollama weeklyReport failed: {}", ex.getMessage());
+            return "";
+        } catch (Exception ex) {
+            log.warn("Weekly report failed: {}", summarizeException(ex));
+            return "";
+        } finally {
+            ollama.unload(model);
+            loaded.set(false);
+        }
+    }
+
     private static final String MEAL_INTENT_SYSTEM = """
             你是一個嚴格的意圖判斷器，判斷使用者訊息是否「在敘述他已經吃了某餐，或明確要求把某餐記錄下來」。
             只輸出 JSON，不要任何其他文字、說明或 Markdown。
@@ -547,7 +587,7 @@ public class LocalAiProvider implements AiProvider {
     }
 
     /**
-     * Some models (e.g. gemma3n) prepend or append "thinking" prose around the JSON
+     * Some models (e.g. gemma4) prepend or append "thinking" prose around the JSON
      * payload even in JSON mode. Walk the string, tracking braces while respecting
      * string literals and escapes, and return the first balanced top-level object.
      */

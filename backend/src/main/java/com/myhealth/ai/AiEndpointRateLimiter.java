@@ -27,6 +27,10 @@ public class AiEndpointRateLimiter {
         store.check("ai:chat:%s".formatted(userKey(user)), properties.getAiLimit(), properties.getWindow());
     }
 
+    public void checkReport(AppUser user) {
+        store.check("ai:reports:weekly:%s".formatted(userKey(user)), properties.getAiLimit(), properties.getWindow());
+    }
+
     private String userKey(AppUser user) {
         if (user.getId() != null) {
             return "user:%d".formatted(user.getId());

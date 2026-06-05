@@ -83,7 +83,7 @@ public class OllamaClient {
     private String chatStreaming(String model, String systemPrompt, String userPrompt, List<String> base64Images,
                                  boolean jsonMode, Duration timeout)
             throws OllamaException {
-        // Use streaming mode and accumulate chunks ourselves. Some models (e.g. gemma3n)
+        // Use streaming mode and accumulate chunks ourselves. Some models (e.g. gemma4)
         // emit "thinking" tokens before the structured output and ignore stream:false,
         // so we always parse NDJSON and concatenate every message.content fragment
         // until done:true.
@@ -209,6 +209,11 @@ public class OllamaClient {
         body.put("messages", messages);
         body.put("stream", stream);
         body.put("format", jsonMode ? "json" : "");
+        // Disable chain-of-thought: "thinking" models (e.g. gemma4) otherwise spend the
+        // whole num_predict budget on reasoning tokens that never land in message.content,
+        // yielding an empty reply. This app only wants strict JSON or a short grounded
+        // answer, never the reasoning trace. (Harmless for non-thinking models.)
+        body.put("think", false);
         body.put("options", options);
 
         try {

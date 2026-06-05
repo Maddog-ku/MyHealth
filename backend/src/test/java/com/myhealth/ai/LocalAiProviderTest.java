@@ -35,7 +35,7 @@ class LocalAiProviderTest {
         properties = new AppProperties(
                 new AppProperties.Jwt("test-secret-test-secret-test-secret-32bytes!!", 15, 30),
                 new AppProperties.Cors(List.of("http://localhost")),
-                new AppProperties.Ai("local", "http://localhost:11434", "gemma3n:e4b", "gemma3n:e4b", 60),
+                new AppProperties.Ai("local", "http://localhost:11434", "gemma4:e4b", "gemma4:e4b", 60),
                 "./uploads");
         provider = new LocalAiProvider(properties, ollama, objectMapper);
     }
@@ -48,7 +48,7 @@ class LocalAiProviderTest {
                   {"name":"弓箭步","sets":3,"reps":"每側10","restSec":60,"kcal":65,"note":"保持軀幹穩定","alt":[]}
                 ]}
                 """;
-        when(ollama.chat(eq("gemma3n:e4b"), any(), any(), eq(true), any())).thenReturn(ollamaJson);
+        when(ollama.chat(eq("gemma4:e4b"), any(), any(), eq(true), any())).thenReturn(ollamaJson);
 
         List<ExerciseItem> items = provider.generateWorkout("legs", 30, "medium");
 
@@ -82,7 +82,7 @@ class LocalAiProviderTest {
         provider.generateWorkout("abs", 30, "medium");
 
         ArgumentCaptor<String> systemCaptor = ArgumentCaptor.forClass(String.class);
-        verify(ollama).chat(eq("gemma3n:e4b"), systemCaptor.capture(), eq("分類: abs\n時長: 30 分鐘\n強度: medium"), eq(true), any());
+        verify(ollama).chat(eq("gemma4:e4b"), systemCaptor.capture(), eq("分類: abs\n時長: 30 分鐘\n強度: medium"), eq(true), any());
 
         assertThat(systemCaptor.getValue())
                 .contains("不可假設傷病、器材、場地或訓練經驗")
@@ -112,7 +112,7 @@ class LocalAiProviderTest {
         provider.generateWorkout("full_body", 45, "high");
 
         ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
-        verify(ollama).chat(eq("gemma3n:e4b"), any(), userCaptor.capture(), eq(true), any());
+        verify(ollama).chat(eq("gemma4:e4b"), any(), userCaptor.capture(), eq(true), any());
 
         assertThat(userCaptor.getValue())
                 .isEqualTo("分類: full_body\n時長: 45 分鐘\n強度: high")
@@ -247,7 +247,7 @@ class LocalAiProviderTest {
                 ],
                 "suggestion":"份量偏高，晚餐可清淡"}
                 """;
-        when(ollama.chat(eq("gemma3n:e4b"), any(), any(), eq(List.of("AQID")), eq(true), any())).thenReturn(json);
+        when(ollama.chat(eq("gemma4:e4b"), any(), any(), eq(List.of("AQID")), eq(true), any())).thenReturn(json);
 
         MealAnalysis result = provider.analyzeMeal("牛肉飯", new AiProvider.MealImage("image/jpeg", new byte[]{1, 2, 3}));
 
@@ -264,7 +264,7 @@ class LocalAiProviderTest {
 
         ArgumentCaptor<String> systemCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
-        verify(ollama).chat(eq("gemma3n:e4b"), systemCaptor.capture(), userCaptor.capture(), eq(List.of("AQID")), eq(true), any());
+        verify(ollama).chat(eq("gemma4:e4b"), systemCaptor.capture(), userCaptor.capture(), eq(List.of("AQID")), eq(true), any());
 
         assertThat(systemCaptor.getValue())
                 .contains("只能根據照片中清楚可見的食物、容器、份量線索，以及使用者明確輸入的文字判斷")
@@ -294,7 +294,7 @@ class LocalAiProviderTest {
 
         ArgumentCaptor<String> systemCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
-        verify(ollama).chat(eq("gemma3n:e4b"), systemCaptor.capture(), userCaptor.capture(), eq(List.of()), eq(true), any());
+        verify(ollama).chat(eq("gemma4:e4b"), systemCaptor.capture(), userCaptor.capture(), eq(List.of()), eq(true), any());
 
         assertThat(systemCaptor.getValue())
                 .contains("只能根據照片中清楚可見的食物")
@@ -369,7 +369,7 @@ class LocalAiProviderTest {
 
         provider.unload();
 
-        verify(ollama).unload("gemma3n:e4b");
+        verify(ollama).unload("gemma4:e4b");
         assertThat(provider.loaded()).isFalse();
     }
 
@@ -406,5 +406,24 @@ class LocalAiProviderTest {
                 .thenThrow(new OllamaClient.OllamaException("down"));
 
         assertThat(provider.detectWeightLog("體重 70").isWeight()).isFalse();
+    }
+
+    @Test
+    void weeklyReport_returnsModelText_andUnloads() {
+        when(ollama.converse(eq("gemma4:e4b"), anyList(), any())).thenReturn("攝取：不錯。本週建議：多喝水 💧");
+
+        String report = provider.weeklyReport("本週總攝取: 4200 kcal");
+
+        assertThat(report).contains("本週建議");
+        verify(ollama).unload("gemma4:e4b");
+        assertThat(provider.loaded()).isFalse();
+    }
+
+    @Test
+    void weeklyReport_returnsBlank_whenOllamaFails() {
+        when(ollama.converse(any(), anyList(), any())).thenThrow(new OllamaClient.OllamaException("down"));
+
+        assertThat(provider.weeklyReport("本週總攝取: 4200 kcal")).isBlank();
+        verify(ollama).unload("gemma4:e4b");
     }
 }

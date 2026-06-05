@@ -36,6 +36,13 @@ public interface AiProvider {
      */
     String chat(String context, List<ChatTurn> history, String userMessage);
 
+    /**
+     * Generate a short, grounded weekly health review from {@code context} — a factual
+     * block of the week's real numbers (intake/burn/weight/workouts). Returns free text;
+     * implementations fall back to a conservative template if the model is unavailable.
+     */
+    String weeklyReport(String context);
+
     record ChatTurn(boolean fromUser, String content) {
     }
 

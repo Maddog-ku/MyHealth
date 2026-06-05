@@ -108,6 +108,29 @@ export interface DailyStats {
   workoutsPlanned: number;
 }
 
+export interface WeeklySummary {
+  totalIntakeKcal: number;
+  avgIntakeKcal: number;
+  totalBurnKcal: number;
+  netKcal: number;
+  goalKcal: number;
+  weightStart: number | null;
+  weightEnd: number | null;
+  weightDelta: number | null;
+  workoutsDone: number;
+  mealsLogged: number;
+  daysCovered: number;
+}
+
+export interface WeeklyReport {
+  weekStart: string;
+  weekEnd: string;
+  summary: WeeklySummary;
+  /** Cached AI narrative, or null if none has been generated yet for this week. */
+  narrative: string | null;
+  generatedAt: string | null;
+}
+
 export interface PageEnvelope<T> {
   data: T[];
   page: number;
