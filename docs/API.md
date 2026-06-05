@@ -698,6 +698,41 @@ Content-Type：`multipart/form-data`
 
 ---
 
+## 9c. 連續記錄與成就（Streak & Achievements）
+
+連續打卡天數**每次即時從餐點／運動／體重資料推算**（永不落地、不會與資料漂移）；只有「已解鎖的徽章」會持久化(用來顯示解鎖時間並避免重複通知)。
+
+**取得 Streak 與成就牆** — `GET /streak`  *(需登入)*
+- 回傳三種連續記錄與徽章牆。
+- **副作用(冪等)**：呼叫時會 reconcile 成就——把已達門檻但尚未解鎖的徽章寫入，並在 `newlyUnlocked` 回報本次新解鎖的代碼(供前端慶祝)。
+
+連續記錄定義(皆給「今日」一天寬限，今天還沒記不算斷)：
+| 欄位 | 「當天有打卡」的判定 |
+| --- | --- |
+| `mealStreak` | 當天至少一筆餐點 |
+| `workoutStreak` | 當天至少一筆 `done=true` 的訓練 |
+| `overallStreak` | 當天有記任一項(餐／運動／體重) |
+
+**Response 200**
+```json
+{
+  "mealStreak":    { "current": 3, "longest": 12, "lastActiveDate": "2026-06-06" },
+  "workoutStreak": { "current": 1, "longest": 5,  "lastActiveDate": "2026-06-06" },
+  "overallStreak": { "current": 3, "longest": 14, "lastActiveDate": "2026-06-06" },
+  "achievements": [
+    { "code": "STREAK_7", "title": "一週不間斷", "emoji": "🔥", "description": "連續 7 天記錄健康數據",
+      "threshold": 7, "progress": 7, "unlocked": true, "unlockedAt": "2026-06-06T02:00:00Z" },
+    { "code": "MEALS_100", "title": "飲食達人", "emoji": "🥗", "description": "累計記錄 100 筆餐點",
+      "threshold": 100, "progress": 62, "unlocked": false, "unlockedAt": null }
+  ],
+  "newlyUnlocked": ["STREAK_7"]
+}
+```
+
+徽章目錄(寫死於 `AchievementCatalog`)：`STREAK_3/7/30`、`MEALS_50/100`、`WORKOUTS_10/50`、`FIRST_WEIGHT`。
+
+---
+
 ## 10. 資料型別參考
 
 ### 10.1 `Exercise`

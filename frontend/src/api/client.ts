@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
-import type { AuthResponse, ChatMessage, DailyStats, FoodItem, Meal, PageEnvelope, Profile, User, WeeklyReport, WorkoutPlan } from "@/types/api";
+import type { AuthResponse, ChatMessage, DailyStats, FoodItem, Meal, PageEnvelope, Profile, StreakSummary, User, WeeklyReport, WorkoutPlan } from "@/types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -176,4 +176,6 @@ export const api = {
       .then((r) => r.data),
   generateWeeklyReport: (weekStart?: string) =>
     http.post<WeeklyReport>("/reports/weekly/generate", weekStart ? { weekStart } : {}).then((r) => r.data),
+
+  streak: () => http.get<StreakSummary>("/streak").then((r) => r.data),
 };

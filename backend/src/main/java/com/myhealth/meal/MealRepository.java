@@ -14,6 +14,13 @@ public interface MealRepository extends JpaRepository<Meal, Long> {
 
     Optional<Meal> findByIdAndUserId(Long id, Long userId);
 
+    long countByUserId(Long userId);
+
+    /** Distinct days that have at least one meal, for streak computation (date column only). */
+    @Query("select distinct m.date from Meal m where m.user.id = :userId and m.date between :from and :to")
+    List<LocalDate> findDistinctMealDates(@Param("userId") Long userId,
+                                          @Param("from") LocalDate from, @Param("to") LocalDate to);
+
     @Query("select m.imageUrl from Meal m where m.user.id = :userId and m.imageUrl is not null and m.imageUrl <> ''")
     List<String> findImageUrlsByUserId(@Param("userId") Long userId);
 }

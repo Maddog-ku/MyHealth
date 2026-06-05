@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Activity, Apple, Dumbbell, Flame, Pencil, Scale, Sparkles, TrendingUp, Cpu } from "lucide-react";
+import { Activity, Apple, Flame, Pencil, Scale, Sparkles, TrendingUp, Cpu } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WeightCheckInDialog } from "@/components/WeightCheckInDialog";
 import { QuickWeightDialog } from "@/components/QuickWeightDialog";
 import { WeeklyReportCard } from "@/components/WeeklyReportCard";
+import { StreakCard } from "@/components/StreakCard";
 import { useDailyStats } from "@/hooks/useDailyStats";
 import { useAiStatus } from "@/hooks/useAiStatus";
 import { useMe } from "@/hooks/useAuth";
@@ -273,6 +274,9 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Streaks & achievements */}
+      <StreakCard />
 
       {/* AI Weekly Health Report */}
       <WeeklyReportCard />

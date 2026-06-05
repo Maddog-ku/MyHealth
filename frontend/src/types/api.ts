@@ -131,6 +131,32 @@ export interface WeeklyReport {
   generatedAt: string | null;
 }
 
+export interface StreakInfo {
+  current: number;
+  longest: number;
+  lastActiveDate: string | null;
+}
+
+export interface Achievement {
+  code: string;
+  title: string;
+  emoji: string;
+  description: string;
+  threshold: number;
+  progress: number;
+  unlocked: boolean;
+  unlockedAt: string | null;
+}
+
+export interface StreakSummary {
+  mealStreak: StreakInfo;
+  workoutStreak: StreakInfo;
+  overallStreak: StreakInfo;
+  achievements: Achievement[];
+  /** Badge codes unlocked by the request that returned this payload (for celebration). */
+  newlyUnlocked: string[];
+}
+
 export interface PageEnvelope<T> {
   data: T[];
   page: number;
