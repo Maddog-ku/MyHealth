@@ -157,6 +157,26 @@ export interface StreakSummary {
   newlyUnlocked: string[];
 }
 
+export type NotificationType = "ACHIEVEMENT" | "MEAL_REMINDER" | "STREAK_RISK" | "WEIGHT_REMINDER";
+export type NotificationSeverity = "success" | "info" | "warning";
+
+export interface NotificationItem {
+  key: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  emoji: string;
+  severity: NotificationSeverity;
+  createdAt: string;
+  actionHref: string | null;
+  read: boolean;
+}
+
+export interface NotificationFeed {
+  items: NotificationItem[];
+  unreadCount: number;
+}
+
 export interface PageEnvelope<T> {
   data: T[];
   page: number;

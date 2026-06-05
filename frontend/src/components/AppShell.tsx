@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLogout, useMe } from "@/hooks/useAuth";
 import { AssistantWidget } from "@/components/AssistantWidget";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const navItems = [
   { to: "/", label: "儀表板", icon: Activity, end: true },
@@ -121,6 +122,8 @@ export function AppShell() {
           </div>
 
           <div className="flex items-center gap-3">
+            <NotificationBell />
+
             {/* Quick profile info badge */}
             <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-slate-100 dark:border-slate-900 bg-slate-50/50 dark:bg-slate-900/20 text-xs font-semibold">
               <span className="relative flex h-2 w-2">

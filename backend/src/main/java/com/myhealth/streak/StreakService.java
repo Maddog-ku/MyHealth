@@ -22,6 +22,8 @@ import org.springframework.stereotype.Service;
 public class StreakService {
     /** How far back to look; comfortably covers the longest badge threshold (30 days). */
     private static final int WINDOW_DAYS = 365;
+    /** Shorter window for the read-only current-streak lookup used by reminders. */
+    private static final int REMINDER_WINDOW_DAYS = 60;
 
     private final MealRepository meals;
     private final WorkoutPlanRepository workouts;
@@ -67,6 +69,22 @@ public class StreakService {
 
         AchievementService.ReconcileResult rc = achievements.reconcile(user, metrics);
         return new StreakSummaryResponse(mealStreak, workoutStreak, overallStreak, rc.views(), rc.newlyUnlocked());
+    }
+
+    /**
+     * Read-only overall streak (any activity counts) over a short window — does NOT
+     * reconcile achievements. Used by the notification center to decide reminders.
+     */
+    public StreakInfo overallStreak(AppUser user) {
+        Long userId = user.getId();
+        LocalDate today = LocalDate.now(zoneId);
+        LocalDate from = today.minusDays(REMINDER_WINDOW_DAYS - 1);
+
+        Set<LocalDate> days = new TreeSet<>(meals.findDistinctMealDates(userId, from, today));
+        days.addAll(workouts.findDistinctDoneWorkoutDates(userId, from, today));
+        bodyMeasurements.findMeasuredAtBetween(userId, startOfDay(from), endOfDay(today))
+                .forEach(at -> days.add(at.atZone(zoneId).toLocalDate()));
+        return streakOf(days, today);
     }
 
     /**

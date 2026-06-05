@@ -25,4 +25,5 @@ export const qk = {
   chat: ["ai", "chat"] as const,
   weeklyReport: (weekStart: string) => ["reports", "weekly", weekStart] as const,
   streak: ["streak"] as const,
+  notifications: ["notifications"] as const,
 };

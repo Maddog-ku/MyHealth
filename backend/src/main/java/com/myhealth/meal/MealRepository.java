@@ -16,6 +16,8 @@ public interface MealRepository extends JpaRepository<Meal, Long> {
 
     long countByUserId(Long userId);
 
+    boolean existsByUserIdAndDate(Long userId, LocalDate date);
+
     /** Distinct days that have at least one meal, for streak computation (date column only). */
     @Query("select distinct m.date from Meal m where m.user.id = :userId and m.date between :from and :to")
     List<LocalDate> findDistinctMealDates(@Param("userId") Long userId,

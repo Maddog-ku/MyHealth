@@ -733,6 +733,41 @@ Content-Type：`multipart/form-data`
 
 ---
 
+## 9d. 通知中心（Notification Center）
+
+把「成就解鎖」與「即時提醒」整合成單一通知流。**內容皆即時推導**(成就來自已解鎖紀錄、提醒由當日資料計算)；只持久化每位使用者的「最後讀取時間」浮水印,用來算未讀數。
+
+**取得通知** — `GET /notifications`  *(需登入)*
+
+**標記全部已讀** — `POST /notifications/read`  *(需登入)* — 將浮水印推進到現在,回傳 `unreadCount: 0` 的最新清單。
+
+提醒規則(即時計算,每日刷新)：
+| `type` | 觸發條件 | `severity` |
+| --- | --- | --- |
+| `ACHIEVEMENT` | 已解鎖的徽章(最近 15 筆) | success |
+| `MEAL_REMINDER` | 今天還沒記任何餐點 | warning |
+| `STREAK_RISK` | 連續紀錄 ≥ 2 天且今天還沒任何活動 | warning |
+| `WEIGHT_REMINDER` | 距上次量體重 ≥ 7 天 | info |
+
+未讀判定：成就項 `unlockedAt > lastReadAt` 即未讀;提醒項在「今天尚未開啟過通知中心」時為未讀。
+
+**Response 200**
+```json
+{
+  "items": [
+    { "key": "meal:2026-06-06", "type": "MEAL_REMINDER", "title": "今天還沒記錄飲食",
+      "body": "別忘了把今天吃的記下來，讓 AI 幫你分析營養。", "emoji": "🍽️",
+      "severity": "warning", "createdAt": "2026-06-06T00:00:00Z", "actionHref": "/meals", "read": false },
+    { "key": "ach:STREAK_7", "type": "ACHIEVEMENT", "title": "解鎖成就：一週不間斷",
+      "body": "連續 7 天記錄健康數據", "emoji": "🔥",
+      "severity": "success", "createdAt": "2026-06-05T02:00:00Z", "actionHref": "/", "read": true }
+  ],
+  "unreadCount": 1
+}
+```
+
+---
+
 ## 10. 資料型別參考
 
 ### 10.1 `Exercise`
