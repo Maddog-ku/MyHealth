@@ -27,4 +27,5 @@ export const qk = {
   streak: ["streak"] as const,
   notifications: ["notifications"] as const,
   weightGoal: ["weight-goal"] as const,
+  calorieBudget: (date: string) => ["stats", "budget", date] as const,
 };

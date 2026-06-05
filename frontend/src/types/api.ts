@@ -157,6 +157,25 @@ export interface StreakSummary {
   newlyUnlocked: string[];
 }
 
+export interface MacroBudget {
+  name: "protein" | "carb" | "fat";
+  targetG: number;
+  consumedG: number;
+  pct: number;
+}
+
+export interface CalorieBudget {
+  date: string;
+  goalKcal: number;
+  intakeKcal: number;
+  burnKcal: number;
+  budgetKcal: number;
+  remainingKcal: number;
+  consumedPct: number;
+  over: boolean;
+  macros: MacroBudget[];
+}
+
 export interface WeightGoalProgress {
   targetWeightKg: number;
   startWeightKg: number;

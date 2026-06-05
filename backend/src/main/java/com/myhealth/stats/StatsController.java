@@ -1,6 +1,7 @@
 package com.myhealth.stats;
 
 import com.myhealth.auth.CurrentUser;
+import com.myhealth.stats.StatsDtos.CalorieBudgetResponse;
 import com.myhealth.stats.StatsDtos.DailyStatsResponse;
 import com.myhealth.stats.StatsDtos.RangeStatsResponse;
 import java.time.LocalDate;
@@ -25,6 +26,12 @@ public class StatsController {
     DailyStatsResponse daily(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return statsService.daily(currentUser.require(), date);
+    }
+
+    @GetMapping("/budget")
+    CalorieBudgetResponse budget(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return statsService.budget(currentUser.require(), date);
     }
 
     @GetMapping("/range")

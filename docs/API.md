@@ -558,6 +558,30 @@ Content-Type：`multipart/form-data`
 }
 ```
 
+### 8.1b 當日熱量預算環
+
+`GET /stats/budget?date=2026-05-25`
+
+把當日的目標、運動消耗、攝取整合成「預算環」,並依使用者目標把目標熱量拆成三大營養素的克數目標。**全部即時計算**(複用 `/stats/daily`)。
+
+- `budgetKcal = goalKcal + burnKcal`(運動把熱量補回來),`remainingKcal = budgetKcal − intakeKcal`(可為負)。
+- `consumedPct` 為 `intake / budget` 百分比(未夾上限,前端自行夾住環形);`over` 在攝取超過預算時為 `true`。
+- 營養素目標佔目標熱量比例(蛋白質/碳水 4 kcal/g、脂肪 9 kcal/g):減脂 35/35/30、維持 30/40/30、增肌 30/45/25。
+
+**Response 200**
+```json
+{
+  "date": "2026-05-25",
+  "goalKcal": 1700, "intakeKcal": 1200, "burnKcal": 300,
+  "budgetKcal": 2000, "remainingKcal": 800, "consumedPct": 60, "over": false,
+  "macros": [
+    { "name": "protein", "targetG": 128, "consumedG": 90,  "pct": 70 },
+    { "name": "carb",    "targetG": 170, "consumedG": 120, "pct": 71 },
+    { "name": "fat",     "targetG": 57,  "consumedG": 40,  "pct": 70 }
+  ]
+}
+```
+
 ### 8.2 區間統計
 
 `GET /stats/range?from=2026-05-01&to=2026-05-25`

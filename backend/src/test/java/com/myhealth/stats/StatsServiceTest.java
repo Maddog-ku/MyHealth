@@ -364,4 +364,59 @@ class StatsServiceTest {
         assertThat(response.series().get(0).date()).isEqualTo(d);
     }
 
+    @Test
+    void budget_addsExerciseBack_andSplitsMacrosByGoal() {
+        // No goal → maintain → target 1700 kcal; eat 1200, burn 300.
+        LocalDate today = LocalDate.of(2026, 5, 30);
+        when(meals.findByUserIdAndDateOrderByCreatedAtDesc(1L, today))
+                .thenReturn(List.of(meal(today, 1200, 90.0, 40.0, 120.0)));
+        when(workouts.findByUserIdAndDateOrderByCreatedAtDesc(1L, today))
+                .thenReturn(List.of(workout(today, 300, true)));
+
+        StatsDtos.CalorieBudgetResponse b = service.budget(owner, today);
+
+        assertThat(b.goalKcal()).isEqualTo(1700);
+        assertThat(b.budgetKcal()).isEqualTo(2000);   // 1700 + 300 earned back
+        assertThat(b.remainingKcal()).isEqualTo(800);
+        assertThat(b.consumedPct()).isEqualTo(60);     // 1200 / 2000
+        assertThat(b.over()).isFalse();
+        // maintain split 30/40/30 of 1700: P=128g, C=170g, F=57g.
+        assertThat(b.macros()).extracting(StatsDtos.MacroBudget::name, StatsDtos.MacroBudget::targetG,
+                        StatsDtos.MacroBudget::consumedG)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("protein", 128, 90),
+                        org.assertj.core.groups.Tuple.tuple("carb", 170, 120),
+                        org.assertj.core.groups.Tuple.tuple("fat", 57, 40));
+    }
+
+    @Test
+    void budget_flagsOver_whenIntakeExceedsBudget() {
+        LocalDate today = LocalDate.of(2026, 5, 30);
+        when(meals.findByUserIdAndDateOrderByCreatedAtDesc(1L, today))
+                .thenReturn(List.of(meal(today, 2200, 0, 0, 0)));
+        when(workouts.findByUserIdAndDateOrderByCreatedAtDesc(1L, today)).thenReturn(List.of());
+
+        StatsDtos.CalorieBudgetResponse b = service.budget(owner, today);
+
+        assertThat(b.budgetKcal()).isEqualTo(1700);
+        assertThat(b.remainingKcal()).isEqualTo(-500);
+        assertThat(b.consumedPct()).isEqualTo(129);
+        assertThat(b.over()).isTrue();
+    }
+
+    @Test
+    void budget_usesFatLossTargetAndProteinSplit() {
+        owner.getProfile().setGoal(Goal.fat_loss); // target 1700 - 300 = 1400, protein 35%
+        LocalDate today = LocalDate.of(2026, 5, 30);
+        when(meals.findByUserIdAndDateOrderByCreatedAtDesc(1L, today)).thenReturn(List.of());
+        when(workouts.findByUserIdAndDateOrderByCreatedAtDesc(1L, today)).thenReturn(List.of());
+
+        StatsDtos.CalorieBudgetResponse b = service.budget(owner, today);
+
+        assertThat(b.goalKcal()).isEqualTo(1400);
+        assertThat(b.macros().get(0).name()).isEqualTo("protein");
+        assertThat(b.macros().get(0).targetG()).isEqualTo(122); // round(1400 * 0.35 / 4)
+        assertThat(b.macros().get(0).consumedG()).isZero();
+    }
+
 }

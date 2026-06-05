@@ -10,7 +10,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.myhealth.auth.CurrentUser;
 import com.myhealth.auth.JwtAuthenticationFilter;
 import com.myhealth.common.GlobalExceptionHandler;
+import com.myhealth.stats.StatsDtos.CalorieBudgetResponse;
 import com.myhealth.stats.StatsDtos.DailyStatsResponse;
+import com.myhealth.stats.StatsDtos.MacroBudget;
 import com.myhealth.stats.StatsDtos.RangeStatsResponse;
 import com.myhealth.stats.StatsDtos.SeriesPoint;
 import com.myhealth.user.AppUser;
@@ -66,6 +68,24 @@ class StatsControllerTest {
         mockMvc.perform(get("/api/v1/stats/daily"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void budget_returns200_withRingAndMacros() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        when(statsService.budget(any(), eq(LocalDate.of(2026, 5, 30)))).thenReturn(new CalorieBudgetResponse(
+                LocalDate.of(2026, 5, 30), 1700, 1200, 300, 2000, 800, 60, false,
+                List.of(new MacroBudget("protein", 128, 90, 70),
+                        new MacroBudget("carb", 170, 120, 71),
+                        new MacroBudget("fat", 57, 40, 70))));
+
+        mockMvc.perform(get("/api/v1/stats/budget").param("date", "2026-05-30"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.budgetKcal").value(2000))
+                .andExpect(jsonPath("$.remainingKcal").value(800))
+                .andExpect(jsonPath("$.over").value(false))
+                .andExpect(jsonPath("$.macros[0].name").value("protein"))
+                .andExpect(jsonPath("$.macros[0].targetG").value(128));
     }
 
     @Test

@@ -4,7 +4,9 @@ import com.myhealth.meal.Meal;
 import com.myhealth.meal.MealRepository;
 import com.myhealth.common.ApiException;
 import com.myhealth.common.ErrorCode;
+import com.myhealth.stats.StatsDtos.CalorieBudgetResponse;
 import com.myhealth.stats.StatsDtos.DailyStatsResponse;
+import com.myhealth.stats.StatsDtos.MacroBudget;
 import com.myhealth.stats.StatsDtos.RangeStatsResponse;
 import com.myhealth.stats.StatsDtos.SeriesPoint;
 import com.myhealth.user.AppUser;
@@ -60,6 +62,42 @@ public class StatsService {
                 targetKcal(user.getProfile()),
                 done,
                 dayWorkouts.size());
+    }
+
+    /**
+     * The day's calorie budget ring: target intake plus exercise earned back, minus what's
+     * been eaten, alongside per-macro targets derived from the user's goal. Reuses {@link #daily}.
+     */
+    public CalorieBudgetResponse budget(AppUser user, LocalDate date) {
+        DailyStatsResponse d = daily(user, date);
+        int budgetKcal = d.goalKcal() + d.burnKcal();
+        int remaining = budgetKcal - d.intakeKcal();
+        int consumedPct = budgetKcal <= 0 ? 0 : Math.round(d.intakeKcal() * 100f / budgetKcal);
+        boolean over = d.intakeKcal() > budgetKcal;
+        Goal goal = user.getProfile() == null ? null : user.getProfile().getGoal();
+        List<MacroBudget> macros = macroBudgets(goal, d.goalKcal(), d.protein(), d.carb(), d.fat());
+        return new CalorieBudgetResponse(date, d.goalKcal(), d.intakeKcal(), d.burnKcal(),
+                budgetKcal, remaining, consumedPct, over, macros);
+    }
+
+    /** Split the target calories into protein/carb/fat grams (4/4/9 kcal/g) by goal. */
+    private List<MacroBudget> macroBudgets(Goal goal, int goalKcal, BigDecimal protein, BigDecimal carb, BigDecimal fat) {
+        // {protein%, carb%, fat%} of target calories.
+        double[] split = switch (goal == null ? Goal.maintain : goal) {
+            case fat_loss -> new double[] {0.35, 0.35, 0.30};
+            case muscle_gain -> new double[] {0.30, 0.45, 0.25};
+            case maintain -> new double[] {0.30, 0.40, 0.30};
+        };
+        return List.of(
+                macro("protein", (int) Math.round(goalKcal * split[0] / 4), protein),
+                macro("carb", (int) Math.round(goalKcal * split[1] / 4), carb),
+                macro("fat", (int) Math.round(goalKcal * split[2] / 9), fat));
+    }
+
+    private MacroBudget macro(String name, int targetG, BigDecimal consumed) {
+        int consumedG = consumed == null ? 0 : Math.round(consumed.floatValue());
+        int pct = targetG <= 0 ? 0 : Math.round(consumedG * 100f / targetG);
+        return new MacroBudget(name, targetG, consumedG, pct);
     }
 
     public RangeStatsResponse range(AppUser user, LocalDate from, LocalDate to) {
