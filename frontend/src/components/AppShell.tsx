@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useLogout, useMe } from "@/hooks/useAuth";
 import { AssistantWidget } from "@/components/AssistantWidget";
 import { NotificationBell } from "@/components/NotificationBell";
+import { GlobalSearch } from "@/components/GlobalSearch";
 
 const navItems = [
   { to: "/", label: "儀表板", icon: Activity, end: true },
@@ -122,6 +123,7 @@ export function AppShell() {
           </div>
 
           <div className="flex items-center gap-3">
+            <GlobalSearch />
             <NotificationBell />
 
             {/* Quick profile info badge */}

@@ -832,6 +832,28 @@ Content-Type：`multipart/form-data`
 
 ---
 
+## 9f. 集中搜尋（Search）
+
+跨「餐點」與「運動」的關鍵字搜尋,直接查現有資料表(無搜尋索引)。
+
+**搜尋** — `GET /search?q=雞&limit=20`  *(需登入)*
+- `q` 空白回傳空結果;`limit` 選填(預設 20,上限 50)。
+- 比對範圍:餐點的描述／食物項目／時段、運動的分類／動作項目(皆不分大小寫)。
+- 結果合併後依日期新到舊排序並截斷;`title`/`subtitle` 已在地化(時段、運動分類);`type` 為 `MEAL` 或 `WORKOUT`,前端據此跳到對應頁。
+
+**Response 200**
+```json
+{
+  "query": "雞",
+  "results": [
+    { "type": "WORKOUT", "id": 22, "title": "腹肌核心", "subtitle": "已完成", "date": "2026-06-06", "kcal": 120 },
+    { "type": "MEAL", "id": 11, "title": "雞胸肉沙拉", "subtitle": "午餐", "date": "2026-06-05", "kcal": 420 }
+  ]
+}
+```
+
+---
+
 ## 10. 資料型別參考
 
 ### 10.1 `Exercise`

@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
-import type { AuthResponse, CalorieBudget, ChatMessage, DailyStats, FoodItem, Meal, NotificationFeed, PageEnvelope, Profile, StreakSummary, User, WeeklyReport, WeightGoalResponse, WorkoutPlan } from "@/types/api";
+import type { AuthResponse, CalorieBudget, ChatMessage, DailyStats, FoodItem, Meal, NotificationFeed, PageEnvelope, Profile, SearchResponse, StreakSummary, User, WeeklyReport, WeightGoalResponse, WorkoutPlan } from "@/types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -184,6 +184,9 @@ export const api = {
 
   calorieBudget: (date: string) =>
     http.get<CalorieBudget>("/stats/budget", { params: { date } }).then((r) => r.data),
+
+  search: (q: string, limit?: number) =>
+    http.get<SearchResponse>("/search", { params: { q, ...(limit ? { limit } : {}) } }).then((r) => r.data),
 
   weightGoal: () => http.get<WeightGoalResponse>("/weight-goal").then((r) => r.data),
   setWeightGoal: (body: { targetWeightKg: number; targetDate?: string | null }) =>

@@ -3,6 +3,7 @@ package com.myhealth.workout;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -25,4 +26,9 @@ public interface WorkoutPlanRepository extends JpaRepository<WorkoutPlan, Long> 
                                                  @Param("from") LocalDate from, @Param("to") LocalDate to);
 
     int countByUserIdAndDateAndDoneTrue(Long userId, LocalDate date);
+
+    /** Keyword search over a plan's category and exercise items ({@code :q} is a lowercased %like%). */
+    @Query("select w from WorkoutPlan w where w.user.id = :userId and ("
+            + "lower(w.category) like :q or lower(w.itemsJson) like :q)")
+    List<WorkoutPlan> search(@Param("userId") Long userId, @Param("q") String q, Pageable pageable);
 }

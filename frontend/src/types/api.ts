@@ -157,6 +157,20 @@ export interface StreakSummary {
   newlyUnlocked: string[];
 }
 
+export interface SearchResult {
+  type: "MEAL" | "WORKOUT";
+  id: number;
+  title: string;
+  subtitle: string;
+  date: string;
+  kcal: number;
+}
+
+export interface SearchResponse {
+  query: string;
+  results: SearchResult[];
+}
+
 export interface MacroBudget {
   name: "protein" | "carb" | "fat";
   targetG: number;
