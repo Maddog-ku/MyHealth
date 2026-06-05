@@ -114,7 +114,7 @@ class FileStorageServiceTest {
         return new AppProperties(
                 new AppProperties.Jwt("test-secret-test-secret-test-secret-32bytes!!", 15, 30),
                 new AppProperties.Cors(List.of("http://localhost")),
-                new AppProperties.Ai("local", "http://localhost:11434", "gemma4:e4b", "gemma4:e4b", 60),
+                new AppProperties.Ai("local", "http://localhost:11434", "gemma3n:e4b", "gemma3n:e4b", 60),
                 tempDir.toString());
     }
 

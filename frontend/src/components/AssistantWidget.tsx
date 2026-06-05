@@ -132,7 +132,7 @@ export function AssistantWidget() {
                 </p>
                 <p className="text-xs text-muted-foreground max-w-[16rem] leading-relaxed">
                   我專門陪你聊<strong>運動與飲食</strong>。說「<strong>我午餐吃了雞胸肉沙拉</strong>」我幫你記到飲食追蹤；
-                  說「<strong>幫我排個練腿菜單</strong>」我幫你產生運動菜單 🍱💪 下面也有幾個起手式：
+                  說「<strong>幫我排個練腿菜單</strong>」我幫你產生運動菜單；說「<strong>我今天體重 68 公斤</strong>」我幫你記下體重 🍱💪 下面也有幾個起手式：
                 </p>
                 <div className="flex flex-col gap-2 w-full mt-1">
                   {QUICK_PROMPTS.map((q) => (

@@ -24,13 +24,15 @@ public final class ChatDtos {
     /**
      * @param mealLogged    true if this turn recorded a meal into 飲食追蹤
      * @param workoutLogged true if this turn generated a workout plan into 運動菜單
-     * @param loggedDate    ISO date the meal/workout was logged to (for cache invalidation), else null
+     * @param weightLogged  true if this turn recorded a body-weight measurement
+     * @param loggedDate    ISO date the meal/workout/weight was logged to (for cache invalidation), else null
      */
     public record ChatReplyResponse(
             ChatMessageResponse userMessage,
             ChatMessageResponse reply,
             boolean mealLogged,
             boolean workoutLogged,
+            boolean weightLogged,
             String loggedDate
     ) {
     }

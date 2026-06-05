@@ -273,6 +273,86 @@ class StatsServiceTest {
     }
 
     @Test
+    void range_partialMeasurement_keepsPreviouslyCarriedFields() {
+        // A later measurement that only updates weight (bodyFat null) must NOT erase the
+        // body-fat value carried from the earlier full snapshot. This locks the contract
+        // that the series carries each metric forward independently.
+        LocalDate from = LocalDate.of(2026, 5, 28);
+        LocalDate to = LocalDate.of(2026, 5, 30);
+        when(meals.findByUserIdAndDateBetweenOrderByDateAsc(1L, from, to)).thenReturn(List.of());
+        when(workouts.findByUserIdAndDateBetweenOrderByDateAsc(1L, from, to)).thenReturn(List.of());
+        when(bodyMeasurements.findByUserIdAndMeasuredAtBetweenOrderByMeasuredAtAsc(eq(1L), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of(
+                        measurement("2026-05-28T03:00:00Z", "70.0", "22.0"),  // full snapshot
+                        measurement("2026-05-29T03:00:00Z", "69.5")));         // weight only, bodyFat null
+
+        RangeStatsResponse response = service.range(owner, from, to);
+
+        assertThat(response.series()).extracting(StatsDtos.SeriesPoint::weightKg)
+                .containsExactly(new BigDecimal("70.0"), new BigDecimal("69.5"), new BigDecimal("69.5"));
+        assertThat(response.series()).extracting(StatsDtos.SeriesPoint::bodyFatPct)
+                .containsExactly(new BigDecimal("22.0"), new BigDecimal("22.0"), new BigDecimal("22.0"));
+    }
+
+    @Test
+    void range_carriesForwardMuscleWaistAndWater() {
+        LocalDate from = LocalDate.of(2026, 5, 28);
+        LocalDate to = LocalDate.of(2026, 5, 30);
+        when(meals.findByUserIdAndDateBetweenOrderByDateAsc(1L, from, to)).thenReturn(List.of());
+        when(workouts.findByUserIdAndDateBetweenOrderByDateAsc(1L, from, to)).thenReturn(List.of());
+        BodyMeasurement m = new BodyMeasurement();
+        m.setMeasuredAt(Instant.parse("2026-05-29T03:00:00Z"));
+        m.setMuscleMassKg(new BigDecimal("30.0"));
+        m.setWaistCm(new BigDecimal("80.0"));
+        m.setBodyWaterPct(new BigDecimal("55.0"));
+        when(bodyMeasurements.findByUserIdAndMeasuredAtBetweenOrderByMeasuredAtAsc(eq(1L), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of(m));
+
+        RangeStatsResponse response = service.range(owner, from, to);
+
+        // Day 1 has no measurement yet (and profile carries none) → null; then each
+        // metric carries forward from the measured day onward.
+        assertThat(response.series()).extracting(StatsDtos.SeriesPoint::muscleMassKg)
+                .containsExactly(null, new BigDecimal("30.0"), new BigDecimal("30.0"));
+        assertThat(response.series()).extracting(StatsDtos.SeriesPoint::waistCm)
+                .containsExactly(null, new BigDecimal("80.0"), new BigDecimal("80.0"));
+        assertThat(response.series()).extracting(StatsDtos.SeriesPoint::bodyWaterPct)
+                .containsExactly(null, new BigDecimal("55.0"), new BigDecimal("55.0"));
+    }
+
+    @Test
+    void range_seedsAllMetricsFromPreRangeBaseline() {
+        // The most recent snapshot BEFORE the range seeds the starting values for every
+        // metric, so day 1 already shows them even with no in-range measurements.
+        LocalDate from = LocalDate.of(2026, 5, 28);
+        LocalDate to = LocalDate.of(2026, 5, 30);
+        when(meals.findByUserIdAndDateBetweenOrderByDateAsc(1L, from, to)).thenReturn(List.of());
+        when(workouts.findByUserIdAndDateBetweenOrderByDateAsc(1L, from, to)).thenReturn(List.of());
+        BodyMeasurement baseline = new BodyMeasurement();
+        baseline.setMeasuredAt(Instant.parse("2026-05-25T03:00:00Z"));  // before `from`
+        baseline.setWeightKg(new BigDecimal("71.0"));
+        baseline.setBodyFatPct(new BigDecimal("23.0"));
+        baseline.setMuscleMassKg(new BigDecimal("31.0"));
+        baseline.setWaistCm(new BigDecimal("82.0"));
+        baseline.setBodyWaterPct(new BigDecimal("54.0"));
+        when(bodyMeasurements.findFirstByUserIdAndMeasuredAtLessThanEqualOrderByMeasuredAtDesc(eq(1L), any(Instant.class)))
+                .thenReturn(Optional.of(baseline));
+
+        RangeStatsResponse response = service.range(owner, from, to);
+
+        assertThat(response.series()).extracting(StatsDtos.SeriesPoint::weightKg)
+                .containsExactly(new BigDecimal("71.0"), new BigDecimal("71.0"), new BigDecimal("71.0"));
+        assertThat(response.series()).extracting(StatsDtos.SeriesPoint::bodyFatPct)
+                .containsExactly(new BigDecimal("23.0"), new BigDecimal("23.0"), new BigDecimal("23.0"));
+        assertThat(response.series()).extracting(StatsDtos.SeriesPoint::muscleMassKg)
+                .containsExactly(new BigDecimal("31.0"), new BigDecimal("31.0"), new BigDecimal("31.0"));
+        assertThat(response.series()).extracting(StatsDtos.SeriesPoint::waistCm)
+                .containsExactly(new BigDecimal("82.0"), new BigDecimal("82.0"), new BigDecimal("82.0"));
+        assertThat(response.series()).extracting(StatsDtos.SeriesPoint::bodyWaterPct)
+                .containsExactly(new BigDecimal("54.0"), new BigDecimal("54.0"), new BigDecimal("54.0"));
+    }
+
+    @Test
     void range_singleDay_emitsOnePoint() {
         LocalDate d = LocalDate.of(2026, 5, 30);
         when(meals.findByUserIdAndDateBetweenOrderByDateAsc(1L, d, d)).thenReturn(List.of());

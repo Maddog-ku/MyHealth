@@ -65,6 +65,20 @@ public interface AiProvider {
         }
     }
 
+    /**
+     * Decide whether a chat message is the user reporting their current body weight (vs.
+     * asking about weight in general), and extract the value in kilograms. Returns
+     * {@link WeightLog#none()} on anything that isn't a clear logging intent, on an
+     * out-of-range value, or on any model/parse failure.
+     */
+    WeightLog detectWeightLog(String userMessage);
+
+    record WeightLog(boolean isWeight, double weightKg) {
+        public static WeightLog none() {
+            return new WeightLog(false, 0);
+        }
+    }
+
     record ExerciseItem(
             @NotBlank @Size(max = 80) String name,
             @Min(1) @Max(6) int sets,

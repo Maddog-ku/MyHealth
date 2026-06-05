@@ -41,8 +41,8 @@ app:
   ai:
     provider: ${AI_PROVIDER:local}
     ollama-base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
-    text-model: ${OLLAMA_TEXT_MODEL:gemma4:e4b}
-    vision-model: ${OLLAMA_VISION_MODEL:gemma4:e4b}
+    text-model: ${OLLAMA_TEXT_MODEL:gemma3n:e4b}
+    vision-model: ${OLLAMA_VISION_MODEL:gemma3n:e4b}
     idle-timeout-sec: ${AI_IDLE_TIMEOUT_SEC:60}
   rate-limit:
     backend: ${RATE_LIMIT_BACKEND:memory}

@@ -131,6 +131,28 @@ class UserServiceTest {
     }
 
     @Test
+    void logWeight_updatesProfileWeight_persistsFullSnapshot_andSavesUser() {
+        profile.setBodyFatPct(new BigDecimal("24.0"));
+        profile.setMuscleMassKg(new BigDecimal("21.0"));
+
+        BigDecimal saved = service.logWeight(user, new BigDecimal("53.4"));
+
+        assertThat(saved).isEqualByComparingTo("53.4");
+        assertThat(profile.getWeightKg()).isEqualByComparingTo("53.4");
+
+        ArgumentCaptor<BodyMeasurement> captor = ArgumentCaptor.forClass(BodyMeasurement.class);
+        verify(bodyMeasurements).save(captor.capture());
+        BodyMeasurement m = captor.getValue();
+        assertThat(read(m, "weightKg", BigDecimal.class)).isEqualByComparingTo("53.4");
+        // Snapshot carries the profile's other metrics forward so it stays complete.
+        assertThat(read(m, "bodyFatPct", BigDecimal.class)).isEqualByComparingTo("24.0");
+        assertThat(read(m, "muscleMassKg", BigDecimal.class)).isEqualByComparingTo("21.0");
+        assertThat(read(m, "note", String.class)).isEqualTo("chat_weight_log");
+        assertThat(read(m, "user", AppUser.class)).isSameAs(user);
+        verify(users).save(user);
+    }
+
+    @Test
     void deleteAccount_delegatesToRepository_andDeletesMealImages() {
         when(meals.findImageUrlsByUserId(42L)).thenReturn(List.of(
                 "2026/05/30/meal-a.jpg",

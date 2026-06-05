@@ -35,7 +35,7 @@ class LocalAiProviderTest {
         properties = new AppProperties(
                 new AppProperties.Jwt("test-secret-test-secret-test-secret-32bytes!!", 15, 30),
                 new AppProperties.Cors(List.of("http://localhost")),
-                new AppProperties.Ai("local", "http://localhost:11434", "gemma4:e4b", "gemma4:e4b", 60),
+                new AppProperties.Ai("local", "http://localhost:11434", "gemma3n:e4b", "gemma3n:e4b", 60),
                 "./uploads");
         provider = new LocalAiProvider(properties, ollama, objectMapper);
     }
@@ -48,7 +48,7 @@ class LocalAiProviderTest {
                   {"name":"弓箭步","sets":3,"reps":"每側10","restSec":60,"kcal":65,"note":"保持軀幹穩定","alt":[]}
                 ]}
                 """;
-        when(ollama.chat(eq("gemma4:e4b"), any(), any(), eq(true), any())).thenReturn(ollamaJson);
+        when(ollama.chat(eq("gemma3n:e4b"), any(), any(), eq(true), any())).thenReturn(ollamaJson);
 
         List<ExerciseItem> items = provider.generateWorkout("legs", 30, "medium");
 
@@ -82,7 +82,7 @@ class LocalAiProviderTest {
         provider.generateWorkout("abs", 30, "medium");
 
         ArgumentCaptor<String> systemCaptor = ArgumentCaptor.forClass(String.class);
-        verify(ollama).chat(eq("gemma4:e4b"), systemCaptor.capture(), eq("分類: abs\n時長: 30 分鐘\n強度: medium"), eq(true), any());
+        verify(ollama).chat(eq("gemma3n:e4b"), systemCaptor.capture(), eq("分類: abs\n時長: 30 分鐘\n強度: medium"), eq(true), any());
 
         assertThat(systemCaptor.getValue())
                 .contains("不可假設傷病、器材、場地或訓練經驗")
@@ -112,7 +112,7 @@ class LocalAiProviderTest {
         provider.generateWorkout("full_body", 45, "high");
 
         ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
-        verify(ollama).chat(eq("gemma4:e4b"), any(), userCaptor.capture(), eq(true), any());
+        verify(ollama).chat(eq("gemma3n:e4b"), any(), userCaptor.capture(), eq(true), any());
 
         assertThat(userCaptor.getValue())
                 .isEqualTo("分類: full_body\n時長: 45 分鐘\n強度: high")
@@ -247,7 +247,7 @@ class LocalAiProviderTest {
                 ],
                 "suggestion":"份量偏高，晚餐可清淡"}
                 """;
-        when(ollama.chat(eq("gemma4:e4b"), any(), any(), eq(List.of("AQID")), eq(true), any())).thenReturn(json);
+        when(ollama.chat(eq("gemma3n:e4b"), any(), any(), eq(List.of("AQID")), eq(true), any())).thenReturn(json);
 
         MealAnalysis result = provider.analyzeMeal("牛肉飯", new AiProvider.MealImage("image/jpeg", new byte[]{1, 2, 3}));
 
@@ -264,7 +264,7 @@ class LocalAiProviderTest {
 
         ArgumentCaptor<String> systemCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
-        verify(ollama).chat(eq("gemma4:e4b"), systemCaptor.capture(), userCaptor.capture(), eq(List.of("AQID")), eq(true), any());
+        verify(ollama).chat(eq("gemma3n:e4b"), systemCaptor.capture(), userCaptor.capture(), eq(List.of("AQID")), eq(true), any());
 
         assertThat(systemCaptor.getValue())
                 .contains("只能根據照片中清楚可見的食物、容器、份量線索，以及使用者明確輸入的文字判斷")
@@ -294,7 +294,7 @@ class LocalAiProviderTest {
 
         ArgumentCaptor<String> systemCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
-        verify(ollama).chat(eq("gemma4:e4b"), systemCaptor.capture(), userCaptor.capture(), eq(List.of()), eq(true), any());
+        verify(ollama).chat(eq("gemma3n:e4b"), systemCaptor.capture(), userCaptor.capture(), eq(List.of()), eq(true), any());
 
         assertThat(systemCaptor.getValue())
                 .contains("只能根據照片中清楚可見的食物")
@@ -369,7 +369,42 @@ class LocalAiProviderTest {
 
         provider.unload();
 
-        verify(ollama).unload("gemma4:e4b");
+        verify(ollama).unload("gemma3n:e4b");
         assertThat(provider.loaded()).isFalse();
+    }
+
+    @Test
+    void detectWeightLog_parsesLogIntent() {
+        when(ollama.chat(any(), any(), any(), eq(true), any()))
+                .thenReturn("{\"action\":\"log_weight\",\"weightKg\":68.5}");
+
+        AiProvider.WeightLog log = provider.detectWeightLog("我今天體重 68.5 公斤");
+
+        assertThat(log.isWeight()).isTrue();
+        assertThat(log.weightKg()).isEqualTo(68.5);
+    }
+
+    @Test
+    void detectWeightLog_returnsNone_onNoneAction() {
+        when(ollama.chat(any(), any(), any(), eq(true), any()))
+                .thenReturn("{\"action\":\"none\",\"weightKg\":0}");
+
+        assertThat(provider.detectWeightLog("我會不會太胖").isWeight()).isFalse();
+    }
+
+    @Test
+    void detectWeightLog_returnsNone_whenValueOutOfPlausibleRange() {
+        when(ollama.chat(any(), any(), any(), eq(true), any()))
+                .thenReturn("{\"action\":\"log_weight\",\"weightKg\":5}");  // implausible → rejected
+
+        assertThat(provider.detectWeightLog("我體重 5 公斤").isWeight()).isFalse();
+    }
+
+    @Test
+    void detectWeightLog_returnsNone_onOllamaFailure() {
+        when(ollama.chat(any(), any(), any(), eq(true), any()))
+                .thenThrow(new OllamaClient.OllamaException("down"));
+
+        assertThat(provider.detectWeightLog("體重 70").isWeight()).isFalse();
     }
 }

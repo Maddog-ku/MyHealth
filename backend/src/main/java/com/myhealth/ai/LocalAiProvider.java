@@ -205,7 +205,7 @@ public class LocalAiProvider implements AiProvider {
 
     /** Exact wording the model must use when a question is off-topic. */
     static final String OFF_TOPIC_REPLY =
-            "這我不太清楚耶 😅 我只能陪你聊運動和飲食的問題，要不要問我今天怎麼動、怎麼吃呢？";
+            "這我不太清楚耶 😅 我只能陪你聊運動和飲食的問題，要不要問我今天怎麼規劃運動又或者要吃什麼呢？";
 
     private static final String CHAT_SYSTEM = """
             你是 MyHealth App 裡的 AI 小助手，沒有名字，自稱「AI 小助手」即可，不要替自己取名。
@@ -374,6 +374,46 @@ public class LocalAiProvider implements AiProvider {
                 root.path("intensity").asText("medium").strip().toLowerCase());
     }
 
+    private static final String WEIGHT_INTENT_SYSTEM = """
+            你是一個嚴格的意圖判斷器，判斷使用者訊息是否「在回報自己目前的體重數值，或明確要求把體重記錄下來」。
+            只輸出 JSON，不要任何其他文字、說明或 Markdown。
+
+            判斷規則：
+            1. 只有當訊息明確包含『自己現在的體重數字』或『要求記錄體重』時，action 才是 "log_weight"。
+            2. 純粹詢問建議（例如「我體重會不會太重」「怎麼減重」「理想體重是多少」）一律是 "none"。
+            3. 沒有明確體重數字時也是 "none"。
+            4. weightKg 取訊息中的體重公斤數（可為小數）；單位若為台斤或英磅不要自行換算，一律給 0 並回 "none"。
+            5. 不要把身高、體脂率、年齡等其他數字當成體重。
+
+            只允許回傳此格式：
+            {"action":"log_weight"或"none","weightKg":數字}
+
+            範例：
+            「我今天體重 68.5 公斤」=> {"action":"log_weight","weightKg":68.5}
+            「幫我記體重 70」=> {"action":"log_weight","weightKg":70}
+            「早上量體重 72.3kg」=> {"action":"log_weight","weightKg":72.3}
+            「我會不會太胖」=> {"action":"none","weightKg":0}
+            「我身高 178」=> {"action":"none","weightKg":0}
+            """;
+
+    /** Plausible human body-weight bounds (kg); anything outside is treated as a misread. */
+    private static final double MIN_WEIGHT_KG = 20.0;
+    private static final double MAX_WEIGHT_KG = 400.0;
+
+    @Override
+    public WeightLog detectWeightLog(String userMessage) {
+        JsonNode root = classifyIntent(WEIGHT_INTENT_SYSTEM, userMessage, "weight");
+        if (root == null) {
+            return WeightLog.none();
+        }
+        boolean isLog = "log_weight".equalsIgnoreCase(root.path("action").asText(""));
+        double weight = root.path("weightKg").asDouble(0);
+        if (!isLog || !Double.isFinite(weight) || weight < MIN_WEIGHT_KG || weight > MAX_WEIGHT_KG) {
+            return WeightLog.none();
+        }
+        return new WeightLog(true, weight);
+    }
+
     private String fallbackChatReply() {
         return "我現在連不上本機 AI 模型，沒辦法好好回覆你 😣 "
                 + "請確認 Ollama 是否已啟動（scripts/dev.sh --ai），稍後再跟我聊聊吧！";
@@ -507,7 +547,7 @@ public class LocalAiProvider implements AiProvider {
     }
 
     /**
-     * Some models (e.g. gemma4) prepend or append "thinking" prose around the JSON
+     * Some models (e.g. gemma3n) prepend or append "thinking" prose around the JSON
      * payload even in JSON mode. Walk the string, tracking braces while respecting
      * string literals and escapes, and return the first balanced top-level object.
      */

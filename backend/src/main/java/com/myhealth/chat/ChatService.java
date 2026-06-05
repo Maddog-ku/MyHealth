@@ -3,6 +3,7 @@ package com.myhealth.chat;
 import com.myhealth.ai.AiProvider;
 import com.myhealth.ai.AiProvider.ChatTurn;
 import com.myhealth.ai.AiProvider.MealLog;
+import com.myhealth.ai.AiProvider.WeightLog;
 import com.myhealth.ai.AiProvider.WorkoutRequest;
 import com.myhealth.chat.ChatDtos.ChatMessageResponse;
 import com.myhealth.chat.ChatDtos.ChatReplyResponse;
@@ -14,6 +15,7 @@ import com.myhealth.stats.StatsDtos.DailyStatsResponse;
 import com.myhealth.stats.StatsService;
 import com.myhealth.user.AppUser;
 import com.myhealth.user.Profile;
+import com.myhealth.user.UserService;
 import com.myhealth.workout.WorkoutCategory;
 import com.myhealth.workout.WorkoutIntensity;
 import com.myhealth.workout.WorkoutDtos.GenerateWorkoutRequest;
@@ -53,6 +55,10 @@ public class ChatService {
             "練", "訓練", "運動", "健身", "菜單", "課表", "深蹲", "棒式", "伏地", "重訓", "有氧", "腹肌", "核心",
             "腿", "胸", "背", "臀", "手臂", "二頭", "三頭", "暖身", "拉伸", "伸展");
 
+    /** Cheap pre-gate for the weight-log classifier. */
+    private static final Set<String> WEIGHT_CUES = Set.of(
+            "體重", "公斤", "kg", "KG", "量體重", "重了", "瘦了", "胖了");
+
     private final ChatMessageRepository messages;
     private final AiProvider provider;
     private final StatsService stats;
@@ -60,10 +66,11 @@ public class ChatService {
     private final WorkoutPlanRepository workouts;
     private final MealService mealService;
     private final WorkoutService workoutService;
+    private final UserService userService;
 
     public ChatService(ChatMessageRepository messages, AiProvider provider, StatsService stats,
                        MealRepository meals, WorkoutPlanRepository workouts, MealService mealService,
-                       WorkoutService workoutService) {
+                       WorkoutService workoutService, UserService userService) {
         this.messages = messages;
         this.provider = provider;
         this.stats = stats;
@@ -71,6 +78,7 @@ public class ChatService {
         this.workouts = workouts;
         this.mealService = mealService;
         this.workoutService = workoutService;
+        this.userService = userService;
     }
 
     @Transactional(readOnly = true)
@@ -100,14 +108,17 @@ public class ChatService {
 
         ChatMessage userMessage = messages.save(new ChatMessage(user, "user", text));
 
-        // Detect actionable intents (record a meal / plan a workout); otherwise plain chat.
+        // Detect actionable intents (record a meal / plan a workout / log weight); otherwise plain chat.
         MealLog mealLog = mightBeMealLog(text) ? provider.detectMealLog(text) : MealLog.none();
         WorkoutRequest workoutReq = (!mealLog.isMeal() && mightBeWorkout(text))
                 ? provider.detectWorkoutRequest(text) : WorkoutRequest.none();
+        WeightLog weightLog = (!mealLog.isMeal() && !workoutReq.isWorkout() && mightBeWeight(text))
+                ? provider.detectWeightLog(text) : WeightLog.none();
 
         String reply;
         boolean mealLogged = false;
         boolean workoutLogged = false;
+        boolean weightLogged = false;
         LocalDate today = LocalDate.now();
         if (mealLog.isMeal()) {
             try {
@@ -132,6 +143,16 @@ public class ChatService {
                 log.warn("Chat workout planning failed: {}", ex.getMessage());
                 reply = "我想幫你排一份訓練菜單，但這次沒成功 😣 你可以到「運動菜單」再試一次，或換個說法告訴我想練哪裡。";
             }
+        } else if (weightLog.isWeight()) {
+            try {
+                BigDecimal saved = userService.logWeight(user, BigDecimal.valueOf(weightLog.weightKg())
+                        .setScale(1, java.math.RoundingMode.HALF_UP));
+                reply = buildWeightLoggedReply(saved);
+                weightLogged = true;
+            } catch (RuntimeException ex) {
+                log.warn("Chat weight logging failed: {}", ex.getMessage());
+                reply = "我想幫你記下體重，但這次沒記成功 😣 你可以到「個人資料」再更新一次。";
+            }
         } else {
             reply = provider.chat(buildContext(user), turns, text);
         }
@@ -146,7 +167,8 @@ public class ChatService {
                 ChatMessageResponse.from(assistantMessage),
                 mealLogged,
                 workoutLogged,
-                (mealLogged || workoutLogged) ? today.toString() : null);
+                weightLogged,
+                (mealLogged || workoutLogged || weightLogged) ? today.toString() : null);
     }
 
     private boolean mightBeMealLog(String text) {
@@ -155,6 +177,16 @@ public class ChatService {
 
     private boolean mightBeWorkout(String text) {
         return WORKOUT_CUES.stream().anyMatch(text::contains);
+    }
+
+    private boolean mightBeWeight(String text) {
+        return WEIGHT_CUES.stream().anyMatch(text::contains);
+    }
+
+    /** Deterministic confirmation built from the real persisted weight. */
+    private String buildWeightLoggedReply(BigDecimal weightKg) {
+        return ("好的，我幫你把體重記成 " + plain(weightKg) + " 公斤了 📝\n"
+                + "之後的體重趨勢圖會自動更新，繼續加油！💪").strip();
     }
 
     /** Map the model's category string to the enum; fall back to a safe full-body plan. */

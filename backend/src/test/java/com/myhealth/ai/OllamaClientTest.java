@@ -40,7 +40,7 @@ class OllamaClientTest {
         properties = new AppProperties(
                 new AppProperties.Jwt("test-secret-test-secret-test-secret-32bytes!!", 15, 30),
                 new AppProperties.Cors(List.of("http://localhost")),
-                new AppProperties.Ai("local", "http://localhost:11434", "gemma4:e4b", "gemma4:e4b", 60),
+                new AppProperties.Ai("local", "http://localhost:11434", "gemma3n:e4b", "gemma3n:e4b", 60),
                 "./uploads");
     }
 
@@ -51,7 +51,7 @@ class OllamaClientTest {
                 Stream.of("{\"message\":{\"content\":\"{\\\"ok\\\":true}\"},\"done\":true}")));
         OllamaClient client = new OllamaClient(properties, objectMapper, httpClient);
 
-        String response = client.chat("gemma4:e4b", "system", "user", true, Duration.ofSeconds(5));
+        String response = client.chat("gemma3n:e4b", "system", "user", true, Duration.ofSeconds(5));
 
         assertThat(response).isEqualTo("{\"ok\":true}");
         assertThat(httpClient.calls()).isEqualTo(2);
@@ -65,7 +65,7 @@ class OllamaClientTest {
                 "{\"message\":{\"content\":\"{\\\"items\\\":[]}\"},\"done\":true}"));
         OllamaClient client = new OllamaClient(properties, objectMapper, httpClient);
 
-        String response = client.chat("gemma4:e4b", "system", "user", true, Duration.ofSeconds(5));
+        String response = client.chat("gemma3n:e4b", "system", "user", true, Duration.ofSeconds(5));
 
         assertThat(response).isEqualTo("{\"items\":[]}");
         assertThat(httpClient.calls()).isEqualTo(3);
@@ -79,7 +79,7 @@ class OllamaClientTest {
                         "{\"message\":{\"content\":\"lo\"},\"done\":true}")));
         OllamaClient client = new OllamaClient(properties, objectMapper, httpClient);
 
-        String response = client.chat("gemma4:e4b", "system", "user", false, Duration.ofSeconds(5));
+        String response = client.chat("gemma3n:e4b", "system", "user", false, Duration.ofSeconds(5));
 
         assertThat(response).isEqualTo("Hello");
         assertThat(httpClient.calls()).isEqualTo(1);
@@ -91,7 +91,7 @@ class OllamaClientTest {
                 Stream.of("{\"message\":{\"content\":\"嗨，今天想練什麼？\"},\"done\":true}")));
         OllamaClient client = new OllamaClient(properties, objectMapper, httpClient);
 
-        String response = client.converse("gemma4:e4b",
+        String response = client.converse("gemma3n:e4b",
                 List.of(Map.of("role", "system", "content", "s"), Map.of("role", "user", "content", "u")),
                 Duration.ofSeconds(5));
 
@@ -106,7 +106,7 @@ class OllamaClientTest {
                 "{\"message\":{\"content\":\"完整回覆\"},\"done\":true}"));
         OllamaClient client = new OllamaClient(properties, objectMapper, httpClient);
 
-        String response = client.converse("gemma4:e4b",
+        String response = client.converse("gemma3n:e4b",
                 List.of(Map.of("role", "user", "content", "u")), Duration.ofSeconds(5));
 
         assertThat(response).isEqualTo("完整回覆");
@@ -120,7 +120,7 @@ class OllamaClientTest {
                 List.of(Stream.of("{\"message\":{\"content\":\"x\"},\"done\":true}")), 500);
         OllamaClient client = new OllamaClient(properties, objectMapper, httpClient);
 
-        assertThatThrownBy(() -> client.chat("gemma4:e4b", "system", "user", true, Duration.ofSeconds(5)))
+        assertThatThrownBy(() -> client.chat("gemma3n:e4b", "system", "user", true, Duration.ofSeconds(5)))
                 .isInstanceOf(OllamaException.class)
                 .hasMessageContaining("500");
     }
@@ -131,7 +131,7 @@ class OllamaClientTest {
                 Stream.of("{\"message\":{\"content\":\"\"},\"done\":true}")));
         OllamaClient client = new OllamaClient(properties, objectMapper, httpClient);
 
-        assertThatThrownBy(() -> client.chat("gemma4:e4b", "system", "user", false, Duration.ofSeconds(5)))
+        assertThatThrownBy(() -> client.chat("gemma3n:e4b", "system", "user", false, Duration.ofSeconds(5)))
                 .isInstanceOf(OllamaException.class)
                 .hasMessageContaining("no message.content");
     }
@@ -140,7 +140,7 @@ class OllamaClientTest {
     void unload_swallowsExceptions() {
         // Empty body list makes send() throw; unload must absorb it (best-effort).
         OllamaClient client = new OllamaClient(properties, objectMapper, new FakeHttpClient(List.of()));
-        assertThatCode(() -> client.unload("gemma4:e4b")).doesNotThrowAnyException();
+        assertThatCode(() -> client.unload("gemma3n:e4b")).doesNotThrowAnyException();
     }
 
     private static class FakeHttpClient extends HttpClient {

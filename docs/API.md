@@ -647,6 +647,7 @@ Content-Type：`multipart/form-data`
   "reply": { "id": 15, "role": "assistant", "content": "可以選高蛋白、低油的雞胸搭蔬菜 🥗", "createdAt": "2026-06-03T14:05:07Z" },
   "mealLogged": false,
   "workoutLogged": false,
+  "weightLogged": false,
   "loggedDate": null
 }
 ```
@@ -655,6 +656,8 @@ Content-Type：`multipart/form-data`
 **對話直接記錄餐點**：若訊息是在敘述「吃了什麼」（例如「我午餐吃了雞胸肉沙拉」），助手會自動判斷意圖、抽取時段與內容，走 `MealService` 的 AI 估算流程把該餐寫進「飲食追蹤」（等同 `POST /meals` 的文字記錄），`reply` 回傳含估算熱量／營養與建議的確認訊息，並設 `mealLogged=true`、`loggedDate` 為記錄日期（前端據此刷新餐點與當日統計）。純詢問（如「晚餐吃什麼比較好」）不會記錄。時段（早/午/晚/點心）優先取訊息中的詞，無法判斷時依當下時間推定。
 
 **對話直接排運動菜單**：若訊息是要求安排訓練（例如「幫我排個練腿菜單」「我想練胸 30 分鐘」），助手會抽取分類／時長／強度，走 `WorkoutService.generate` 產生並存進「運動菜單」（等同 `POST /workouts/generate`），`reply` 摘要動作清單與預估消耗，並設 `workoutLogged=true`、`loggedDate` 為日期（前端據此刷新運動與當日統計）。單純問動作怎麼做（如「深蹲怎麼做」）不會產生菜單。分類無法判斷時退為全身（full_body）、強度退為 medium、時長夾在 10–180 分鐘。
+
+**對話直接記錄體重**：若訊息是在回報目前體重（例如「我今天體重 68.5 公斤」「幫我記體重 70」），助手會抽取公斤數，走 `UserService.logWeight` 更新個人資料體重並寫入一筆完整的體量快照（`note=chat_weight_log`，等同 `PUT /me/profile` 只改體重），`reply` 回傳確認訊息，並設 `weightLogged=true`、`loggedDate` 為日期（前端據此刷新個人資料與體重趨勢統計）。純詢問（如「我體重會不會太重」）不會記錄；體重須落在 20–400 kg 的合理範圍，否則視為誤判不記錄（避免把身高等數字誤當體重）。
 
 **清除歷史** — `DELETE /ai/chat/history`  *(需登入)* → `204 No Content`
 

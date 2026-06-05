@@ -6,6 +6,7 @@ import com.myhealth.auth.AuthDtos.UserResponse;
 import com.myhealth.meal.FileStorageService;
 import com.myhealth.meal.MealRepository;
 import com.myhealth.user.UserDtos.ProfileUpdateRequest;
+import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,6 +65,33 @@ public class UserService {
 
         users.save(user);
         return AuthMapper.toProfileResponse(profile);
+    }
+
+    /**
+     * Record a new body weight from a quick source (e.g. the chat assistant): update the
+     * profile's current weight and append a full body-measurement snapshot, carrying the
+     * profile's other metrics forward so the snapshot stays complete (the stats series
+     * relies on each measurement being a full snapshot). Returns the persisted weight.
+     */
+    @Transactional
+    public BigDecimal logWeight(AppUser user, BigDecimal weightKg) {
+        Profile profile = user.getProfile();
+        profile.setWeightKg(weightKg);
+        profile.touch();
+
+        BodyMeasurement measurement = new BodyMeasurement();
+        measurement.setUser(user);
+        measurement.setWeightKg(profile.getWeightKg());
+        measurement.setBodyFatPct(profile.getBodyFatPct());
+        measurement.setMuscleMassKg(profile.getMuscleMassKg());
+        measurement.setBmrKcal(profile.getBmrKcal());
+        measurement.setWaistCm(profile.getWaistCm());
+        measurement.setBodyWaterPct(profile.getBodyWaterPct());
+        measurement.setNote("chat_weight_log");
+        bodyMeasurements.save(measurement);
+
+        users.save(user);
+        return profile.getWeightKg();
     }
 
     private String[] normalizeEquipment(List<String> equipment) {

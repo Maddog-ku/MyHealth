@@ -32,7 +32,7 @@ export function useSendChat() {
     onError: (_err, _message, context) => {
       if (context) qc.setQueryData(qk.chat, context.previous);
     },
-    onSuccess: ({ userMessage, reply, mealLogged, workoutLogged }) => {
+    onSuccess: ({ userMessage, reply, mealLogged, workoutLogged, weightLogged }) => {
       qc.setQueryData<ChatMessage[]>(qk.chat, (current) => {
         // Drop the optimistic temp (negative id) and append the persisted pair.
         const committed = (current ?? []).filter((m) => m.id >= 0);
@@ -47,6 +47,12 @@ export function useSendChat() {
       if (workoutLogged) {
         qc.invalidateQueries({ queryKey: ["workouts"] });
         qc.invalidateQueries({ queryKey: ["stats", "daily"] });
+      }
+      // ...or logged a body weight — refresh the profile + every stats view (the
+      // weight trend chart reads ["stats","range",…], daily reads the latest weight).
+      if (weightLogged) {
+        qc.invalidateQueries({ queryKey: qk.me });
+        qc.invalidateQueries({ queryKey: ["stats"] });
       }
     },
   });

@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import com.myhealth.ai.AiProvider;
 import com.myhealth.ai.AiProvider.ExerciseItem;
 import com.myhealth.ai.AiProvider.MealLog;
+import com.myhealth.ai.AiProvider.WeightLog;
 import com.myhealth.ai.AiProvider.WorkoutRequest;
 import com.myhealth.chat.ChatDtos.ChatReplyResponse;
 import com.myhealth.meal.MealDtos.MealResponse;
@@ -53,13 +54,14 @@ class ChatServiceTest {
     @Mock com.myhealth.workout.WorkoutPlanRepository workouts;
     @Mock MealService mealService;
     @Mock WorkoutService workoutService;
+    @Mock com.myhealth.user.UserService userService;
 
     ChatService service;
     AppUser user;
 
     @BeforeEach
     void setUp() {
-        service = new ChatService(messages, provider, stats, meals, workouts, mealService, workoutService);
+        service = new ChatService(messages, provider, stats, meals, workouts, mealService, workoutService, userService);
         user = new AppUser();
         user.setEmail("bob@example.com");
         user.setName("Bob");
@@ -79,6 +81,7 @@ class ChatServiceTest {
         // Default: no actionable intent — individual tests override as needed.
         when(provider.detectMealLog(any())).thenReturn(MealLog.none());
         when(provider.detectWorkoutRequest(any())).thenReturn(WorkoutRequest.none());
+        when(provider.detectWeightLog(any())).thenReturn(WeightLog.none());
     }
 
     @Test
@@ -151,6 +154,53 @@ class ChatServiceTest {
         assertThat(res.reply().content()).contains("練腿");
         verify(workoutService).generate(eq(user), any());
         verify(provider, never()).chat(any(), any(), any());
+    }
+
+    @Test
+    void weightLogIntent_recordsWeight_andSkipsChat() {
+        when(provider.detectWeightLog(any())).thenReturn(new WeightLog(true, 68.5));
+        when(userService.logWeight(eq(user), any(BigDecimal.class))).thenReturn(new BigDecimal("68.5"));
+
+        ChatReplyResponse res = service.send(user, "我今天體重 68.5 公斤");
+
+        assertThat(res.weightLogged()).isTrue();
+        assertThat(res.loggedDate()).isEqualTo(LocalDate.now().toString());
+        assertThat(res.reply().content()).contains("68.5").contains("公斤");
+        ArgumentCaptor<BigDecimal> weightCaptor = ArgumentCaptor.forClass(BigDecimal.class);
+        verify(userService).logWeight(eq(user), weightCaptor.capture());
+        assertThat(weightCaptor.getValue()).isEqualByComparingTo("68.5");
+        verify(provider, never()).chat(any(), any(), any());
+    }
+
+    @Test
+    void messageWithoutWeightCue_skipsWeightClassifier() {
+        when(provider.chat(any(), any(), eq("深蹲怎麼做"))).thenReturn("膝蓋朝腳尖 💪");
+
+        service.send(user, "深蹲怎麼做");
+
+        verify(provider, never()).detectWeightLog(any());
+    }
+
+    @Test
+    void weightQuestion_classifiedNone_fallsBackToChat() {
+        when(provider.detectWeightLog(any())).thenReturn(WeightLog.none());
+        when(provider.chat(any(), any(), eq("我體重會不會太重"))).thenReturn("體重要看整體狀態 🙂");
+
+        ChatReplyResponse res = service.send(user, "我體重會不會太重");
+
+        assertThat(res.weightLogged()).isFalse();
+        verify(userService, never()).logWeight(any(), any());
+    }
+
+    @Test
+    void weightLoggingFailure_returnsGracefulReply() {
+        when(provider.detectWeightLog(any())).thenReturn(new WeightLog(true, 70.0));
+        when(userService.logWeight(any(), any())).thenThrow(new RuntimeException("boom"));
+
+        ChatReplyResponse res = service.send(user, "幫我記體重 70");
+
+        assertThat(res.weightLogged()).isFalse();
+        assertThat(res.reply().content()).contains("沒記成功");
     }
 
     @Test

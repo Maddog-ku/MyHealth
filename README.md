@@ -64,17 +64,17 @@ scripts/dev.sh --help     # 顯示說明
 啟動時 `scripts/dev.sh` 會輪詢 `GET /actuator/health` 等後端真正就緒（DB 連得上才回 `UP`），不再只是固定等 30 秒。健康檢查與錯誤排查見 [`docs/ERROR_CODES.md`](docs/ERROR_CODES.md)。
 
 ### 要讓 AI 真的跑起來
-本機需要先裝 [Ollama](https://ollama.ai) 並 pull 一個模型（預設 `gemma4:e4b`）：
+本機需要先裝 [Ollama](https://ollama.ai) 並 pull 一個模型（預設 `gemma3n:e4b`）：
 
 ```bash
-ollama pull gemma4:e4b
+ollama pull gemma3n:e4b
 ```
 
 或者用 docker-compose 啟動 Ollama 容器：
 
 ```bash
 scripts/dev.sh --ai   # 同時啟動 Ollama profile
-docker compose exec ollama ollama pull gemma4:e4b
+docker compose exec ollama ollama pull gemma3n:e4b
 ```
 
 不裝 Ollama 也能跑：AI 端點會自動回退到內建模板（運動可用、餐點會請你重輸入）。
@@ -117,7 +117,7 @@ scripts/dev.sh --reset -y   # 跳過確認（非互動／CI 環境必須加）
 
 ### 隱私架構亮點
 - AI 預設只跑本機，照片與餐點描述**不離開你的電腦**
-- 每次 AI 推論完模型立即從記憶體釋放（gemma4:e4b 約 10 GB），不會永遠常駐
+- 每次 AI 推論完模型立即從記憶體釋放（gemma3n:e4b 約 7.5 GB），不會永遠常駐
 - 密碼用 BCrypt，JWT secret 在 prod profile 啟動時會驗證強度
 - `DELETE /me` 連動刪除使用者所有資料（運動、餐點、體重、refresh token）
 

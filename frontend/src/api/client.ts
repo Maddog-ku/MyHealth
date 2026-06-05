@@ -164,6 +164,7 @@ export const api = {
         reply: ChatMessage;
         mealLogged: boolean;
         workoutLogged: boolean;
+        weightLogged: boolean;
         loggedDate: string | null;
       }>("/ai/chat", { message })
       .then((r) => r.data),
