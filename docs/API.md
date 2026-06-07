@@ -580,6 +580,37 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 
 ---
 
+### 6.8 每週訓練目標
+
+使用者每週想完成的訓練次數（每人一個）；`progress` 對照「本週（週一至今天）已完成的訓練數」即時計算，未設定時為 `null`。
+
+`GET /workout-goal`
+
+**Response 200**
+```json
+{
+  "progress": {
+    "targetSessionsPerWeek": 4,
+    "completedThisWeek": 2,
+    "remaining": 2,
+    "progressPct": 50,
+    "weekStart": "2026-06-01",
+    "achieved": false,
+    "createdAt": "2026-06-01T00:00:00Z"
+  }
+}
+```
+
+`PUT /workout-goal`
+```json
+{ "targetSessionsPerWeek": 4 }
+```
+建立或更新目標（`targetSessionsPerWeek` 介於 1–14），回傳含最新 `progress` 的同上格式。**Errors**：`400 VALIDATION_ERROR`（缺漏或超出範圍）
+
+`DELETE /workout-goal` → 204
+
+---
+
 ## 6b. Workout Schedules（週期課表規劃）
 
 讓 AI 依使用者目標排出「一週訓練分配（split）」：7 天每天為休息或某個分類，這個一週模板可重複數週（最多 4 週，約一個月）。模板本身不含詳細動作；要訓練時把某一天「套用」到一個實際日期，會走 6.1 的 AI 產生流程生出當天的詳細菜單。

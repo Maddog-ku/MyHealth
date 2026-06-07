@@ -23,6 +23,8 @@ export function useCompleteWorkout(date: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.workouts(date) });
       qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
+      // A completed session counts toward the weekly workout goal.
+      qc.invalidateQueries({ queryKey: qk.workoutGoal });
     },
   });
 }

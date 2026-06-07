@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
-import type { AuthResponse, CalorieBudget, ChatMessage, DailyHabits, DailyStats, FavoriteMeal, FoodItem, HabitType, Meal, NotificationFeed, PageEnvelope, Profile, RecentMeal, SearchResponse, SessionList, StreakSummary, User, WeeklyReport, WeightGoalResponse, WorkoutPlan, WorkoutSchedule, WorkoutVolume } from "@/types/api";
+import type { AuthResponse, CalorieBudget, ChatMessage, DailyHabits, DailyStats, FavoriteMeal, FoodItem, HabitType, Meal, NotificationFeed, PageEnvelope, Profile, RecentMeal, SearchResponse, SessionList, StreakSummary, User, WeeklyReport, WeightGoalResponse, WorkoutGoalResponse, WorkoutPlan, WorkoutSchedule, WorkoutVolume } from "@/types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -164,6 +164,11 @@ export const api = {
 
   workoutVolume: (weeks?: number) =>
     http.get<WorkoutVolume>("/workouts/volume", { params: weeks ? { weeks } : undefined }).then((r) => r.data),
+
+  workoutGoal: () => http.get<WorkoutGoalResponse>("/workout-goal").then((r) => r.data),
+  setWorkoutGoal: (targetSessionsPerWeek: number) =>
+    http.put<WorkoutGoalResponse>("/workout-goal", { targetSessionsPerWeek }).then((r) => r.data),
+  deleteWorkoutGoal: () => http.delete<void>("/workout-goal").then(() => undefined),
 
   meals: (date: string) => http.get<PageEnvelope<Meal>>(`/meals`, { params: { date } }).then((r) => r.data),
   recentMeals: (beforeDate: string, limit = 5) =>

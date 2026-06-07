@@ -23,6 +23,7 @@ export const qk = {
   workouts: (date: string) => ["workouts", date] as const,
   workoutSchedules: ["workout-schedules"] as const,
   workoutVolume: (weeks: number) => ["workouts", "volume", weeks] as const,
+  workoutGoal: ["workout-goal"] as const,
   meals: (date: string) => ["meals", date] as const,
   recentMeals: (date: string) => ["meals", "recent", date] as const,
   favoriteMeals: ["meals", "favorites"] as const,

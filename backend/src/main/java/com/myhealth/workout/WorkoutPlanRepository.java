@@ -29,6 +29,8 @@ public interface WorkoutPlanRepository extends JpaRepository<WorkoutPlan, Long> 
 
     int countByUserIdAndDateAndDoneTrue(Long userId, LocalDate date);
 
+    int countByUserIdAndDateBetweenAndDoneTrue(Long userId, LocalDate from, LocalDate to);
+
     /** Keyword search over a plan's category and exercise items ({@code :q} is a lowercased %like%). */
     @Query("select w from WorkoutPlan w where w.user.id = :userId and ("
             + "lower(w.category) like :q or lower(cast(w.itemsJson as string)) like :q)")

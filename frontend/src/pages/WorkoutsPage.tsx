@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AiGenerationPanel } from "@/components/AiGenerationPanel";
 import { WorkoutSchedulePanel } from "@/components/WorkoutSchedulePanel";
+import { WorkoutGoalCard } from "@/components/WorkoutGoalCard";
 import { WorkoutVolumeCard } from "@/components/WorkoutVolumeCard";
 import { WorkoutPlayer, workSeconds } from "@/components/WorkoutPlayer";
 import { useCancelWorkoutSelection, useCompleteWorkout, useGenerateWorkout, useWorkouts } from "@/hooks/useWorkouts";
@@ -190,6 +191,9 @@ export function WorkoutsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Weekly training-frequency goal */}
+      <WorkoutGoalCard />
 
       {/* Weekly / monthly schedule planner */}
       <WorkoutSchedulePanel />

@@ -133,6 +133,21 @@ export interface WorkoutVolume {
   series: WeekVolume[];
 }
 
+export interface WorkoutGoalProgress {
+  targetSessionsPerWeek: number;
+  completedThisWeek: number;
+  remaining: number;
+  progressPct: number;
+  weekStart: string;
+  achieved: boolean;
+  createdAt: string;
+}
+
+/** `progress` is null when the user has no weekly workout goal set. */
+export interface WorkoutGoalResponse {
+  progress: WorkoutGoalProgress | null;
+}
+
 export interface FoodItem {
   name: string;
   grams: number;
