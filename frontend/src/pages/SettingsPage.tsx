@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Moon, Sun, SunMoon, Palette, Trash2, Bot, Check, Type } from "lucide-react";
+import { AlertTriangle, Moon, Sun, SunMoon, Palette, Trash2, Bot, Check, Type, Languages } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -9,20 +9,22 @@ import { ApiError } from "@/api/client";
 import { useDeleteAccount, useMe, useUpdateProfile } from "@/hooks/useAuth";
 import { useTheme, type ThemeMode } from "@/hooks/useTheme";
 import { useFontScale, type FontScale } from "@/hooks/useFontScale";
+import { useI18n } from "@/i18n/i18n";
+import { LANGS, type Lang } from "@/i18n/dictionaries";
 import { ChangePasswordCard } from "@/components/ChangePasswordCard";
 import { SessionsCard } from "@/components/SessionsCard";
 import { DataExportCard } from "@/components/DataExportCard";
 
 const AVATAR_OPTIONS = [
-  { value: "male" as const, label: "活力男孩", desc: "陽光開朗的健身夥伴", src: "/assistant/coach-male.png" },
-  { value: "female" as const, label: "元氣女孩", desc: "溫暖貼心的健身夥伴", src: "/assistant/coach-female.png" },
+  { value: "male" as const, labelKey: "settings.avatar.male", descKey: "settings.avatar.maleDesc", src: "/assistant/coach-male.png" },
+  { value: "female" as const, labelKey: "settings.avatar.female", descKey: "settings.avatar.femaleDesc", src: "/assistant/coach-female.png" },
 ];
 
-const FONT_OPTIONS: { value: FontScale; label: string; sample: string }[] = [
-  { value: "small", label: "小", sample: "text-sm" },
-  { value: "normal", label: "標準", sample: "text-base" },
-  { value: "large", label: "大", sample: "text-lg" },
-  { value: "xlarge", label: "特大", sample: "text-xl" },
+const FONT_OPTIONS: { value: FontScale; labelKey: string; sample: string }[] = [
+  { value: "small", labelKey: "settings.font.small", sample: "text-sm" },
+  { value: "normal", labelKey: "settings.font.normal", sample: "text-base" },
+  { value: "large", labelKey: "settings.font.large", sample: "text-lg" },
+  { value: "xlarge", labelKey: "settings.font.xlarge", sample: "text-xl" },
 ];
 
 export function SettingsPage() {
@@ -30,9 +32,17 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const { mode, setTheme } = useTheme();
   const { scale, setFontScale } = useFontScale();
+  const { lang, setLang, t } = useI18n();
   const { data: user } = useMe();
   const updateProfile = useUpdateProfile();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  function chooseLang(next: Lang) {
+    if (next === lang) return;
+    setLang(next);
+    // Persist to the profile too, so the choice follows the account across devices.
+    if (user?.profile) updateProfile.mutate({ ...user.profile, language: next });
+  }
 
   const currentAvatar = user?.profile?.assistantAvatar ?? "male";
 
@@ -57,16 +67,16 @@ export function SettingsPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg font-bold flex items-center gap-2">
             <Palette className="size-4.5 text-emerald-500" />
-            外觀視覺主題
+            {t("settings.theme.title")}
           </CardTitle>
-          <CardDescription className="text-xs">選擇符合您當前環境與視覺偏好的色彩模式</CardDescription>
+          <CardDescription className="text-xs">{t("settings.theme.desc")}</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-6 pb-6">
           {(
             [
-              { value: "light", label: "清新淺色", desc: "如晨光般乾淨自然", icon: Sun, color: "text-amber-500" },
-              { value: "dark", label: "深沉靜夜", desc: "護眼低光睡眠友善", icon: Moon, color: "text-indigo-400" },
-              { value: "system", label: "跟隨系統", desc: "隨日出日落自動調節", icon: SunMoon, color: "text-emerald-500" },
+              { value: "light", label: t("settings.theme.light"), desc: t("settings.theme.lightDesc"), icon: Sun, color: "text-amber-500" },
+              { value: "dark", label: t("settings.theme.dark"), desc: t("settings.theme.darkDesc"), icon: Moon, color: "text-indigo-400" },
+              { value: "system", label: t("settings.theme.system"), desc: t("settings.theme.systemDesc"), icon: SunMoon, color: "text-emerald-500" },
             ] as { value: ThemeMode; label: string; desc: string; icon: typeof Sun; color: string }[]
           ).map(({ value, label, desc, icon: Icon, color }) => {
             const isActive = mode === value;
@@ -103,12 +113,12 @@ export function SettingsPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg font-bold flex items-center gap-2">
             <Type className="size-4.5 text-sky-500" />
-            字體大小
+            {t("settings.font.title")}
           </CardTitle>
-          <CardDescription className="text-xs">調整整個介面（含 AI 小助手對話）的文字大小</CardDescription>
+          <CardDescription className="text-xs">{t("settings.font.desc")}</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-4 gap-3 px-6 pb-6">
-          {FONT_OPTIONS.map(({ value, label, sample }) => {
+          {FONT_OPTIONS.map(({ value, labelKey, sample }) => {
             const isActive = scale === value;
             return (
               <button
@@ -123,7 +133,39 @@ export function SettingsPage() {
                 )}
               >
                 <span className={cn("font-bold leading-none", sample)}>A</span>
-                <span className="text-[11px] font-medium">{label}</span>
+                <span className="text-[11px] font-medium">{t(labelKey)}</span>
+              </button>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      {/* Language */}
+      <Card className="border border-slate-100/80 dark:border-slate-900/60 bg-white/70 dark:bg-slate-950/40 backdrop-blur-xl shadow-xl shadow-slate-100/50 dark:shadow-none rounded-3xl overflow-hidden card-hover-effect">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg font-bold flex items-center gap-2">
+            <Languages className="size-4.5 text-indigo-500" />
+            {t("settings.lang.title")}
+          </CardTitle>
+          <CardDescription className="text-xs">{t("settings.lang.desc")}</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 px-6 pb-6">
+          {LANGS.map(({ value, label }) => {
+            const isActive = lang === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => chooseLang(value)}
+                className={cn(
+                  "flex items-center justify-center gap-2 py-4 rounded-2xl border text-sm font-semibold transition-all duration-300",
+                  isActive
+                    ? "bg-gradient-to-tr from-indigo-500/10 to-violet-500/5 border-indigo-500/40 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                    : "bg-white/50 border-slate-100 dark:bg-slate-900/50 dark:border-slate-900 hover:border-slate-200 dark:hover:border-slate-800",
+                )}
+              >
+                {isActive && <Check className="size-4" />}
+                {label}
               </button>
             );
           })}
@@ -135,14 +177,14 @@ export function SettingsPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg font-bold flex items-center gap-2">
             <Bot className="size-4.5 text-violet-500" />
-            AI 小幫手人偶
+            {t("settings.avatar.title")}
           </CardTitle>
           <CardDescription className="text-xs">
-            選擇你想聊天的小幫手形象，預設依你的性別，隨時可自由更換。
+            {t("settings.avatar.desc")}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-3 px-6 pb-6">
-          {AVATAR_OPTIONS.map(({ value, label, desc, src }) => {
+          {AVATAR_OPTIONS.map(({ value, labelKey, descKey, src }) => {
             const isActive = currentAvatar === value;
             return (
               <button
@@ -164,15 +206,15 @@ export function SettingsPage() {
                 )}
                 <img
                   src={src}
-                  alt={label}
+                  alt={t(labelKey)}
                   className={cn(
                     "size-36 rounded-2xl object-contain p-2 bg-gradient-to-br from-violet-100 to-indigo-100 dark:from-violet-950/40 dark:to-indigo-950/40 transition-transform duration-300",
                     isActive ? "ring-2 ring-violet-400/60 scale-[1.02]" : "opacity-90",
                   )}
                 />
                 <div>
-                  <p className={cn("text-sm font-semibold", isActive && "text-violet-600 dark:text-violet-400")}>{label}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5 leading-normal">{desc}</p>
+                  <p className={cn("text-sm font-semibold", isActive && "text-violet-600 dark:text-violet-400")}>{t(labelKey)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 leading-normal">{t(descKey)}</p>
                 </div>
               </button>
             );
@@ -194,16 +236,16 @@ export function SettingsPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg font-bold flex items-center gap-2 text-rose-600 dark:text-rose-400">
             <AlertTriangle className="size-4.5" />
-            危險操作區
+            {t("settings.danger.title")}
           </CardTitle>
           <CardDescription className="text-xs">
-            刪除帳號將永久清除您的所有資料，包含運動紀錄、飲食紀錄、體重趨勢與個人檔案，且<strong>無法復原</strong>。
+            {t("settings.danger.desc")}
           </CardDescription>
         </CardHeader>
         <CardContent className="px-6 pb-6">
           {del.error instanceof ApiError && (
             <Alert variant="destructive" className="mb-4 py-2.5 px-4 rounded-xl border-rose-500/20 bg-rose-500/5 text-rose-600 dark:text-rose-400">
-              <AlertTitle className="text-xs font-bold">刪除失敗</AlertTitle>
+              <AlertTitle className="text-xs font-bold">{t("settings.danger.deleteFailed")}</AlertTitle>
               <AlertDescription className="text-[11px] opacity-90">{del.error.message}</AlertDescription>
             </Alert>
           )}
@@ -216,12 +258,12 @@ export function SettingsPage() {
               className="rounded-2xl py-5 px-6 gap-1.5 border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 hover:text-rose-700 dark:hover:text-rose-300 font-semibold text-sm"
             >
               <Trash2 className="size-4" />
-              刪除我的帳號
+              {t("settings.danger.deleteBtn")}
             </Button>
           ) : (
             <div className="flex flex-col gap-3 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4">
               <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">
-                確定要永久刪除帳號嗎？此動作會立即登出並清除所有資料，無法復原。
+                {t("settings.danger.confirmQuestion")}
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -233,12 +275,12 @@ export function SettingsPage() {
                   {del.isPending ? (
                     <>
                       <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      刪除中...
+                      {t("settings.danger.deleting")}
                     </>
                   ) : (
                     <>
                       <Trash2 className="size-4" />
-                      確認永久刪除
+                      {t("settings.danger.confirmBtn")}
                     </>
                   )}
                 </Button>
@@ -249,7 +291,7 @@ export function SettingsPage() {
                   disabled={del.isPending}
                   className="rounded-2xl py-5 px-6 text-sm text-muted-foreground"
                 >
-                  取消
+                  {t("settings.danger.cancel")}
                 </Button>
               </div>
             </div>

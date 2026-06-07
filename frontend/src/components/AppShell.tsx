@@ -3,38 +3,40 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLogout, useMe } from "@/hooks/useAuth";
+import { useI18n } from "@/i18n/i18n";
 import { AssistantWidget } from "@/components/AssistantWidget";
 import { NotificationBell } from "@/components/NotificationBell";
 import { GlobalSearch } from "@/components/GlobalSearch";
 
 const navItems = [
-  { to: "/", label: "儀表板", icon: Activity, end: true },
-  { to: "/workouts", label: "運動菜單", icon: Dumbbell },
-  { to: "/meals", label: "飲食追蹤", icon: Salad },
-  { to: "/profile", label: "生理指標", icon: UserRound },
-  { to: "/settings", label: "系統設定", icon: SettingsIcon },
+  { to: "/", key: "nav.dashboard", icon: Activity, end: true },
+  { to: "/workouts", key: "nav.workouts", icon: Dumbbell },
+  { to: "/meals", key: "nav.meals", icon: Salad },
+  { to: "/profile", key: "nav.profile", icon: UserRound },
+  { to: "/settings", key: "nav.settings", icon: SettingsIcon },
 ];
 
-function getGreeting() {
+function greetingKey() {
   const hr = new Date().getHours();
-  if (hr >= 5 && hr < 12) return "早安，開啟美好活力的一天";
-  if (hr >= 12 && hr < 17) return "午安，保持專注與健康節奏";
-  if (hr >= 17 && hr < 22) return "傍晚好，享受健康的放鬆時刻";
-  return "夜深了，讓身體好好充電休息";
+  if (hr >= 5 && hr < 12) return "shell.greeting.morning";
+  if (hr >= 12 && hr < 17) return "shell.greeting.afternoon";
+  if (hr >= 17 && hr < 22) return "shell.greeting.evening";
+  return "shell.greeting.night";
 }
 
 export function AppShell() {
   const { data: user } = useMe();
   const logout = useLogout();
   const navigate = useNavigate();
+  const { lang, t } = useI18n();
 
   async function handleLogout() {
     await logout.mutateAsync();
     navigate("/login", { replace: true });
   }
 
-  const greeting = getGreeting();
-  const todayString = new Date().toLocaleDateString("zh-TW", {
+  const greeting = t(greetingKey());
+  const todayString = new Date().toLocaleDateString(lang === "en" ? "en-US" : "zh-TW", {
     month: "long",
     day: "numeric",
     weekday: "long",
@@ -57,7 +59,7 @@ export function AppShell() {
 
         {/* Navigation */}
         <nav className="flex flex-col gap-1.5 flex-1">
-          {navItems.map(({ to, label, icon: Icon, end }) => (
+          {navItems.map(({ to, key, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -78,7 +80,7 @@ export function AppShell() {
                       isActive ? "text-emerald-500" : "text-muted-foreground group-hover:text-emerald-500",
                     )}
                   />
-                  <span>{label}</span>
+                  <span>{t(key)}</span>
                 </>
               )}
             </NavLink>
@@ -92,7 +94,7 @@ export function AppShell() {
               <UserRound className="size-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate">{user?.name || "健康行者"}</p>
+              <p className="text-sm font-semibold truncate">{user?.name || t("shell.userFallback")}</p>
               <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
             </div>
           </div>
@@ -103,7 +105,7 @@ export function AppShell() {
             onClick={handleLogout}
           >
             <LogOut className="size-5" />
-            <span>帳號登出</span>
+            <span>{t("shell.logout")}</span>
           </Button>
         </div>
       </aside>
@@ -117,7 +119,7 @@ export function AppShell() {
             <div className="flex items-center gap-2 mt-0.5">
               <Sparkles className="size-4 text-emerald-500 dark:text-emerald-400" />
               <h1 className="text-lg md:text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
-                {user?.name ? `${user.name}，${greeting}` : greeting}
+                {user?.name ? t("shell.greetingWithName", { name: user.name, greeting }) : greeting}
               </h1>
             </div>
           </div>
@@ -131,7 +133,7 @@ export function AppShell() {
               <span className="relative flex h-2 w-2">
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="text-muted-foreground">AI 引擎已連線</span>
+              <span className="text-muted-foreground">{t("shell.aiOnline")}</span>
             </div>
 
             <Button
@@ -139,7 +141,7 @@ export function AppShell() {
               size="icon"
               className="md:hidden rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/5"
               onClick={handleLogout}
-              title="登出"
+              title={t("shell.logoutShort")}
             >
               <LogOut className="size-5" />
             </Button>
@@ -157,7 +159,7 @@ export function AppShell() {
       {/* Floating Bottom Navigation Bar (Mobile / RWD Focus) */}
       <div className="md:hidden fixed bottom-6 left-4 right-4 z-40">
         <nav className="flex items-center justify-around p-2.5 rounded-3xl bg-white/85 dark:bg-slate-950/80 border border-slate-200/50 dark:border-slate-900/50 backdrop-blur-xl shadow-xl shadow-slate-200/40 dark:shadow-black/50 transition-all duration-300">
-          {navItems.map(({ to, label, icon: Icon, end }) => (
+          {navItems.map(({ to, key, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -181,7 +183,7 @@ export function AppShell() {
                   >
                     <Icon className="size-4.5" />
                   </div>
-                  <span>{label.substring(0, 3)}</span>
+                  <span className="truncate max-w-full px-0.5">{lang === "en" ? t(key) : t(key).substring(0, 3)}</span>
                   {isActive && (
                     <span className="absolute bottom-0 w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
                   )}

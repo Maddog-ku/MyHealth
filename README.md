@@ -149,7 +149,8 @@ scripts/dev.sh --reset -y   # 跳過確認（非互動／CI 環境必須加）
 - 雲端 AI Provider（OpenAI / Anthropic）切換
 - 常用餐點收藏、條碼掃描
 - 穿戴裝置匯入（Apple Health / Google Fit）
-- 行動 App、英文介面、PWA 離線
+- 行動 App、PWA 離線
+- 英文介面 i18n（框架與導覽／設定頁已完成，其餘頁面陸續翻譯中）
 
 ### 明確不做
 - 醫療診斷、處方藥物建議、疾病評估
