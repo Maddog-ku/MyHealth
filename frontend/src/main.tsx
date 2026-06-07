@@ -6,6 +6,7 @@ import { App } from "./App";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LanguageProvider } from "@/i18n/i18n";
 import { queryClient } from "@/lib/queryClient";
+import { registerServiceWorker } from "@/lib/pwa";
 import "./styles.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -21,3 +22,5 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </ErrorBoundary>
   </React.StrictMode>,
 );
+
+registerServiceWorker();

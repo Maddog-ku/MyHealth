@@ -1,0 +1,20 @@
+{
+  "name": "MyHealth — AI 健身與飲食管理",
+  "short_name": "MyHealth",
+  "description": "把每日運動規劃與三餐飲食紀錄放在一起的個人健康應用，AI 在本機執行。",
+  "lang": "zh-TW",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#fafafc",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
