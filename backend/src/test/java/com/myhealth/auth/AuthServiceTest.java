@@ -339,4 +339,75 @@ class AuthServiceTest {
 
         verify(refreshTokens, never()).save(any());
     }
+
+    // --- change password ---
+
+    @Test
+    void changePassword_updatesHash_andRevokesOtherSessions_keepingCurrent() {
+        AppUser user = persistedUser();
+        String raw = "raw-current";
+        RefreshToken current = new RefreshToken();
+        current.setUser(user);
+        current.setTokenHash(Hashing.sha256(raw));
+        setTokenId(current, 7L);
+        when(passwordEncoder.matches("OldPass1", "hashed")).thenReturn(true);
+        when(passwordEncoder.matches("NewPass2", "hashed")).thenReturn(false);
+        when(passwordEncoder.encode("NewPass2")).thenReturn("new-hash");
+        when(refreshTokens.findByTokenHash(Hashing.sha256(raw))).thenReturn(Optional.of(current));
+
+        service.changePassword(user, "OldPass1", "NewPass2", raw);
+
+        assertThat(user.getPasswordHash()).isEqualTo("new-hash");
+        verify(users).save(user);
+        verify(refreshTokens).revokeAllExcept(42L, 7L);
+        verify(refreshTokens, never()).revokeAllByUserId(anyLong());
+    }
+
+    @Test
+    void changePassword_revokesAllSessions_whenNoCurrentRefreshTokenGiven() {
+        AppUser user = persistedUser();
+        when(passwordEncoder.matches("OldPass1", "hashed")).thenReturn(true);
+        when(passwordEncoder.matches("NewPass2", "hashed")).thenReturn(false);
+        when(passwordEncoder.encode("NewPass2")).thenReturn("new-hash");
+
+        service.changePassword(user, "OldPass1", "NewPass2", null);
+
+        verify(refreshTokens).revokeAllByUserId(42L);
+        verify(refreshTokens, never()).revokeAllExcept(anyLong(), anyLong());
+    }
+
+    @Test
+    void changePassword_throwsBadRequest_whenCurrentPasswordWrong() {
+        AppUser user = persistedUser();
+        when(passwordEncoder.matches("WrongOld1", "hashed")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.changePassword(user, "WrongOld1", "NewPass2", "raw"))
+                .isInstanceOf(ApiException.class)
+                .extracting(e -> ((ApiException) e).errorCode())
+                .isEqualTo(ErrorCode.BAD_REQUEST);
+        verify(users, never()).save(any());
+        verify(refreshTokens, never()).revokeAllByUserId(anyLong());
+    }
+
+    @Test
+    void changePassword_throwsBadRequest_whenNewPasswordSameAsCurrent() {
+        AppUser user = persistedUser();
+        when(passwordEncoder.matches("OldPass1", "hashed")).thenReturn(true);
+        when(passwordEncoder.matches("OldPass1", "hashed")).thenReturn(true); // new == current
+
+        assertThatThrownBy(() -> service.changePassword(user, "OldPass1", "OldPass1", "raw"))
+                .isInstanceOf(ApiException.class)
+                .satisfies(e -> assertThat(((ApiException) e).status()).isEqualTo(HttpStatus.BAD_REQUEST));
+        verify(users, never()).save(any());
+    }
+
+    private static void setTokenId(RefreshToken token, Long id) {
+        try {
+            var f = RefreshToken.class.getDeclaredField("id");
+            f.setAccessible(true);
+            f.set(token, id);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
 }

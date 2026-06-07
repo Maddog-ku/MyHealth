@@ -116,6 +116,35 @@ public class AuthService {
         return issueTokens(token.getUser(), device, token.getCreatedAt());
     }
 
+    /**
+     * Change the signed-in user's password after verifying the current one, then log out
+     * every other device for safety. The caller's own session is preserved when its refresh
+     * token is supplied (so the user stays logged in here); otherwise all sessions are revoked.
+     */
+    @Transactional
+    public void changePassword(AppUser user, String currentPassword, String newPassword, String currentRawRefreshToken) {
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "目前密碼不正確");
+        }
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "新密碼不可與目前密碼相同");
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        users.save(user);
+
+        Long keepId = currentRawRefreshToken == null || currentRawRefreshToken.isBlank()
+                ? null
+                : refreshTokens.findByTokenHash(Hashing.sha256(currentRawRefreshToken))
+                        .filter(t -> t.getUser().getId().equals(user.getId()) && !t.isRevoked())
+                        .map(RefreshToken::getId)
+                        .orElse(null);
+        if (keepId == null) {
+            refreshTokens.revokeAllByUserId(user.getId());
+        } else {
+            refreshTokens.revokeAllExcept(user.getId(), keepId);
+        }
+    }
+
     @Transactional
     public void logout(String refreshToken) {
         refreshTokens.findByTokenHash(Hashing.sha256(refreshToken)).ifPresent(token -> {

@@ -40,6 +40,7 @@ class UserControllerTest {
 
     @MockBean UserService userService;
     @MockBean SessionService sessionService;
+    @MockBean com.myhealth.auth.AuthService authService;
     @MockBean CurrentUser currentUser;
 
     AppUser stubUser() {
@@ -113,6 +114,31 @@ class UserControllerTest {
         mockMvc.perform(put("/api/v1/me/profile").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("weightKg")));
+    }
+
+    @Test
+    void changePassword_returns204_andForwardsRefreshTokenHeader() throws Exception {
+        AppUser user = stubUser();
+        when(currentUser.require()).thenReturn(user);
+
+        String body = "{\"currentPassword\":\"OldPass1\",\"newPassword\":\"NewPass2\"}";
+
+        mockMvc.perform(post("/api/v1/me/password")
+                        .header("X-Refresh-Token", "raw-token")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNoContent());
+
+        verify(authService).changePassword(eq(user), eq("OldPass1"), eq("NewPass2"), eq("raw-token"));
+    }
+
+    @Test
+    void changePassword_returns400_whenNewPasswordViolatesPolicy() throws Exception {
+        String body = "{\"currentPassword\":\"OldPass1\",\"newPassword\":\"short\"}";
+
+        mockMvc.perform(post("/api/v1/me/password")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("newPassword")));
     }
 
     @Test

@@ -9,6 +9,7 @@ import { ApiError } from "@/api/client";
 import { useDeleteAccount, useMe, useUpdateProfile } from "@/hooks/useAuth";
 import { useTheme, type ThemeMode } from "@/hooks/useTheme";
 import { useFontScale, type FontScale } from "@/hooks/useFontScale";
+import { ChangePasswordCard } from "@/components/ChangePasswordCard";
 import { SessionsCard } from "@/components/SessionsCard";
 
 const AVATAR_OPTIONS = [
@@ -177,6 +178,9 @@ export function SettingsPage() {
           })}
         </CardContent>
       </Card>
+
+      {/* Change password */}
+      <ChangePasswordCard />
 
       {/* Active login sessions / device management */}
       <SessionsCard />

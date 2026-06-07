@@ -115,6 +115,10 @@ export const api = {
 
   // The current refresh token identifies "this device" so the backend can flag it and
   // exclude it from "log out other devices" — sent as a header here, body for revoke-others.
+  changePassword: (currentPassword: string, newPassword: string) =>
+    http
+      .post<void>("/me/password", { currentPassword, newPassword }, { headers: { "X-Refresh-Token": getRefreshToken() ?? "" } })
+      .then(() => undefined),
   sessions: () =>
     http.get<SessionList>("/me/sessions", { headers: { "X-Refresh-Token": getRefreshToken() ?? "" } }).then((r) => r.data),
   revokeSession: (id: number) => http.delete<void>(`/me/sessions/${id}`).then(() => undefined),

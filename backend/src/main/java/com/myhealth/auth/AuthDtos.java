@@ -57,6 +57,13 @@ public final class AuthDtos {
     public record RefreshRequest(@NotBlank @Size(min = 20, max = 200) String refreshToken) {
     }
 
+    public record ChangePasswordRequest(
+            @NotBlank @Size(max = 128) String currentPassword,
+            // Same policy as registration: 8–128 chars, must mix upper/lower case letters.
+            @NotBlank @Size(min = 8, max = 128) @Pattern(regexp = "^(?=.*[A-Z])(?=.*[a-z])[A-Za-z0-9]+$") String newPassword
+    ) {
+    }
+
     public record LogoutRequest(@NotBlank @Size(min = 20, max = 200) String refreshToken) {
     }
 

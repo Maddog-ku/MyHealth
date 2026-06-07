@@ -361,7 +361,23 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 
 ---
 
-### 5.4 登入裝置（工作階段）管理
+### 5.4 修改密碼
+
+`POST /me/password`
+
+```json
+{ "currentPassword": "OldPass1", "newPassword": "NewPass2" }
+```
+
+驗證目前密碼後更新為新密碼。新密碼規則同註冊：8–128 字元、需同時包含大小寫英文字母（僅限英數字）。為了安全，變更成功後會**登出其他所有裝置**；若帶上 `X-Refresh-Token: <目前的 refresh token>` 標頭，會保留目前這台裝置的登入。
+
+**Response 204**
+
+**Errors**：`400 BAD_REQUEST`（目前密碼不正確，或新密碼與目前相同）、`400 VALIDATION_ERROR`（新密碼不符規則）
+
+---
+
+### 5.5 登入裝置（工作階段）管理
 
 每一個未撤銷、未過期的 refresh token 代表一個登入中的裝置。Token 輪替（refresh）時，原本的登入時間與裝置資訊會帶到新 token，所以同一裝置在清單上維持一筆穩定的工作階段。
 
@@ -387,13 +403,13 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 
 > `device` 由 User-Agent 解析出的「瀏覽器 · 系統」標籤；無法判斷時為「未知裝置」。`createdAt` 是首次登入時間，`lastActiveAt` 是該工作階段最近一次換發 token 的時間。
 
-### 5.5 登出指定裝置
+### 5.6 登出指定裝置
 
 `DELETE /me/sessions/{id}` → 204
 
 撤銷該工作階段的 refresh token（可撤銷目前裝置＝登出自己）。**Errors**：`404 NOT_FOUND`（工作階段不存在或不屬於你）
 
-### 5.6 登出其他所有裝置
+### 5.7 登出其他所有裝置
 
 `POST /me/sessions/revoke-others`
 
