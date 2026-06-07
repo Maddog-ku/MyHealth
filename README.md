@@ -132,6 +132,7 @@ scripts/dev.sh --reset -y   # 跳過確認（非互動／CI 環境必須加）
 ### v1.0 包含什麼
 - Email + 密碼帳號系統、JWT、refresh token rotation
 - 9 種運動分類、AI 產生菜單、完成打卡
+- AI 週期課表規劃（一週訓練分配，可重複數週，一鍵套用到當天）
 - 文字 + 照片飲食紀錄、AI 熱量與營養估算
 - 儀表板（當日收支 + 7 天體重趨勢）
 - 本地 Ollama 整合 + 自動釋放記憶體
@@ -141,7 +142,7 @@ scripts/dev.sh --reset -y   # 跳過確認（非互動／CI 環境必須加）
 ### Phase 2 計畫
 - Google OAuth2 / 密碼重設 / 多裝置 session 管理
 - 雲端 AI Provider（OpenAI / Anthropic）切換
-- 週／月菜單規劃、訓練量分析
+- 訓練量分析（週／月訓練量、各部位頻率趨勢）
 - 常用餐點收藏、條碼掃描
 - 穿戴裝置匯入（Apple Health / Google Fit）
 - 行動 App、英文介面、PWA 離線

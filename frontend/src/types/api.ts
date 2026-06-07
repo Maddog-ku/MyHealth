@@ -69,6 +69,28 @@ export interface WorkoutPlan {
   createdAt: string;
 }
 
+export interface ScheduleDay {
+  /** ISO weekday: 1 = Monday … 7 = Sunday. */
+  weekday: number;
+  rest: boolean;
+  /** WorkoutCategory code (e.g. "legs"); null/empty on a rest day. */
+  category: string | null;
+  durationMin: number;
+  focus: string;
+}
+
+export interface WorkoutSchedule {
+  id: number;
+  goal: string;
+  /** First day the pattern applies from (always a Monday). */
+  startDate: string;
+  weeks: number;
+  daysPerWeek: number;
+  intensity: string;
+  days: ScheduleDay[];
+  createdAt: string;
+}
+
 export interface FoodItem {
   name: string;
   grams: number;

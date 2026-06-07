@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AiGenerationPanel } from "@/components/AiGenerationPanel";
+import { WorkoutSchedulePanel } from "@/components/WorkoutSchedulePanel";
 import { WorkoutPlayer, workSeconds } from "@/components/WorkoutPlayer";
 import { useCancelWorkoutSelection, useCompleteWorkout, useGenerateWorkout, useWorkouts } from "@/hooks/useWorkouts";
 import { ApiError } from "@/api/client";
@@ -188,6 +189,9 @@ export function WorkoutsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Weekly / monthly schedule planner */}
+      <WorkoutSchedulePanel />
 
       {/* Routine Display List */}
       <div className="space-y-4">

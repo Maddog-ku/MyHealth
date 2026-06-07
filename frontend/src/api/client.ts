@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
-import type { AuthResponse, CalorieBudget, ChatMessage, DailyHabits, DailyStats, FavoriteMeal, FoodItem, HabitType, Meal, NotificationFeed, PageEnvelope, Profile, RecentMeal, SearchResponse, StreakSummary, User, WeeklyReport, WeightGoalResponse, WorkoutPlan } from "@/types/api";
+import type { AuthResponse, CalorieBudget, ChatMessage, DailyHabits, DailyStats, FavoriteMeal, FoodItem, HabitType, Meal, NotificationFeed, PageEnvelope, Profile, RecentMeal, SearchResponse, StreakSummary, User, WeeklyReport, WeightGoalResponse, WorkoutPlan, WorkoutSchedule } from "@/types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -140,6 +140,14 @@ export const api = {
   removeWorkoutItems: (id: number, indices: number[]) =>
     http.post<WorkoutPlan>(`/workouts/${id}/items/remove`, { indices }).then((r) => r.data),
   deleteWorkout: (id: number) => http.delete(`/workouts/${id}`).then(() => undefined),
+
+  workoutSchedules: () =>
+    http.get<PageEnvelope<WorkoutSchedule>>("/workout-schedules").then((r) => r.data),
+  generateWorkoutSchedule: (body: { startDate: string; daysPerWeek: number; weeks: number; intensity: string }) =>
+    http.post<WorkoutSchedule>("/workout-schedules/generate", body).then((r) => r.data),
+  applyScheduleDay: (id: number, body: { date: string; weekday: number }) =>
+    http.post<WorkoutPlan>(`/workout-schedules/${id}/apply`, body).then((r) => r.data),
+  deleteWorkoutSchedule: (id: number) => http.delete<void>(`/workout-schedules/${id}`).then(() => undefined),
 
   meals: (date: string) => http.get<PageEnvelope<Meal>>(`/meals`, { params: { date } }).then((r) => r.data),
   recentMeals: (beforeDate: string, limit = 5) =>

@@ -31,6 +31,10 @@ public class AiEndpointRateLimiter {
         store.check("ai:reports:weekly:%s".formatted(userKey(user)), properties.getAiLimit(), properties.getWindow());
     }
 
+    public void checkSchedulePlan(AppUser user) {
+        store.check("ai:workouts:schedule:%s".formatted(userKey(user)), properties.getAiLimit(), properties.getWindow());
+    }
+
     private String userKey(AppUser user) {
         if (user.getId() != null) {
             return "user:%d".formatted(user.getId());

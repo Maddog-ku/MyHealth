@@ -20,6 +20,7 @@ export const qk = {
   me: ["me"] as const,
   dailyStats: (date: string) => ["stats", "daily", date] as const,
   workouts: (date: string) => ["workouts", date] as const,
+  workoutSchedules: ["workout-schedules"] as const,
   meals: (date: string) => ["meals", date] as const,
   recentMeals: (date: string) => ["meals", "recent", date] as const,
   favoriteMeals: ["meals", "favorites"] as const,

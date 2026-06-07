@@ -43,6 +43,27 @@ public interface AiProvider {
      */
     String weeklyReport(String context);
 
+    /**
+     * Plan a one-week training split for the given {@code goal} label, number of training
+     * days ({@code daysPerWeek}) and {@code intensity}. Returns exactly 7 {@link ScheduleDay}
+     * entries (Monday..Sunday), of which {@code daysPerWeek} are training days and the rest
+     * are recovery days. Implementations fall back to a deterministic template split when the
+     * model is unavailable or returns something unusable.
+     */
+    List<ScheduleDay> planWorkoutSchedule(String goal, int daysPerWeek, String intensity);
+
+    record ScheduleDay(
+            @Min(1) @Max(7) int weekday,
+            boolean rest,
+            @Size(max = 20) String category,
+            @Min(10) @Max(180) int durationMin,
+            @Size(max = 40) String focus
+    ) {
+        public static ScheduleDay restDay(int weekday) {
+            return new ScheduleDay(weekday, true, null, 0, "休息與恢復");
+        }
+    }
+
     record ChatTurn(boolean fromUser, String content) {
     }
 

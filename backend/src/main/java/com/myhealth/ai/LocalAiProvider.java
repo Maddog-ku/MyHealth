@@ -7,8 +7,10 @@ import com.myhealth.config.AppProperties;
 import java.util.Base64;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
@@ -315,6 +317,157 @@ public class LocalAiProvider implements AiProvider {
             ollama.unload(model);
             loaded.set(false);
         }
+    }
+
+    /** Categories a fallback split rotates through, ordered big-to-small muscle groups. */
+    private static final List<String> SPLIT_ROTATION =
+            List.of("legs", "chest", "back", "abs", "arms", "cardio");
+    /** Which weekdays (1=Mon..7=Sun) carry training for a given days-per-week count. */
+    private static final Map<Integer, List<Integer>> SPLIT_WEEKDAYS = Map.of(
+            2, List.of(1, 4),
+            3, List.of(1, 3, 5),
+            4, List.of(1, 2, 4, 5),
+            5, List.of(1, 2, 3, 5, 6),
+            6, List.of(1, 2, 3, 4, 5, 6));
+
+    private static final String SCHEDULE_SYSTEM = """
+            你是一名謹慎的健身教練，要替使用者規劃「一週」的訓練分配（split），之後這個一週模板會重複數週。
+            只輸出 JSON，不要任何其他文字、說明、Markdown 或推理過程。
+
+            嚴格規則：
+            1. 必須剛好輸出 7 天，weekday 由 1 到 7（1=星期一、7=星期日），每個 weekday 出現一次。
+            2. 其中剛好 daysPerWeek 天為訓練日（rest=false），其餘為休息日（rest=true）。
+            3. 訓練日要把不同部位分散在不同天，避免連續兩天練同一大肌群；安排合理的休息日穿插。
+            4. category 只能是下列代碼其一：abs、waist、legs、chest、back、arms、glutes、cardio、full_body。
+            5. 休息日的 rest=true、category 給空字串、durationMin 給 0、focus 用「休息與恢復」這類字眼。
+            6. durationMin 是該訓練日建議時長（分鐘），介於 20 到 90 的整數，依強度合理估算。
+            7. focus 是一句不超過 20 字的繁體中文訓練重點（例如「下肢肌力」「胸與三頭」）。
+            8. 依 goal 調整：減脂可多安排有氧（cardio）；增肌以肌力分部位為主；維持則均衡安排。
+            9. 不可輸出醫療或復健處方，也不可加入高風險動作描述。
+
+            只允許回傳下列 JSON schema：
+            {"days":[
+              {"weekday":1,"rest":false,"category":"legs","durationMin":40,"focus":"下肢肌力"},
+              {"weekday":2,"rest":true,"category":"","durationMin":0,"focus":"休息與恢復"}
+            ]}
+            """;
+
+    @Override
+    public List<ScheduleDay> planWorkoutSchedule(String goal, int daysPerWeek, String intensity) {
+        markUsed();
+        String user = "goal: %s%ndaysPerWeek: %d%nintensity: %s".formatted(goal, daysPerWeek, intensity);
+        try {
+            String raw = ollama.chat(properties.ai().textModel(), SCHEDULE_SYSTEM, user, true, Duration.ofSeconds(45));
+            List<ScheduleDay> parsed = parseScheduleDays(raw);
+            List<ScheduleDay> normalized = normalizeSchedule(parsed, daysPerWeek);
+            if (normalized == null) {
+                log.warn("Ollama schedule unusable after normalization, falling back");
+                return fallbackSchedule(goal, daysPerWeek);
+            }
+            return normalized;
+        } catch (OllamaClient.OllamaException ex) {
+            log.warn("Ollama planWorkoutSchedule failed: {}", ex.getMessage());
+            return fallbackSchedule(goal, daysPerWeek);
+        } catch (Exception ex) {
+            log.warn("Schedule parse failed, falling back: {}", summarizeException(ex));
+            return fallbackSchedule(goal, daysPerWeek);
+        } finally {
+            ollama.unload(properties.ai().textModel());
+            loaded.set(false);
+        }
+    }
+
+    List<ScheduleDay> parseScheduleDays(String json) throws Exception {
+        JsonNode root = objectMapper.readTree(extractFirstJsonObject(json));
+        JsonNode days = root.path("days");
+        if (!days.isArray()) {
+            return List.of();
+        }
+        return objectMapper.convertValue(days, new TypeReference<List<ScheduleDay>>() {
+        });
+    }
+
+    /** Valid workout category codes the planner is allowed to emit. */
+    private static final Set<String> VALID_CATEGORIES =
+            Set.of("abs", "waist", "legs", "chest", "back", "arms", "glutes", "cardio", "full_body");
+
+    /**
+     * Force the model output into a well-formed 7-day pattern: exactly one entry per
+     * weekday (1..7), every non-rest day carrying a valid category and a clamped duration.
+     * Returns null when the result can't be made to match {@code daysPerWeek} training
+     * days, so the caller can fall back to a deterministic template.
+     */
+    List<ScheduleDay> normalizeSchedule(List<ScheduleDay> days, int daysPerWeek) {
+        if (days == null) {
+            return null;
+        }
+        ScheduleDay[] byWeekday = new ScheduleDay[8];  // index 1..7
+        for (ScheduleDay d : days) {
+            if (d == null || d.weekday() < 1 || d.weekday() > 7 || byWeekday[d.weekday()] != null) {
+                continue;
+            }
+            boolean rest = d.rest();
+            String category = d.category() == null ? "" : d.category().strip().toLowerCase();
+            if (!rest && !VALID_CATEGORIES.contains(category)) {
+                rest = true;  // can't train an unknown category — treat as recovery
+            }
+            if (rest) {
+                byWeekday[d.weekday()] = ScheduleDay.restDay(d.weekday());
+            } else {
+                int duration = Math.max(20, Math.min(90, d.durationMin()));
+                String focus = d.focus() == null || d.focus().isBlank() ? "訓練" : d.focus().strip();
+                byWeekday[d.weekday()] = new ScheduleDay(d.weekday(), false, category, duration, focus);
+            }
+        }
+        int training = 0;
+        List<ScheduleDay> result = new ArrayList<>(7);
+        for (int w = 1; w <= 7; w++) {
+            ScheduleDay d = byWeekday[w] == null ? ScheduleDay.restDay(w) : byWeekday[w];
+            if (!d.rest()) {
+                training++;
+            }
+            result.add(d);
+        }
+        return training == daysPerWeek ? result : null;
+    }
+
+    /** Deterministic offline split: spread {@code daysPerWeek} training days across the week. */
+    List<ScheduleDay> fallbackSchedule(String goal, int daysPerWeek) {
+        int days = Math.max(2, Math.min(6, daysPerWeek));
+        List<Integer> trainingWeekdays = SPLIT_WEEKDAYS.getOrDefault(days, List.of(1, 3, 5));
+        boolean fatLoss = goal != null && goal.contains("減");
+        List<ScheduleDay> result = new ArrayList<>(7);
+        int slot = 0;
+        for (int w = 1; w <= 7; w++) {
+            int idx = trainingWeekdays.indexOf(w);
+            if (idx < 0) {
+                result.add(ScheduleDay.restDay(w));
+                continue;
+            }
+            // For fat-loss goals make every other training day cardio; otherwise rotate parts.
+            String category = (fatLoss && idx % 2 == 1)
+                    ? "cardio"
+                    : SPLIT_ROTATION.get(slot % SPLIT_ROTATION.size());
+            slot++;
+            result.add(new ScheduleDay(w, false, category, "cardio".equals(category) ? 30 : 40,
+                    focusLabel(category)));
+        }
+        return result;
+    }
+
+    private static String focusLabel(String category) {
+        return switch (category) {
+            case "legs" -> "下肢肌力";
+            case "chest" -> "胸與三頭";
+            case "back" -> "背與二頭";
+            case "abs" -> "核心訓練";
+            case "waist" -> "腰腹線條";
+            case "arms" -> "手臂訓練";
+            case "glutes" -> "臀部訓練";
+            case "cardio" -> "有氧心肺";
+            case "full_body" -> "全身循環";
+            default -> "訓練";
+        };
     }
 
     private static final String MEAL_INTENT_SYSTEM = """

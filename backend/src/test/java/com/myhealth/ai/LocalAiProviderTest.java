@@ -426,4 +426,93 @@ class LocalAiProviderTest {
         assertThat(provider.weeklyReport("本週總攝取: 4200 kcal")).isBlank();
         verify(ollama).unload("gemma4:e4b");
     }
+
+    @Test
+    void planWorkoutSchedule_parsesModelSplit_andNormalizesToSevenDays() {
+        String json = """
+                {"days":[
+                  {"weekday":1,"rest":false,"category":"legs","durationMin":40,"focus":"下肢肌力"},
+                  {"weekday":2,"rest":true,"category":"","durationMin":0,"focus":"休息"},
+                  {"weekday":3,"rest":false,"category":"chest","durationMin":35,"focus":"胸"},
+                  {"weekday":4,"rest":true,"category":"","durationMin":0,"focus":"休息"},
+                  {"weekday":5,"rest":false,"category":"back","durationMin":35,"focus":"背"},
+                  {"weekday":6,"rest":true,"category":"","durationMin":0,"focus":"休息"},
+                  {"weekday":7,"rest":true,"category":"","durationMin":0,"focus":"休息"}
+                ]}
+                """;
+        when(ollama.chat(eq("gemma4:e4b"), any(), any(), eq(true), any())).thenReturn(json);
+
+        List<AiProvider.ScheduleDay> days = provider.planWorkoutSchedule("增肌", 3, "medium");
+
+        assertThat(days).hasSize(7);
+        assertThat(days).extracting(AiProvider.ScheduleDay::weekday).containsExactly(1, 2, 3, 4, 5, 6, 7);
+        assertThat(days.stream().filter(d -> !d.rest()).count()).isEqualTo(3);
+        assertThat(days.get(0).category()).isEqualTo("legs");
+        assertThat(provider.loaded()).isFalse();  // released after call by design
+    }
+
+    @Test
+    void planWorkoutSchedule_clampsDuration_andDropsUnknownCategoryToRest() {
+        // wednesday has a bogus category → becomes rest, leaving 1 training day (matches daysPerWeek=1... )
+        String json = """
+                {"days":[
+                  {"weekday":1,"rest":false,"category":"legs","durationMin":500,"focus":"太久"},
+                  {"weekday":2,"rest":true,"category":"","durationMin":0,"focus":"休息"},
+                  {"weekday":3,"rest":false,"category":"moonwalk","durationMin":40,"focus":"亂的"},
+                  {"weekday":4,"rest":true,"category":"","durationMin":0,"focus":"休息"},
+                  {"weekday":5,"rest":true,"category":"","durationMin":0,"focus":"休息"},
+                  {"weekday":6,"rest":true,"category":"","durationMin":0,"focus":"休息"},
+                  {"weekday":7,"rest":true,"category":"","durationMin":0,"focus":"休息"}
+                ]}
+                """;
+        when(ollama.chat(any(), any(), any(), eq(true), any())).thenReturn(json);
+
+        // daysPerWeek=1: after dropping the bogus category to rest there is exactly 1 training day.
+        List<AiProvider.ScheduleDay> days = provider.planWorkoutSchedule("維持", 1, "medium");
+
+        assertThat(days.get(0).durationMin()).isEqualTo(90);  // clamped from 500
+        assertThat(days.get(2).rest()).isTrue();              // unknown category → rest
+        assertThat(days.stream().filter(d -> !d.rest()).count()).isEqualTo(1);
+    }
+
+    @Test
+    void planWorkoutSchedule_fallsBackToTemplate_whenTrainingCountMismatchesRequest() {
+        // Model returns 2 training days but caller asked for 4 → unusable, deterministic fallback.
+        when(ollama.chat(any(), any(), any(), eq(true), any())).thenReturn("""
+                {"days":[
+                  {"weekday":1,"rest":false,"category":"legs","durationMin":40,"focus":"腿"},
+                  {"weekday":2,"rest":false,"category":"chest","durationMin":40,"focus":"胸"},
+                  {"weekday":3,"rest":true,"category":"","durationMin":0,"focus":"休息"},
+                  {"weekday":4,"rest":true,"category":"","durationMin":0,"focus":"休息"},
+                  {"weekday":5,"rest":true,"category":"","durationMin":0,"focus":"休息"},
+                  {"weekday":6,"rest":true,"category":"","durationMin":0,"focus":"休息"},
+                  {"weekday":7,"rest":true,"category":"","durationMin":0,"focus":"休息"}
+                ]}
+                """);
+
+        List<AiProvider.ScheduleDay> days = provider.planWorkoutSchedule("維持", 4, "medium");
+
+        assertThat(days).hasSize(7);
+        assertThat(days.stream().filter(d -> !d.rest()).count()).isEqualTo(4);  // fallback honours daysPerWeek
+    }
+
+    @Test
+    void planWorkoutSchedule_fallsBackToTemplate_whenOllamaThrows() {
+        when(ollama.chat(any(), any(), any(), anyBoolean(), any()))
+                .thenThrow(new OllamaClient.OllamaException("down"));
+
+        List<AiProvider.ScheduleDay> days = provider.planWorkoutSchedule("增肌", 3, "medium");
+
+        assertThat(days).hasSize(7);
+        assertThat(days.stream().filter(d -> !d.rest()).count()).isEqualTo(3);
+        assertThat(days.get(0).rest()).isFalse();  // Monday is a training day in every template
+        verify(ollama).unload("gemma4:e4b");
+    }
+
+    @Test
+    void fallbackSchedule_fatLossGoal_includesCardio() {
+        List<AiProvider.ScheduleDay> days = provider.fallbackSchedule("減脂", 4);
+
+        assertThat(days.stream().anyMatch(d -> "cardio".equals(d.category()))).isTrue();
+    }
 }

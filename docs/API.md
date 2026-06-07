@@ -462,6 +462,91 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 
 ---
 
+## 6b. Workout Schedules（週期課表規劃）
+
+讓 AI 依使用者目標排出「一週訓練分配（split）」：7 天每天為休息或某個分類，這個一週模板可重複數週（最多 4 週，約一個月）。模板本身不含詳細動作；要訓練時把某一天「套用」到一個實際日期，會走 6.1 的 AI 產生流程生出當天的詳細菜單。
+
+`ScheduleDay` 結構：
+| 欄位 | 說明 |
+|---|---|
+| `weekday` | ISO 星期：1 = 週一 … 7 = 週日 |
+| `rest` | 是否為休息日 |
+| `category` | 分類代碼（同 6.1）；休息日為 `null` |
+| `durationMin` | 建議時長（分鐘）；休息日為 0 |
+| `focus` | 一句訓練重點 |
+
+### 6b.1 AI 規劃週期課表
+
+`POST /workout-schedules/generate`
+
+**Request**
+```json
+{ "startDate": "2026-06-03", "daysPerWeek": 3, "weeks": 4, "intensity": "medium" }
+```
+
+| 欄位 | 必填 | 說明 |
+|---|---|---|
+| `startDate` | ✓ | 起始日；後端自動往前對齊到當週週一 |
+| `daysPerWeek` | ✓ | 每週訓練天數（2–6） |
+| `weeks` | ✓ | 模板重複週數（1–4） |
+| `intensity` | ✗ | `low` \| `medium` \| `high`，預設 `medium`；套用某天時沿用此強度 |
+
+目標（`goal`）取自個人檔案（減脂／增肌／維持），不需傳入。AI 無法使用時回退到內建的分部位模板（仍尊重 `daysPerWeek`，減脂目標會多排有氧）。
+
+**Response 201**
+```json
+{
+  "id": 7,
+  "goal": "增肌",
+  "startDate": "2026-06-01",
+  "weeks": 4,
+  "daysPerWeek": 3,
+  "intensity": "medium",
+  "days": [
+    { "weekday": 1, "rest": false, "category": "legs", "durationMin": 40, "focus": "下肢肌力" },
+    { "weekday": 2, "rest": true, "category": null, "durationMin": 0, "focus": "休息與恢復" }
+  ],
+  "createdAt": "2026-06-01T00:00:00Z"
+}
+```
+
+**Errors**：`400 VALIDATION_ERROR`（`daysPerWeek`/`weeks` 超出範圍或缺漏）、`429 RATE_LIMITED`
+
+---
+
+### 6b.2 取得課表清單
+
+`GET /workout-schedules` → `WorkoutSchedule[]`（信封格式，最新的在前）
+
+### 6b.3 取得單筆
+
+`GET /workout-schedules/{id}`
+
+### 6b.4 套用某一天到實際日期
+
+`POST /workout-schedules/{id}/apply`
+
+把該課表中某個 `weekday` 的訓練，依 6.1 的 AI 產生流程生成到指定日期的菜單（沿用課表強度）。
+
+**Request**
+```json
+{ "date": "2026-06-01", "weekday": 1 }
+```
+
+`date` 的星期必須與 `weekday` 一致；休息日不可套用。
+
+**Response 201**：新建立的 `WorkoutPlan`（同 6.1）
+
+**Errors**：`400 BAD_REQUEST`（日期星期不符、該天為休息日、或分類無效）、`404 NOT_FOUND`、`429 RATE_LIMITED`
+
+---
+
+### 6b.5 刪除課表
+
+`DELETE /workout-schedules/{id}` → 204
+
+---
+
 ## 7. Meals（飲食紀錄）
 
 ### 7.1 新增餐點（含 AI 估算）
