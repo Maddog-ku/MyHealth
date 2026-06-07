@@ -69,6 +69,20 @@ export interface WorkoutPlan {
   createdAt: string;
 }
 
+export interface SessionInfo {
+  id: number;
+  /** Friendly "Browser · OS" label derived from the User-Agent. */
+  device: string;
+  createdAt: string;
+  lastActiveAt: string;
+  expiresAt: string;
+  current: boolean;
+}
+
+export interface SessionList {
+  sessions: SessionInfo[];
+}
+
 export interface ScheduleDay {
   /** ISO weekday: 1 = Monday … 7 = Sunday. */
   weekday: number;

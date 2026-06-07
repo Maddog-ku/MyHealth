@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
-import type { AuthResponse, CalorieBudget, ChatMessage, DailyHabits, DailyStats, FavoriteMeal, FoodItem, HabitType, Meal, NotificationFeed, PageEnvelope, Profile, RecentMeal, SearchResponse, StreakSummary, User, WeeklyReport, WeightGoalResponse, WorkoutPlan, WorkoutSchedule, WorkoutVolume } from "@/types/api";
+import type { AuthResponse, CalorieBudget, ChatMessage, DailyHabits, DailyStats, FavoriteMeal, FoodItem, HabitType, Meal, NotificationFeed, PageEnvelope, Profile, RecentMeal, SearchResponse, SessionList, StreakSummary, User, WeeklyReport, WeightGoalResponse, WorkoutPlan, WorkoutSchedule, WorkoutVolume } from "@/types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -112,6 +112,14 @@ export const api = {
   me: () => http.get<User>("/me").then((r) => r.data),
   updateProfile: (profile: Profile) => http.put<Profile>("/me/profile", profile).then((r) => r.data),
   deleteAccount: () => http.delete<void>("/me").then(() => undefined),
+
+  // The current refresh token identifies "this device" so the backend can flag it and
+  // exclude it from "log out other devices" — sent as a header here, body for revoke-others.
+  sessions: () =>
+    http.get<SessionList>("/me/sessions", { headers: { "X-Refresh-Token": getRefreshToken() ?? "" } }).then((r) => r.data),
+  revokeSession: (id: number) => http.delete<void>(`/me/sessions/${id}`).then(() => undefined),
+  revokeOtherSessions: () =>
+    http.post<SessionList>("/me/sessions/revoke-others", { refreshToken: getRefreshToken() ?? "" }).then((r) => r.data),
 
   dailyStats: (date: string) => http.get<DailyStats>(`/stats/daily`, { params: { date } }).then((r) => r.data),
   rangeStats: (from: string, to: string) =>

@@ -361,6 +361,50 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 
 ---
 
+### 5.4 登入裝置（工作階段）管理
+
+每一個未撤銷、未過期的 refresh token 代表一個登入中的裝置。Token 輪替（refresh）時，原本的登入時間與裝置資訊會帶到新 token，所以同一裝置在清單上維持一筆穩定的工作階段。
+
+`GET /me/sessions`
+
+選擇性帶上 `X-Refresh-Token: <目前的 refresh token>` 標頭；後端用它把「目前這台裝置」標記為 `current`（不放在 URL，避免寫進 log）。
+
+**Response 200**
+```json
+{
+  "sessions": [
+    {
+      "id": 10,
+      "device": "Chrome · macOS",
+      "createdAt": "2026-06-01T09:00:00Z",
+      "lastActiveAt": "2026-06-07T08:30:00Z",
+      "expiresAt": "2026-07-01T09:00:00Z",
+      "current": true
+    }
+  ]
+}
+```
+
+> `device` 由 User-Agent 解析出的「瀏覽器 · 系統」標籤；無法判斷時為「未知裝置」。`createdAt` 是首次登入時間，`lastActiveAt` 是該工作階段最近一次換發 token 的時間。
+
+### 5.5 登出指定裝置
+
+`DELETE /me/sessions/{id}` → 204
+
+撤銷該工作階段的 refresh token（可撤銷目前裝置＝登出自己）。**Errors**：`404 NOT_FOUND`（工作階段不存在或不屬於你）
+
+### 5.6 登出其他所有裝置
+
+`POST /me/sessions/revoke-others`
+
+```json
+{ "refreshToken": "<目前的 refresh token>" }
+```
+
+撤銷除了目前這台以外的所有工作階段。若提供的 token 無法對應到有效工作階段，會撤銷全部（等同登出所有裝置）。**Response 200**：更新後的工作階段清單（同 5.4）。
+
+---
+
 ## 6. Workouts（運動菜單）
 
 ### 6.1 AI 產生菜單

@@ -131,6 +131,7 @@ scripts/dev.sh --reset -y   # 跳過確認（非互動／CI 環境必須加）
 
 ### v1.0 包含什麼
 - Email + 密碼帳號系統、JWT、refresh token rotation
+- 多裝置登入管理（裝置清單、登出單一／其他所有裝置）
 - 9 種運動分類、AI 產生菜單、完成打卡
 - AI 週期課表規劃（一週訓練分配，可重複數週，一鍵套用到當天）
 - 訓練量分析（近 4/8/12 週訓練量、各部位頻率、每週趨勢）
@@ -141,7 +142,7 @@ scripts/dev.sh --reset -y   # 跳過確認（非互動／CI 環境必須加）
 - 限流（auth 端點 + AI 端點）
 
 ### Phase 2 計畫
-- Google OAuth2 / 密碼重設 / 多裝置 session 管理
+- Google OAuth2 / 密碼重設
 - 雲端 AI Provider（OpenAI / Anthropic）切換
 - 常用餐點收藏、條碼掃描
 - 穿戴裝置匯入（Apple Health / Google Fit）

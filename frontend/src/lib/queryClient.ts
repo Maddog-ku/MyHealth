@@ -18,6 +18,7 @@ export const queryClient = new QueryClient({
 
 export const qk = {
   me: ["me"] as const,
+  sessions: ["me", "sessions"] as const,
   dailyStats: (date: string) => ["stats", "daily", date] as const,
   workouts: (date: string) => ["workouts", date] as const,
   workoutSchedules: ["workout-schedules"] as const,

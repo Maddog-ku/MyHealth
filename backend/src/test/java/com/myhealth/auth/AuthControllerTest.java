@@ -97,7 +97,7 @@ class AuthControllerTest {
         // is "secret123" (no uppercase) needs to be able to attempt login. Whether the
         // password matches is BCrypt-checked downstream — here we just confirm the
         // request reaches AuthService instead of being short-circuited at validation.
-        when(authService.login(any())).thenReturn(new AuthResponse(
+        when(authService.login(any(), any())).thenReturn(new AuthResponse(
                 "a", "r", "Bearer", 900L, new UserSummary(1L, "demo@example.com", "Demo", Role.USER)));
 
         String body = "{\"email\":\"demo@example.com\",\"password\":\"secret123\"}";
@@ -158,7 +158,7 @@ class AuthControllerTest {
 
     @Test
     void login_returns200_withTokensAndUser() throws Exception {
-        when(authService.login(any())).thenReturn(new AuthResponse(
+        when(authService.login(any(), any())).thenReturn(new AuthResponse(
                 "access-token-value", "refresh-token-uuid", "Bearer", 900L,
                 new UserSummary(1L, "demo@example.com", "Demo", Role.USER)));
 
@@ -177,7 +177,7 @@ class AuthControllerTest {
 
     @Test
     void login_returns401_whenServiceThrowsUnauthorized() throws Exception {
-        when(authService.login(any())).thenThrow(
+        when(authService.login(any(), any())).thenThrow(
                 new ApiException(HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED, "Invalid email or password"));
 
         String body = "{\"email\":\"demo@example.com\",\"password\":\"WrongPass1\"}";
@@ -202,7 +202,7 @@ class AuthControllerTest {
 
     @Test
     void refresh_returns200_withNewTokens() throws Exception {
-        when(authService.refresh(any())).thenReturn(new AuthResponse(
+        when(authService.refresh(any(), any())).thenReturn(new AuthResponse(
                 "new-access", "new-refresh", "Bearer", 900L,
                 new UserSummary(1L, "demo@example.com", "Demo", Role.USER)));
 
@@ -217,7 +217,7 @@ class AuthControllerTest {
 
     @Test
     void refresh_returns401_whenTokenInvalid() throws Exception {
-        when(authService.refresh(any())).thenThrow(
+        when(authService.refresh(any(), any())).thenThrow(
                 new ApiException(HttpStatus.UNAUTHORIZED, ErrorCode.INVALID_REFRESH_TOKEN, "Refresh token reuse detected"));
 
         mockMvc.perform(post("/api/v1/auth/refresh")

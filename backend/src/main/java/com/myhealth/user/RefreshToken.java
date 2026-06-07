@@ -34,6 +34,18 @@ public class RefreshToken {
     @Column(nullable = false)
     private boolean revoked;
 
+    /** Original login time, carried forward across token rotation. */
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt = Instant.now();
+
+    /** When the current token in this rotation chain was issued. */
+    @Column(name = "last_used_at", nullable = false)
+    private Instant lastUsedAt = Instant.now();
+
+    public Long getId() {
+        return id;
+    }
+
     public AppUser getUser() {
         return user;
     }
@@ -64,5 +76,29 @@ public class RefreshToken {
 
     public void revoke() {
         this.revoked = true;
+    }
+
+    public String getDeviceInfo() {
+        return deviceInfo;
+    }
+
+    public void setDeviceInfo(String deviceInfo) {
+        this.deviceInfo = deviceInfo;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public Instant getLastUsedAt() {
+        return lastUsedAt;
+    }
+
+    public void setLastUsedAt(Instant lastUsedAt) {
+        this.lastUsedAt = lastUsedAt;
     }
 }

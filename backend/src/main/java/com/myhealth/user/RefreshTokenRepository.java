@@ -1,5 +1,7 @@
 package com.myhealth.user;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -9,7 +11,20 @@ import org.springframework.data.repository.query.Param;
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
+    Optional<RefreshToken> findByIdAndUserId(Long id, Long userId);
+
+    /** Active (non-revoked, unexpired) tokens for a user = their live device sessions. */
+    @Query("select t from RefreshToken t where t.user.id = :userId and t.revoked = false "
+            + "and t.expiresAt > :now order by t.createdAt asc")
+    List<RefreshToken> findActive(@Param("userId") Long userId, @Param("now") Instant now);
+
     @Modifying
     @Query("update RefreshToken t set t.revoked = true where t.user.id = :userId and t.revoked = false")
     int revokeAllByUserId(@Param("userId") Long userId);
+
+    /** Revoke every active token for a user except the one to keep (the current session). */
+    @Modifying
+    @Query("update RefreshToken t set t.revoked = true where t.user.id = :userId "
+            + "and t.revoked = false and t.id <> :keepId")
+    int revokeAllExcept(@Param("userId") Long userId, @Param("keepId") Long keepId);
 }

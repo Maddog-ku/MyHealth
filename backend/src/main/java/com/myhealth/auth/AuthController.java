@@ -34,13 +34,13 @@ public class AuthController {
     @PostMapping("/login")
     AuthDtos.AuthResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest servletRequest) {
         rateLimiter.checkLogin(servletRequest, request.email());
-        return authService.login(request);
+        return authService.login(request, servletRequest.getHeader("User-Agent"));
     }
 
     @PostMapping("/refresh")
     AuthDtos.AuthResponse refresh(@Valid @RequestBody RefreshRequest request, HttpServletRequest servletRequest) {
         rateLimiter.checkRefresh(servletRequest);
-        return authService.refresh(request);
+        return authService.refresh(request, servletRequest.getHeader("User-Agent"));
     }
 
     @PostMapping("/logout")

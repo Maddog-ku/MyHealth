@@ -75,16 +75,26 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
+        return login(request, null);
+    }
+
+    @Transactional
+    public AuthResponse login(LoginRequest request, String deviceInfo) {
         AppUser user = users.findByEmailIgnoreCase(request.email())
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED, "Invalid email or password"));
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED, "Invalid email or password");
         }
-        return issueTokens(user);
+        return issueTokens(user, deviceInfo, Instant.now());
     }
 
     @Transactional
     public AuthResponse refresh(RefreshRequest request) {
+        return refresh(request, null);
+    }
+
+    @Transactional
+    public AuthResponse refresh(RefreshRequest request, String deviceInfo) {
         RefreshToken token = refreshTokens.findByTokenHash(Hashing.sha256(request.refreshToken()))
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, ErrorCode.INVALID_REFRESH_TOKEN, "Invalid refresh token"));
 
@@ -100,7 +110,10 @@ public class AuthService {
 
         token.revoke();
         refreshTokens.save(token);
-        return issueTokens(token.getUser());
+        // Carry the session forward across rotation: keep the original login time and device
+        // so the session list stays stable, while the new row records its own issue time.
+        String device = deviceInfo != null ? deviceInfo : token.getDeviceInfo();
+        return issueTokens(token.getUser(), device, token.getCreatedAt());
     }
 
     @Transactional
@@ -111,18 +124,33 @@ public class AuthService {
         });
     }
 
-    private AuthResponse issueTokens(AppUser user) {
+    /** Max length we persist for the device label (User-Agent); the column is VARCHAR(255). */
+    private static final int MAX_DEVICE_INFO = 255;
+
+    private AuthResponse issueTokens(AppUser user, String deviceInfo, Instant createdAt) {
         UserPrincipal principal = new UserPrincipal(user);
         String accessToken = jwtService.issueAccessToken(principal);
         String rawRefreshToken = UUID.randomUUID().toString();
 
+        Instant now = Instant.now();
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUser(user);
         refreshToken.setTokenHash(Hashing.sha256(rawRefreshToken));
-        refreshToken.setExpiresAt(Instant.now().plus(properties.jwt().refreshTtl()));
+        refreshToken.setDeviceInfo(truncate(deviceInfo));
+        refreshToken.setCreatedAt(createdAt == null ? now : createdAt);
+        refreshToken.setLastUsedAt(now);
+        refreshToken.setExpiresAt(now.plus(properties.jwt().refreshTtl()));
         refreshTokens.save(refreshToken);
 
         return new AuthResponse(accessToken, rawRefreshToken, "Bearer", jwtService.expiresInSeconds(), AuthMapper.toSummary(user));
+    }
+
+    private String truncate(String deviceInfo) {
+        if (deviceInfo == null || deviceInfo.isBlank()) {
+            return null;
+        }
+        String trimmed = deviceInfo.strip();
+        return trimmed.length() > MAX_DEVICE_INFO ? trimmed.substring(0, MAX_DEVICE_INFO) : trimmed;
     }
 
     private void applyProfile(Profile profile, RegisterRequest request) {

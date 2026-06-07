@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -38,6 +39,7 @@ class UserControllerTest {
     @Autowired MockMvc mockMvc;
 
     @MockBean UserService userService;
+    @MockBean SessionService sessionService;
     @MockBean CurrentUser currentUser;
 
     AppUser stubUser() {
@@ -111,6 +113,63 @@ class UserControllerTest {
         mockMvc.perform(put("/api/v1/me/profile").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.details[*].field").value(org.hamcrest.Matchers.hasItem("weightKg")));
+    }
+
+    @Test
+    void sessions_returnsList_andForwardsCurrentRefreshTokenHeader() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        when(sessionService.list(any(), eq("raw-token"))).thenReturn(
+                new SessionDtos.SessionListResponse(List.of(new SessionDtos.SessionResponse(
+                        5L, "Chrome · macOS", Instant.parse("2026-06-01T00:00:00Z"),
+                        Instant.parse("2026-06-07T00:00:00Z"), Instant.parse("2026-07-01T00:00:00Z"), true))));
+
+        mockMvc.perform(get("/api/v1/me/sessions").header("X-Refresh-Token", "raw-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sessions[0].id").value(5))
+                .andExpect(jsonPath("$.sessions[0].device").value("Chrome · macOS"))
+                .andExpect(jsonPath("$.sessions[0].current").value(true));
+    }
+
+    @Test
+    void sessions_worksWithoutCurrentTokenHeader() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        when(sessionService.list(any(), eq((String) null)))
+                .thenReturn(new SessionDtos.SessionListResponse(List.of()));
+
+        mockMvc.perform(get("/api/v1/me/sessions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sessions").isArray());
+    }
+
+    @Test
+    void revokeSession_returns204_andDelegates() throws Exception {
+        AppUser user = stubUser();
+        when(currentUser.require()).thenReturn(user);
+
+        mockMvc.perform(delete("/api/v1/me/sessions/9"))
+                .andExpect(status().isNoContent());
+
+        verify(sessionService).revoke(eq(user), eq(9L));
+    }
+
+    @Test
+    void revokeOthers_returns200_withRefreshedList() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        when(sessionService.revokeOthers(any(), eq("raw-token")))
+                .thenReturn(new SessionDtos.SessionListResponse(List.of()));
+
+        mockMvc.perform(post("/api/v1/me/sessions/revoke-others")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"refreshToken\":\"raw-token\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sessions").isArray());
+    }
+
+    @Test
+    void revokeOthers_returns400_whenRefreshTokenBlank() throws Exception {
+        mockMvc.perform(post("/api/v1/me/sessions/revoke-others")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"refreshToken\":\"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"));
     }
 
     @Test
