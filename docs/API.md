@@ -462,6 +462,42 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 
 ---
 
+### 6.7 訓練量分析
+
+`GET /workouts/volume?weeks=4`
+
+統計最近 N 週「已完成」的訓練：總次數、總組數、總消耗、活躍天數、平均每週次數，以及各部位頻率與每週趨勢。唯讀，從 `WorkoutPlan` 即時計算。
+
+| 參數 | 必填 | 說明 |
+|---|---|---|
+| `weeks` | ✗ | 往前統計的週數（1–12，超出範圍自動夾住），預設 4 |
+
+範圍為「本週週一往前推 `weeks-1` 週」至今天；`series` 一定包含連續 `weeks` 個以週一對齊的桶（沒有訓練的週填 0），方便畫趨勢圖。各部位（`byCategory`）依次數由多到少排序。
+
+**Response 200**
+```json
+{
+  "from": "2026-05-18",
+  "to": "2026-06-07",
+  "weeks": 4,
+  "totalSessions": 9,
+  "totalSets": 96,
+  "totalKcal": 1820,
+  "activeDays": 7,
+  "avgSessionsPerWeek": 2.3,
+  "byCategory": [
+    { "category": "legs", "sessions": 4, "sets": 48, "kcal": 900 }
+  ],
+  "series": [
+    { "weekStart": "2026-05-18", "sessions": 2, "sets": 22, "kcal": 420 }
+  ]
+}
+```
+
+> `kcal` 取每筆已完成訓練的實際消耗（`burnedKcal`，舊資料回退 `totalKcal`）；`activeDays` 為有完成訓練的不重複天數。
+
+---
+
 ## 6b. Workout Schedules（週期課表規劃）
 
 讓 AI 依使用者目標排出「一週訓練分配（split）」：7 天每天為休息或某個分類，這個一週模板可重複數週（最多 4 週，約一個月）。模板本身不含詳細動作；要訓練時把某一天「套用」到一個實際日期，會走 6.1 的 AI 產生流程生出當天的詳細菜單。

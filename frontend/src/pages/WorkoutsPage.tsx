@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AiGenerationPanel } from "@/components/AiGenerationPanel";
 import { WorkoutSchedulePanel } from "@/components/WorkoutSchedulePanel";
+import { WorkoutVolumeCard } from "@/components/WorkoutVolumeCard";
 import { WorkoutPlayer, workSeconds } from "@/components/WorkoutPlayer";
 import { useCancelWorkoutSelection, useCompleteWorkout, useGenerateWorkout, useWorkouts } from "@/hooks/useWorkouts";
 import { ApiError } from "@/api/client";
@@ -342,6 +343,9 @@ export function WorkoutsPage() {
           </Card>
         ) : null}
       </div>
+
+      {/* Training volume analytics */}
+      <WorkoutVolumeCard />
 
       {manageMode && selectedItemCount + selectedPlanCount > 0 && (
         <div className="fixed inset-x-0 bottom-24 md:bottom-6 z-50 flex justify-center px-4">

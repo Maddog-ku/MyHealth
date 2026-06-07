@@ -91,6 +91,34 @@ export interface WorkoutSchedule {
   createdAt: string;
 }
 
+export interface CategoryVolume {
+  category: string;
+  sessions: number;
+  sets: number;
+  kcal: number;
+}
+
+export interface WeekVolume {
+  /** Monday of the bucketed week. */
+  weekStart: string;
+  sessions: number;
+  sets: number;
+  kcal: number;
+}
+
+export interface WorkoutVolume {
+  from: string;
+  to: string;
+  weeks: number;
+  totalSessions: number;
+  totalSets: number;
+  totalKcal: number;
+  activeDays: number;
+  avgSessionsPerWeek: number;
+  byCategory: CategoryVolume[];
+  series: WeekVolume[];
+}
+
 export interface FoodItem {
   name: string;
   grams: number;

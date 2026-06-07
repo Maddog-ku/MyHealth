@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
-import type { AuthResponse, CalorieBudget, ChatMessage, DailyHabits, DailyStats, FavoriteMeal, FoodItem, HabitType, Meal, NotificationFeed, PageEnvelope, Profile, RecentMeal, SearchResponse, StreakSummary, User, WeeklyReport, WeightGoalResponse, WorkoutPlan, WorkoutSchedule } from "@/types/api";
+import type { AuthResponse, CalorieBudget, ChatMessage, DailyHabits, DailyStats, FavoriteMeal, FoodItem, HabitType, Meal, NotificationFeed, PageEnvelope, Profile, RecentMeal, SearchResponse, StreakSummary, User, WeeklyReport, WeightGoalResponse, WorkoutPlan, WorkoutSchedule, WorkoutVolume } from "@/types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -148,6 +148,9 @@ export const api = {
   applyScheduleDay: (id: number, body: { date: string; weekday: number }) =>
     http.post<WorkoutPlan>(`/workout-schedules/${id}/apply`, body).then((r) => r.data),
   deleteWorkoutSchedule: (id: number) => http.delete<void>(`/workout-schedules/${id}`).then(() => undefined),
+
+  workoutVolume: (weeks?: number) =>
+    http.get<WorkoutVolume>("/workouts/volume", { params: weeks ? { weeks } : undefined }).then((r) => r.data),
 
   meals: (date: string) => http.get<PageEnvelope<Meal>>(`/meals`, { params: { date } }).then((r) => r.data),
   recentMeals: (beforeDate: string, limit = 5) =>

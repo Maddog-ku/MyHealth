@@ -8,6 +8,7 @@ import com.myhealth.workout.WorkoutDtos.CompleteWorkoutRequest;
 import com.myhealth.workout.WorkoutDtos.GenerateWorkoutRequest;
 import com.myhealth.workout.WorkoutDtos.RemoveItemsRequest;
 import com.myhealth.workout.WorkoutDtos.WorkoutPlanResponse;
+import com.myhealth.workout.WorkoutVolumeDtos.VolumeResponse;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -27,11 +28,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class WorkoutController {
     private final CurrentUser currentUser;
     private final WorkoutService workoutService;
+    private final WorkoutVolumeService volumeService;
     private final AiEndpointRateLimiter rateLimiter;
 
-    public WorkoutController(CurrentUser currentUser, WorkoutService workoutService, AiEndpointRateLimiter rateLimiter) {
+    public WorkoutController(CurrentUser currentUser, WorkoutService workoutService,
+                            WorkoutVolumeService volumeService, AiEndpointRateLimiter rateLimiter) {
         this.currentUser = currentUser;
         this.workoutService = workoutService;
+        this.volumeService = volumeService;
         this.rateLimiter = rateLimiter;
     }
 
@@ -46,6 +50,11 @@ public class WorkoutController {
     PageEnvelope<WorkoutPlanResponse> list(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return PageEnvelope.unpaged(workoutService.list(currentUser.require(), date));
+    }
+
+    @GetMapping("/volume")
+    VolumeResponse volume(@RequestParam(required = false) Integer weeks) {
+        return volumeService.volume(currentUser.require(), weeks);
     }
 
     @GetMapping("/{id}")
