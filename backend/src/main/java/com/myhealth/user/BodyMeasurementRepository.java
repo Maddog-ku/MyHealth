@@ -12,6 +12,8 @@ public interface BodyMeasurementRepository extends JpaRepository<BodyMeasurement
 
     Optional<BodyMeasurement> findFirstByUserIdAndMeasuredAtLessThanEqualOrderByMeasuredAtDesc(Long userId, Instant measuredAt);
 
+    List<BodyMeasurement> findByUserIdOrderByMeasuredAtAsc(Long userId);
+
     long countByUserId(Long userId);
 
     /** Just the timestamps in range, for streak computation (no need to hydrate full rows). */

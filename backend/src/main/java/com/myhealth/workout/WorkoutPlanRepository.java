@@ -15,6 +15,8 @@ public interface WorkoutPlanRepository extends JpaRepository<WorkoutPlan, Long> 
 
     Optional<WorkoutPlan> findByIdAndUserId(Long id, Long userId);
 
+    List<WorkoutPlan> findByUserIdOrderByDateAscCreatedAtAsc(Long userId);
+
     int countByUserIdAndDate(Long userId, LocalDate date);
 
     long countByUserIdAndDoneTrue(Long userId);

@@ -11,6 +11,7 @@ import { useTheme, type ThemeMode } from "@/hooks/useTheme";
 import { useFontScale, type FontScale } from "@/hooks/useFontScale";
 import { ChangePasswordCard } from "@/components/ChangePasswordCard";
 import { SessionsCard } from "@/components/SessionsCard";
+import { DataExportCard } from "@/components/DataExportCard";
 
 const AVATAR_OPTIONS = [
   { value: "male" as const, label: "活力男孩", desc: "陽光開朗的健身夥伴", src: "/assistant/coach-male.png" },
@@ -184,6 +185,9 @@ export function SettingsPage() {
 
       {/* Active login sessions / device management */}
       <SessionsCard />
+
+      {/* Export my data */}
+      <DataExportCard />
 
       {/* Danger Zone — account deletion */}
       <Card className="border border-rose-500/20 dark:border-rose-500/15 bg-rose-500/[0.03] dark:bg-rose-950/10 rounded-3xl overflow-hidden">

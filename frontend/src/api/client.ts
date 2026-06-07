@@ -112,6 +112,7 @@ export const api = {
   me: () => http.get<User>("/me").then((r) => r.data),
   updateProfile: (profile: Profile) => http.put<Profile>("/me/profile", profile).then((r) => r.data),
   deleteAccount: () => http.delete<void>("/me").then(() => undefined),
+  exportData: () => http.get<Record<string, unknown>>("/me/export").then((r) => r.data),
 
   // The current refresh token identifies "this device" so the backend can flag it and
   // exclude it from "log out other devices" — sent as a header here, body for revoke-others.

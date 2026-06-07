@@ -377,6 +377,28 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 
 ---
 
+### 5.4b 匯出我的資料
+
+`GET /me/export`
+
+回傳目前使用者的**完整資料快照** JSON（個人檔案、體重量測、運動、餐點、體重目標、常用餐點、習慣紀錄）。運動／餐點的 items 以巢狀 JSON 嵌入（非字串）。回應帶 `Content-Disposition: attachment; filename="myhealth-export-<日期>.json"`，前端用帶 JWT 的請求取得後在瀏覽器端產生下載，資料全程不離開裝置。涵蓋範圍與 `DELETE /me` 會清除的資料一致。
+
+**Response 200**
+```json
+{
+  "exportedAt": "2026-06-07T08:00:00Z",
+  "account": { "id": 1, "email": "...", "name": "...", "profile": { } },
+  "bodyMeasurements": [ ],
+  "workouts": [ { "date": "2026-06-01", "category": "legs", "items": [ ], "totalKcal": 200 } ],
+  "meals": [ ],
+  "weightGoal": null,
+  "favoriteMeals": [ ],
+  "habits": [ ]
+}
+```
+
+---
+
 ### 5.5 登入裝置（工作階段）管理
 
 每一個未撤銷、未過期的 refresh token 代表一個登入中的裝置。Token 輪替（refresh）時，原本的登入時間與裝置資訊會帶到新 token，所以同一裝置在清單上維持一筆穩定的工作階段。

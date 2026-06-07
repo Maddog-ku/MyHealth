@@ -15,6 +15,8 @@ public interface MealRepository extends JpaRepository<Meal, Long> {
 
     Optional<Meal> findByIdAndUserId(Long id, Long userId);
 
+    List<Meal> findByUserIdOrderByDateAscCreatedAtAsc(Long userId);
+
     long countByUserId(Long userId);
 
     boolean existsByUserIdAndDate(Long userId, LocalDate date);

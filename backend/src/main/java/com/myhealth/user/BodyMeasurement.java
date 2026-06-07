@@ -74,6 +74,14 @@ public class BodyMeasurement {
         return bodyWaterPct;
     }
 
+    public Integer getBmrKcal() {
+        return bmrKcal;
+    }
+
+    public String getNote() {
+        return note;
+    }
+
     public void setUser(AppUser user) {
         this.user = user;
     }
