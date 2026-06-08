@@ -6,6 +6,7 @@ import com.myhealth.notification.NotificationDtos.NotificationItem;
 import com.myhealth.streak.Achievement;
 import com.myhealth.streak.AchievementCatalog;
 import com.myhealth.streak.AchievementRepository;
+import com.myhealth.stats.StatsService;
 import com.myhealth.streak.StreakDtos.StreakInfo;
 import com.myhealth.streak.StreakService;
 import com.myhealth.user.AppUser;
@@ -39,22 +40,27 @@ public class NotificationService {
     private static final int STREAK_RISK_MIN = 2;
     /** Remind to weigh in after this many days without a measurement. */
     private static final int WEIGHT_REMINDER_DAYS = 7;
+    /** Nudge about protein once the day's attainment falls below this percent of target. */
+    private static final int PROTEIN_LOW_PCT = 40;
 
     private final AchievementRepository achievements;
     private final StreakService streakService;
     private final MealRepository meals;
     private final BodyMeasurementRepository bodyMeasurements;
+    private final StatsService stats;
     private final NotificationReadRepository reads;
     private final TransactionTemplate transactionTemplate;
     private final ZoneId zoneId = ZoneId.systemDefault();
 
     public NotificationService(AchievementRepository achievements, StreakService streakService,
                                MealRepository meals, BodyMeasurementRepository bodyMeasurements,
-                               NotificationReadRepository reads, TransactionTemplate transactionTemplate) {
+                               StatsService stats, NotificationReadRepository reads,
+                               TransactionTemplate transactionTemplate) {
         this.achievements = achievements;
         this.streakService = streakService;
         this.meals = meals;
         this.bodyMeasurements = bodyMeasurements;
+        this.stats = stats;
         this.reads = reads;
         this.transactionTemplate = transactionTemplate;
     }
@@ -122,6 +128,8 @@ public class NotificationService {
             items.add(new NotificationItem("meal:" + today, "MEAL_REMINDER",
                     "今天還沒記錄飲食", "別忘了把今天吃的記下來，讓 AI 幫你分析營養。",
                     "🍽️", "warning", startOfToday, "/meals", readToday));
+        } else {
+            addProteinReminder(user, items, today, startOfToday, readToday);
         }
 
         StreakInfo overall = streakService.overallStreak(user);
@@ -142,6 +150,26 @@ public class NotificationService {
                         "該量體重了", "距離上次紀錄已 " + days + " 天，量一下追蹤趨勢吧。",
                         "⚖️", "info", startOfToday, "/", readToday));
             }
+        }
+    }
+
+    /**
+     * Once the day has meals logged, nudge if protein attainment is well below target. Reuses
+     * the same calorie-budget macros the dashboard shows. Best-effort: a stats failure must not
+     * break the feed.
+     */
+    private void addProteinReminder(AppUser user, List<NotificationItem> items, LocalDate today,
+                                    Instant startOfToday, boolean readToday) {
+        try {
+            stats.budget(user, today).macros().stream()
+                    .filter(macro -> "protein".equals(macro.name()))
+                    .findFirst()
+                    .filter(protein -> protein.targetG() > 0 && protein.pct() < PROTEIN_LOW_PCT)
+                    .ifPresent(protein -> items.add(new NotificationItem("protein:" + today, "PROTEIN_REMINDER",
+                            "今日蛋白質偏低", "蛋白質約達成 " + protein.pct() + "%，下一餐多補一份高蛋白食物。",
+                            "🥩", "info", startOfToday, "/meals", readToday)));
+        } catch (RuntimeException ex) {
+            // best-effort: stats are nice-to-have context for the feed
         }
     }
 

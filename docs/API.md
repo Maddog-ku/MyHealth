@@ -1387,6 +1387,7 @@ Health Plan 是 Dashboard 的聚合層，整合今日熱量預算、體重目標
 | --- | --- | --- |
 | `ACHIEVEMENT` | 已解鎖的徽章(最近 15 筆) | success |
 | `MEAL_REMINDER` | 今天還沒記任何餐點 | warning |
+| `PROTEIN_REMINDER` | 今天已記錄餐點，但蛋白質達標率 < 40% | info |
 | `STREAK_RISK` | 連續紀錄 ≥ 2 天且今天還沒任何活動 | warning |
 | `WEIGHT_REMINDER` | 距上次量體重 ≥ 7 天 | info |
 

@@ -12,6 +12,9 @@ import static org.mockito.Mockito.when;
 import com.myhealth.meal.MealRepository;
 import com.myhealth.notification.NotificationDtos.NotificationFeed;
 import com.myhealth.notification.NotificationDtos.NotificationItem;
+import com.myhealth.stats.StatsDtos.CalorieBudgetResponse;
+import com.myhealth.stats.StatsDtos.MacroBudget;
+import com.myhealth.stats.StatsService;
 import com.myhealth.streak.Achievement;
 import com.myhealth.streak.AchievementRepository;
 import com.myhealth.streak.StreakDtos.StreakInfo;
@@ -45,6 +48,7 @@ class NotificationServiceTest {
     @Mock StreakService streakService;
     @Mock MealRepository meals;
     @Mock BodyMeasurementRepository bodyMeasurements;
+    @Mock StatsService stats;
     @Mock NotificationReadRepository reads;
 
     TransactionTemplate transactionTemplate;
@@ -57,7 +61,7 @@ class NotificationServiceTest {
     void setUp() {
         transactionTemplate = mock(TransactionTemplate.class);
         service = new NotificationService(achievements, streakService, meals, bodyMeasurements,
-                reads, transactionTemplate);
+                stats, reads, transactionTemplate);
         user = new AppUser();
         user.setEmail("a@b.c");
         user.setRole(Role.USER);
@@ -70,6 +74,14 @@ class NotificationServiceTest {
         lenient().when(streakService.overallStreak(user)).thenReturn(new StreakInfo(5, 5, TODAY));
         lenient().when(bodyMeasurements.findFirstByUserIdAndMeasuredAtLessThanEqualOrderByMeasuredAtDesc(eq(1L), any()))
                 .thenReturn(Optional.of(measurement(TODAY)));
+        // Healthy protein attainment by default → no protein nudge.
+        lenient().when(stats.budget(eq(user), any())).thenReturn(budget(80));
+    }
+
+    /** Calorie budget whose only relevant field here is the protein attainment percent. */
+    private CalorieBudgetResponse budget(int proteinPct) {
+        return new CalorieBudgetResponse(TODAY, 1700, 1200, 0, 1700, 500, 70, false,
+                List.of(new MacroBudget("protein", 120, 120 * proteinPct / 100, proteinPct)));
     }
 
     private NotificationItem byType(List<NotificationItem> items, String type) {
@@ -100,6 +112,31 @@ class NotificationServiceTest {
         assertThat(byType(feed.items(), "ACHIEVEMENT").title()).contains("一週不間斷");
         assertThat(byType(feed.items(), "STREAK_RISK").body()).contains("4 天");
         assertThat(byType(feed.items(), "WEIGHT_REMINDER").body()).contains("10 天");
+    }
+
+    @Test
+    void getFeed_addsProteinReminder_whenLoggedButProteinLow() {
+        // Meals logged today (default), but protein attainment 25% < 40% threshold.
+        when(stats.budget(eq(user), eq(TODAY))).thenReturn(budget(25));
+
+        NotificationFeed feed = service.getFeed(user);
+
+        NotificationItem protein = byType(feed.items(), "PROTEIN_REMINDER");
+        assertThat(protein).isNotNull();
+        assertThat(protein.body()).contains("25%");
+        // The "no meals" reminder must not also fire when a meal exists.
+        assertThat(byType(feed.items(), "MEAL_REMINDER")).isNull();
+    }
+
+    @Test
+    void getFeed_noProteinReminder_whenNoMealLoggedToday() {
+        // No meal today → meal reminder fires, protein nudge is skipped (nothing to assess yet).
+        when(meals.existsByUserIdAndDate(eq(1L), eq(TODAY))).thenReturn(false);
+
+        NotificationFeed feed = service.getFeed(user);
+
+        assertThat(byType(feed.items(), "PROTEIN_REMINDER")).isNull();
+        assertThat(byType(feed.items(), "MEAL_REMINDER")).isNotNull();
     }
 
     @Test
