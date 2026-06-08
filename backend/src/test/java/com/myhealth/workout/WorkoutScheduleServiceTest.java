@@ -84,7 +84,7 @@ class WorkoutScheduleServiceTest {
 
     @Test
     void generate_snapsStartDateToMonday_passesGoalLabel_andPersistsPattern() {
-        when(aiProvider.planWorkoutSchedule(eq("增肌"), eq(3), eq("medium"))).thenReturn(threeDaySplit());
+        when(aiProvider.planWorkoutSchedule(eq("增肌"), eq(3), eq("medium"), any())).thenReturn(threeDaySplit());
         // 2026-06-03 is a Wednesday → schedule should start on Monday 2026-06-01.
         GeneratePlanRequest req = new GeneratePlanRequest(LocalDate.of(2026, 6, 3), 3, 2, WorkoutIntensity.medium);
 
@@ -106,13 +106,13 @@ class WorkoutScheduleServiceTest {
 
     @Test
     void generate_defaultsIntensityToMedium_whenNull() {
-        when(aiProvider.planWorkoutSchedule(any(), eq(3), eq("medium"))).thenReturn(threeDaySplit());
+        when(aiProvider.planWorkoutSchedule(any(), eq(3), eq("medium"), any())).thenReturn(threeDaySplit());
         GeneratePlanRequest req = new GeneratePlanRequest(LocalDate.of(2026, 6, 1), 3, 1, null);
 
         WorkoutScheduleResponse res = service.generate(user, req);
 
         assertThat(res.intensity()).isEqualTo("medium");
-        verify(aiProvider).planWorkoutSchedule(any(), eq(3), eq("medium"));
+        verify(aiProvider).planWorkoutSchedule(any(), eq(3), eq("medium"), any());
     }
 
     @Test

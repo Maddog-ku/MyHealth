@@ -442,13 +442,18 @@ class LocalAiProviderTest {
                 """;
         when(ollama.chat(eq("gemma4:e4b"), any(), any(), eq(true), any())).thenReturn(json);
 
-        List<AiProvider.ScheduleDay> days = provider.planWorkoutSchedule("增肌", 3, "medium");
+        List<AiProvider.ScheduleDay> days = provider.planWorkoutSchedule("增肌", 3, "medium", "中階");
 
         assertThat(days).hasSize(7);
         assertThat(days).extracting(AiProvider.ScheduleDay::weekday).containsExactly(1, 2, 3, 4, 5, 6, 7);
         assertThat(days.stream().filter(d -> !d.rest()).count()).isEqualTo(3);
         assertThat(days.get(0).category()).isEqualTo("legs");
         assertThat(provider.loaded()).isFalse();  // released after call by design
+
+        // The training experience is fed into the model prompt so the split fits the user's level.
+        ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
+        verify(ollama).chat(eq("gemma4:e4b"), any(), userCaptor.capture(), eq(true), any());
+        assertThat(userCaptor.getValue()).contains("experience: 中階");
     }
 
     @Test
@@ -468,7 +473,7 @@ class LocalAiProviderTest {
         when(ollama.chat(any(), any(), any(), eq(true), any())).thenReturn(json);
 
         // daysPerWeek=1: after dropping the bogus category to rest there is exactly 1 training day.
-        List<AiProvider.ScheduleDay> days = provider.planWorkoutSchedule("維持", 1, "medium");
+        List<AiProvider.ScheduleDay> days = provider.planWorkoutSchedule("維持", 1, "medium", "初學者");
 
         assertThat(days.get(0).durationMin()).isEqualTo(90);  // clamped from 500
         assertThat(days.get(2).rest()).isTrue();              // unknown category → rest
@@ -490,7 +495,7 @@ class LocalAiProviderTest {
                 ]}
                 """);
 
-        List<AiProvider.ScheduleDay> days = provider.planWorkoutSchedule("維持", 4, "medium");
+        List<AiProvider.ScheduleDay> days = provider.planWorkoutSchedule("維持", 4, "medium", "進階");
 
         assertThat(days).hasSize(7);
         assertThat(days.stream().filter(d -> !d.rest()).count()).isEqualTo(4);  // fallback honours daysPerWeek
@@ -501,7 +506,7 @@ class LocalAiProviderTest {
         when(ollama.chat(any(), any(), any(), anyBoolean(), any()))
                 .thenThrow(new OllamaClient.OllamaException("down"));
 
-        List<AiProvider.ScheduleDay> days = provider.planWorkoutSchedule("增肌", 3, "medium");
+        List<AiProvider.ScheduleDay> days = provider.planWorkoutSchedule("增肌", 3, "medium", "中階");
 
         assertThat(days).hasSize(7);
         assertThat(days.stream().filter(d -> !d.rest()).count()).isEqualTo(3);

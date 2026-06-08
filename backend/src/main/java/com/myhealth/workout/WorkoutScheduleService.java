@@ -53,8 +53,9 @@ public class WorkoutScheduleService {
         int daysPerWeek = request.daysPerWeek();
         WorkoutIntensity intensity = request.intensity() == null ? WorkoutIntensity.medium : request.intensity();
         String goal = goalLabel(user.getProfile());
+        String experience = experienceLabel(user.getProfile());
 
-        List<ScheduleDay> days = aiProvider.planWorkoutSchedule(goal, daysPerWeek, intensity.name());
+        List<ScheduleDay> days = aiProvider.planWorkoutSchedule(goal, daysPerWeek, intensity.name(), experience);
 
         return transactionTemplate.execute(status -> {
             WorkoutSchedule schedule = new WorkoutSchedule();
@@ -155,6 +156,17 @@ public class WorkoutScheduleService {
             case fat_loss -> "減脂";
             case muscle_gain -> "增肌";
             case maintain -> "維持";
+        };
+    }
+
+    private String experienceLabel(Profile profile) {
+        if (profile == null || profile.getExperience() == null) {
+            return "未提供";
+        }
+        return switch (profile.getExperience()) {
+            case beginner -> "初學者";
+            case intermediate -> "中階";
+            case advanced -> "進階";
         };
     }
 }

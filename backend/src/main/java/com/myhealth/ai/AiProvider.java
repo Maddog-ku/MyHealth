@@ -45,12 +45,13 @@ public interface AiProvider {
 
     /**
      * Plan a one-week training split for the given {@code goal} label, number of training
-     * days ({@code daysPerWeek}) and {@code intensity}. Returns exactly 7 {@link ScheduleDay}
-     * entries (Monday..Sunday), of which {@code daysPerWeek} are training days and the rest
-     * are recovery days. Implementations fall back to a deterministic template split when the
-     * model is unavailable or returns something unusable.
+     * days ({@code daysPerWeek}), {@code intensity} and the user's training {@code experience}
+     * label (so the split matches a beginner vs. an advanced lifter). Returns exactly 7
+     * {@link ScheduleDay} entries (Monday..Sunday), of which {@code daysPerWeek} are training
+     * days and the rest are recovery days. Implementations fall back to a deterministic
+     * template split when the model is unavailable or returns something unusable.
      */
-    List<ScheduleDay> planWorkoutSchedule(String goal, int daysPerWeek, String intensity);
+    List<ScheduleDay> planWorkoutSchedule(String goal, int daysPerWeek, String intensity, String experience);
 
     record ScheduleDay(
             @Min(1) @Max(7) int weekday,

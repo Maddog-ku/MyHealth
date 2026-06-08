@@ -353,9 +353,10 @@ public class LocalAiProvider implements AiProvider {
             """;
 
     @Override
-    public List<ScheduleDay> planWorkoutSchedule(String goal, int daysPerWeek, String intensity) {
+    public List<ScheduleDay> planWorkoutSchedule(String goal, int daysPerWeek, String intensity, String experience) {
         markUsed();
-        String user = "goal: %s%ndaysPerWeek: %d%nintensity: %s".formatted(goal, daysPerWeek, intensity);
+        String user = "goal: %s%ndaysPerWeek: %d%nintensity: %s%nexperience: %s"
+                .formatted(goal, daysPerWeek, intensity, experience == null || experience.isBlank() ? "未提供" : experience);
         try {
             String raw = ollama.chat(properties.ai().textModel(), SCHEDULE_SYSTEM, user, true, Duration.ofSeconds(45));
             List<ScheduleDay> parsed = parseScheduleDays(raw);
