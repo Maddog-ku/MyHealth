@@ -14,7 +14,8 @@ public final class HabitDtos {
             String title,
             String description,
             boolean completed,
-            Instant completedAt
+            Instant completedAt,
+            int streak
     ) {
     }
 

@@ -1158,18 +1158,22 @@ Health Plan 是 Dashboard 的聚合層，整合今日熱量預算、體重目標
       "title": "喝水",
       "description": "今天至少補足 6 杯水",
       "completed": true,
-      "completedAt": "2026-06-06T02:14:12Z"
+      "completedAt": "2026-06-06T02:14:12Z",
+      "streak": 3
     },
     {
       "type": "STRETCH",
       "title": "伸展",
       "description": "完成 5 分鐘伸展或活動度練習",
       "completed": false,
-      "completedAt": null
+      "completedAt": null,
+      "streak": 0
     }
   ]
 }
 ```
+
+`streak` 為該習慣**連續達成天數**（截至查詢日）：當日尚未完成時給寬限日，從前一天起算，連續紀錄不會因今天還沒打勾就歸零。
 
 ### 9.2 切換習慣完成狀態
 

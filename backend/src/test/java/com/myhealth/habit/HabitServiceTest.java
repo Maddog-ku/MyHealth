@@ -2,6 +2,7 @@ package com.myhealth.habit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,7 +37,7 @@ class HabitServiceTest {
     @Test
     void daily_returnsBuiltInHabitsWithCompletedStatus() {
         HabitLog water = log(HabitType.WATER, LocalDate.of(2026, 6, 6));
-        when(logs.findByUserIdAndDate(1L, LocalDate.of(2026, 6, 6))).thenReturn(List.of(water));
+        when(logs.findByUserIdAndDateBetween(eq(1L), any(), eq(LocalDate.of(2026, 6, 6)))).thenReturn(List.of(water));
 
         var response = service.daily(user, LocalDate.of(2026, 6, 6));
 
@@ -49,11 +50,49 @@ class HabitServiceTest {
     }
 
     @Test
+    void daily_computesPerHabitStreak_endingOnTargetDate() {
+        LocalDate today = LocalDate.of(2026, 6, 6);
+        // WATER done 3 consecutive days ending today; STRETCH done today only after a gap.
+        when(logs.findByUserIdAndDateBetween(eq(1L), any(), eq(today))).thenReturn(List.of(
+                log(HabitType.WATER, today),
+                log(HabitType.WATER, today.minusDays(1)),
+                log(HabitType.WATER, today.minusDays(2)),
+                log(HabitType.STRETCH, today),
+                log(HabitType.STRETCH, today.minusDays(3))));  // gap on day-1/2 → streak resets
+
+        var response = service.daily(user, today);
+
+        assertThat(streakOf(response, HabitType.WATER)).isEqualTo(3);
+        assertThat(streakOf(response, HabitType.STRETCH)).isEqualTo(1);
+        assertThat(streakOf(response, HabitType.PROTEIN)).isZero();  // never done
+    }
+
+    @Test
+    void daily_streakGetsGraceDay_whenTodayNotYetDone() {
+        LocalDate today = LocalDate.of(2026, 6, 6);
+        // Done yesterday and the day before, nothing today yet → still a live 2-day streak.
+        when(logs.findByUserIdAndDateBetween(eq(1L), any(), eq(today))).thenReturn(List.of(
+                log(HabitType.SLEEP, today.minusDays(1)),
+                log(HabitType.SLEEP, today.minusDays(2))));
+
+        var response = service.daily(user, today);
+
+        assertThat(streakOf(response, HabitType.SLEEP)).isEqualTo(2);
+        assertThat(response.items().stream().filter(i -> i.type() == HabitType.SLEEP).findFirst().orElseThrow().completed())
+                .isFalse();
+    }
+
+    private int streakOf(com.myhealth.habit.HabitDtos.DailyHabitsResponse response, HabitType type) {
+        return response.items().stream().filter(i -> i.type() == type).findFirst().orElseThrow().streak();
+    }
+
+    @Test
     void toggle_completed_createsLog_whenMissing() {
         when(logs.findByUserIdAndDateAndType(1L, LocalDate.of(2026, 6, 6), HabitType.STRETCH))
                 .thenReturn(Optional.empty());
         when(logs.save(any(HabitLog.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(logs.findByUserIdAndDate(1L, LocalDate.of(2026, 6, 6))).thenReturn(List.of(log(HabitType.STRETCH, LocalDate.of(2026, 6, 6))));
+        when(logs.findByUserIdAndDateBetween(eq(1L), any(), eq(LocalDate.of(2026, 6, 6))))
+                .thenReturn(List.of(log(HabitType.STRETCH, LocalDate.of(2026, 6, 6))));
 
         var response = service.toggle(user, HabitType.STRETCH,
                 new ToggleHabitRequest(LocalDate.of(2026, 6, 6), true));
@@ -72,7 +111,7 @@ class HabitServiceTest {
         HabitLog existing = log(HabitType.WATER, LocalDate.of(2026, 6, 6));
         when(logs.findByUserIdAndDateAndType(1L, LocalDate.of(2026, 6, 6), HabitType.WATER))
                 .thenReturn(Optional.of(existing));
-        when(logs.findByUserIdAndDate(1L, LocalDate.of(2026, 6, 6))).thenReturn(List.of(existing));
+        when(logs.findByUserIdAndDateBetween(eq(1L), any(), eq(LocalDate.of(2026, 6, 6)))).thenReturn(List.of(existing));
 
         service.toggle(user, HabitType.WATER, new ToggleHabitRequest(LocalDate.of(2026, 6, 6), true));
 
@@ -84,7 +123,7 @@ class HabitServiceTest {
         HabitLog existing = log(HabitType.PROTEIN, LocalDate.of(2026, 6, 6));
         when(logs.findByUserIdAndDateAndType(1L, LocalDate.of(2026, 6, 6), HabitType.PROTEIN))
                 .thenReturn(Optional.of(existing));
-        when(logs.findByUserIdAndDate(1L, LocalDate.of(2026, 6, 6))).thenReturn(List.of());
+        when(logs.findByUserIdAndDateBetween(eq(1L), any(), eq(LocalDate.of(2026, 6, 6)))).thenReturn(List.of());
 
         var response = service.toggle(user, HabitType.PROTEIN,
                 new ToggleHabitRequest(LocalDate.of(2026, 6, 6), false));

@@ -82,8 +82,8 @@ class HabitControllerTest {
     private DailyHabitsResponse stubResponse() {
         return new DailyHabitsResponse(LocalDate.of(2026, 6, 6), 1, 4, List.of(
                 new HabitItemResponse(HabitType.WATER, "喝水", "今天至少補足 6 杯水", true,
-                        java.time.Instant.parse("2026-06-06T00:00:00Z")),
-                new HabitItemResponse(HabitType.STRETCH, "伸展", "完成 5 分鐘伸展或活動度練習", false, null)
+                        java.time.Instant.parse("2026-06-06T00:00:00Z"), 3),
+                new HabitItemResponse(HabitType.STRETCH, "伸展", "完成 5 分鐘伸展或活動度練習", false, null, 0)
         ));
     }
 

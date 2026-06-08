@@ -449,6 +449,8 @@ export interface HabitItem {
   description: string;
   completed: boolean;
   completedAt: string | null;
+  /** Consecutive days this habit has been completed, ending today (grace day if not yet done). */
+  streak: number;
 }
 
 export interface DailyHabits {
