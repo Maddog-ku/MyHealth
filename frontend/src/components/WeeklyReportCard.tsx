@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, FileText, RefreshCw, Sparkles, Wand2 } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, FileText, Info, RefreshCw, Sparkles, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,6 +30,8 @@ export function WeeklyReportCard() {
   const generating = generate.isPending;
 
   const summary = report.data?.summary;
+  const adherence = report.data?.adherence;
+  const trends = report.data?.trends ?? [];
   const narrative = report.data?.narrative ?? null;
 
   const weekLabel = weekOffset === 0 ? "本週" : weekOffset === -1 ? "上週" : `${-weekOffset} 週前`;
@@ -88,6 +90,51 @@ export function WeeklyReportCard() {
               />
             </div>
 
+            {/* Goal-attainment rates */}
+            {adherence && (
+              <div className="grid grid-cols-2 gap-2.5">
+                <AdherenceBar label="熱量控制" pct={adherence.caloriePct} />
+                <AdherenceBar label="蛋白質" pct={adherence.proteinPct} />
+                <AdherenceBar
+                  label="訓練次數"
+                  pct={adherence.workoutPct}
+                  hint={adherence.workoutTarget == null ? "未設目標" : `目標 ${adherence.workoutTarget} 次/週`}
+                  muted={adherence.workoutTarget == null}
+                />
+                <AdherenceBar
+                  label="記錄天數"
+                  pct={adherence.loggingPct}
+                  hint={`${adherence.daysLogged}/${adherence.daysCovered} 天`}
+                />
+              </div>
+            )}
+
+            {/* Detected trends */}
+            {trends.length > 0 && (
+              <div className="space-y-1.5">
+                {trends.map((t) => (
+                  <div
+                    key={t.type}
+                    className={`flex items-start gap-2 rounded-2xl border p-2.5 text-xs ${
+                      t.severity === "warn"
+                        ? "border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-300"
+                        : "border-sky-500/20 bg-sky-500/5 text-sky-700 dark:text-sky-300"
+                    }`}
+                  >
+                    {t.severity === "warn" ? (
+                      <AlertTriangle className="size-3.5 mt-0.5 shrink-0" />
+                    ) : (
+                      <Info className="size-3.5 mt-0.5 shrink-0" />
+                    )}
+                    <span className="leading-relaxed">
+                      <span className="font-semibold">{t.title}</span>
+                      <span className="text-muted-foreground"> — {t.detail}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* AI narrative */}
             {narrative ? (
               <div className="rounded-2xl bg-violet-500/5 border border-violet-500/10 p-4 text-sm leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
@@ -133,6 +180,42 @@ export function WeeklyReportCard() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** A single goal-attainment rate as a labelled progress bar. Colour shifts green→amber→rose as the rate drops. */
+function AdherenceBar({
+  label,
+  pct,
+  hint,
+  muted,
+}: {
+  label: string;
+  pct: number;
+  hint?: string;
+  muted?: boolean;
+}) {
+  const clamped = Math.max(0, Math.min(100, pct));
+  const barClass = muted
+    ? "bg-slate-300 dark:bg-slate-700"
+    : clamped >= 80
+      ? "bg-emerald-500"
+      : clamped >= 50
+        ? "bg-amber-500"
+        : "bg-rose-500";
+  return (
+    <div className="rounded-2xl bg-slate-50/60 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-900/50 p-3">
+      <div className="flex items-baseline justify-between gap-1">
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
+        <span className={`text-sm font-extrabold ${muted ? "text-muted-foreground" : "text-slate-800 dark:text-slate-100"}`}>
+          {muted ? "—" : `${clamped}%`}
+        </span>
+      </div>
+      <div className="mt-1.5 h-1.5 w-full rounded-full bg-slate-200/70 dark:bg-slate-800/70 overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${barClass}`} style={{ width: `${muted ? 0 : clamped}%` }} />
+      </div>
+      {hint && <p className="mt-1 text-[9px] font-medium text-muted-foreground">{hint}</p>}
+    </div>
   );
 }
 

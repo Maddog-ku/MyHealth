@@ -170,6 +170,25 @@ export interface FoodCatalogItem {
   aliases: string[];
 }
 
+/** One recommended food (a common serving) to fill today's nutrition gap. */
+export interface FoodSuggestion {
+  id: string;
+  name: string;
+  category: string;
+  grams: number;
+  kcal: number;
+  protein: number;
+  reason: string;
+}
+
+export interface FoodSuggestions {
+  remainingKcal: number;
+  proteinGapG: number;
+  over: boolean;
+  headline: string;
+  items: FoodSuggestion[];
+}
+
 export interface Meal {
   id: number;
   date: string;
@@ -253,10 +272,32 @@ export interface WeeklySummary {
   daysCovered: number;
 }
 
+/** Goal-attainment rates for the week, each clamped 0–100. */
+export interface WeeklyAdherence {
+  caloriePct: number;
+  proteinPct: number;
+  workoutPct: number;
+  /** Weekly session goal, or null when the user has no workout goal set. */
+  workoutTarget: number | null;
+  loggingPct: number;
+  daysLogged: number;
+  daysCovered: number;
+}
+
+/** A detected pattern worth acting on this week. */
+export interface WeeklyTrend {
+  type: "PROTEIN_LOW" | "LOGGING_GAP" | "WORKOUT_DECLINE" | "WEIGHT_PLATEAU" | string;
+  severity: "info" | "warn";
+  title: string;
+  detail: string;
+}
+
 export interface WeeklyReport {
   weekStart: string;
   weekEnd: string;
   summary: WeeklySummary;
+  adherence: WeeklyAdherence;
+  trends: WeeklyTrend[];
   /** Cached AI narrative, or null if none has been generated yet for this week. */
   narrative: string | null;
   generatedAt: string | null;

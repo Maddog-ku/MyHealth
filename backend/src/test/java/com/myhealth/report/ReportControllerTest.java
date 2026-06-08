@@ -14,8 +14,10 @@ import com.myhealth.ai.AiEndpointRateLimiter;
 import com.myhealth.auth.CurrentUser;
 import com.myhealth.auth.JwtAuthenticationFilter;
 import com.myhealth.common.GlobalExceptionHandler;
+import com.myhealth.report.ReportDtos.WeeklyAdherence;
 import com.myhealth.report.ReportDtos.WeeklyReportResponse;
 import com.myhealth.report.ReportDtos.WeeklySummary;
+import com.myhealth.report.ReportDtos.WeeklyTrend;
 import com.myhealth.user.AppUser;
 import com.myhealth.user.Role;
 import java.math.BigDecimal;
@@ -53,8 +55,12 @@ class ReportControllerTest {
     private WeeklyReportResponse sample(String narrative) {
         WeeklySummary summary = new WeeklySummary(4200, 600, 800, 3400, 1700,
                 new BigDecimal("70.0"), new BigDecimal("69.4"), new BigDecimal("-0.6"), 3, 14, 7);
+        WeeklyAdherence adherence = new WeeklyAdherence(86, 92, 75, 4, 100, 7, 7);
+        var trends = java.util.List.of(
+                new WeeklyTrend("PROTEIN_LOW", "warn", "蛋白質偏低", "本週蛋白質達標率約 60%…"));
         return new WeeklyReportResponse(LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 7),
-                summary, narrative, narrative == null ? null : Instant.parse("2026-06-05T10:00:00Z"));
+                summary, adherence, trends, narrative,
+                narrative == null ? null : Instant.parse("2026-06-05T10:00:00Z"));
     }
 
     @Test
@@ -67,6 +73,9 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.weekStart").value("2026-06-01"))
                 .andExpect(jsonPath("$.summary.totalIntakeKcal").value(4200))
                 .andExpect(jsonPath("$.summary.workoutsDone").value(3))
+                .andExpect(jsonPath("$.adherence.caloriePct").value(86))
+                .andExpect(jsonPath("$.adherence.workoutTarget").value(4))
+                .andExpect(jsonPath("$.trends[0].type").value("PROTEIN_LOW"))
                 .andExpect(jsonPath("$.narrative").value("這週很棒 💪"));
     }
 

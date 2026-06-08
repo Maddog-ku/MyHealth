@@ -13,7 +13,10 @@ import com.myhealth.ai.AiProvider;
 import com.myhealth.meal.Meal;
 import com.myhealth.meal.MealRepository;
 import com.myhealth.report.ReportDtos.WeeklyReportResponse;
+import com.myhealth.report.ReportDtos.WeeklyTrend;
+import com.myhealth.stats.StatsDtos.CalorieBudgetResponse;
 import com.myhealth.stats.StatsDtos.DailyStatsResponse;
+import com.myhealth.stats.StatsDtos.MacroBudget;
 import com.myhealth.stats.StatsDtos.RangeStatsResponse;
 import com.myhealth.stats.StatsDtos.SeriesPoint;
 import com.myhealth.stats.StatsService;
@@ -22,6 +25,9 @@ import com.myhealth.user.Gender;
 import com.myhealth.user.Goal;
 import com.myhealth.user.Profile;
 import com.myhealth.user.Role;
+import com.myhealth.workout.WorkoutGoalDtos.WorkoutGoalProgress;
+import com.myhealth.workout.WorkoutGoalDtos.WorkoutGoalResponse;
+import com.myhealth.workout.WorkoutGoalService;
 import com.myhealth.workout.WorkoutPlan;
 import com.myhealth.workout.WorkoutPlanRepository;
 import java.lang.reflect.Field;
@@ -50,6 +56,7 @@ class ReportServiceTest {
     @Mock StatsService stats;
     @Mock MealRepository meals;
     @Mock WorkoutPlanRepository workouts;
+    @Mock WorkoutGoalService workoutGoals;
     @Mock WeeklyReportRepository reports;
     @Mock AiProvider provider;
 
@@ -64,7 +71,7 @@ class ReportServiceTest {
             TransactionCallback<?> cb = inv.getArgument(0);
             return cb.doInTransaction(null);
         });
-        service = new ReportService(stats, meals, workouts, reports, provider, transactionTemplate);
+        service = new ReportService(stats, meals, workouts, workoutGoals, reports, provider, transactionTemplate);
 
         user = new AppUser();
         user.setEmail("a@b.c");
@@ -79,8 +86,25 @@ class ReportServiceTest {
         lenient().when(reports.save(any())).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(reports.findByUserIdAndWeekStart(eq(1L), any())).thenReturn(Optional.empty());
         lenient().when(stats.daily(any(), any())).thenReturn(daily(1700));
+        lenient().when(stats.budget(any(), any())).thenReturn(budget(120));
+        // Default empty range so the prior-week comparison in trend detection never NPEs;
+        // tests that care about a specific week stub stats.range for that week explicitly.
+        lenient().when(stats.range(any(), any(), any()))
+                .thenReturn(new RangeStatsResponse(LocalDate.now(), LocalDate.now(), List.of()));
         lenient().when(meals.findByUserIdAndDateBetweenOrderByDateAsc(eq(1L), any(), any())).thenReturn(List.of());
         lenient().when(workouts.findByUserIdAndDateBetweenOrderByDateAsc(eq(1L), any(), any())).thenReturn(List.of());
+        lenient().when(workoutGoals.get(any())).thenReturn(new WorkoutGoalResponse(null));
+    }
+
+    /** Calorie budget whose only relevant field here is the daily protein target (grams). */
+    private CalorieBudgetResponse budget(int proteinTargetG) {
+        return new CalorieBudgetResponse(LocalDate.now(), 1700, 0, 0, 1700, 1700, 0, false,
+                List.of(new MacroBudget("protein", proteinTargetG, 0, 0)));
+    }
+
+    private WorkoutGoalResponse workoutGoal(int targetPerWeek) {
+        return new WorkoutGoalResponse(new WorkoutGoalProgress(
+                targetPerWeek, 0, 0, 0, LocalDate.now(), false, null));
     }
 
     private DailyStatsResponse daily(int goal) {
@@ -97,6 +121,15 @@ class ReportServiceTest {
         Meal m = new Meal();
         m.setSlot("lunch");
         m.setTotalKcal(300);
+        return m;
+    }
+
+    private Meal meal(LocalDate date, int kcal, String protein) {
+        Meal m = new Meal();
+        m.setSlot("lunch");
+        m.setDate(date);
+        m.setTotalKcal(kcal);
+        m.setTotalProtein(new BigDecimal(protein));
         return m;
     }
 
@@ -148,6 +181,54 @@ class ReportServiceTest {
     }
 
     @Test
+    void get_computesAdherenceRates() {
+        LocalDate weekStart = LocalDate.of(2026, 5, 25);
+        when(stats.range(eq(user), eq(weekStart), eq(weekStart.plusDays(6)))).thenReturn(range(weekStart));
+        // Both days logged, intake 300/420 ≤ 1700 goal → calorie 100%; protein 60+30=90 of 120×2=240 → 38%.
+        when(meals.findByUserIdAndDateBetweenOrderByDateAsc(eq(1L), any(), any()))
+                .thenReturn(List.of(meal(weekStart, 300, "60"), meal(weekStart.plusDays(1), 420, "30")));
+        // One completed workout against a goal of 4/week → 25%.
+        when(workouts.findByUserIdAndDateBetweenOrderByDateAsc(eq(1L), any(), any()))
+                .thenReturn(List.of(workout(true), workout(false)));
+        when(workoutGoals.get(user)).thenReturn(workoutGoal(4));
+
+        WeeklyReportResponse res = service.get(user, weekStart);
+
+        assertThat(res.adherence().caloriePct()).isEqualTo(100);
+        assertThat(res.adherence().proteinPct()).isEqualTo(38);   // 90 / 240
+        assertThat(res.adherence().workoutPct()).isEqualTo(25);   // 1 / 4
+        assertThat(res.adherence().workoutTarget()).isEqualTo(4);
+        assertThat(res.adherence().loggingPct()).isEqualTo(100);  // 2 logged of 2 covered days
+        assertThat(res.adherence().daysLogged()).isEqualTo(2);
+        assertThat(res.adherence().daysCovered()).isEqualTo(2);
+    }
+
+    @Test
+    void get_detectsProteinLowTrend_whenProteinFarBelowTarget() {
+        LocalDate weekStart = LocalDate.of(2026, 5, 25);
+        when(stats.range(eq(user), eq(weekStart), eq(weekStart.plusDays(6)))).thenReturn(range(weekStart));
+        // Two logged days, protein 10+10=20 of 120×2=240 target → ~8% ≪ 70% threshold.
+        when(meals.findByUserIdAndDateBetweenOrderByDateAsc(eq(1L), eq(weekStart), any()))
+                .thenReturn(List.of(meal(weekStart, 300, "10"), meal(weekStart.plusDays(1), 420, "10")));
+
+        WeeklyReportResponse res = service.get(user, weekStart);
+
+        assertThat(res.trends()).extracting(WeeklyTrend::type).contains("PROTEIN_LOW");
+    }
+
+    @Test
+    void get_workoutAdherenceZero_whenNoGoalSet() {
+        LocalDate weekStart = LocalDate.of(2026, 5, 25);
+        when(stats.range(any(), any(), any())).thenReturn(range(weekStart));
+        when(workoutGoals.get(user)).thenReturn(new WorkoutGoalResponse(null));
+
+        WeeklyReportResponse res = service.get(user, weekStart);
+
+        assertThat(res.adherence().workoutTarget()).isNull();
+        assertThat(res.adherence().workoutPct()).isZero();
+    }
+
+    @Test
     void get_returnsNullNarrative_whenNotYetGenerated() {
         LocalDate weekStart = LocalDate.of(2026, 5, 25);
         when(stats.range(any(), any(), any())).thenReturn(range(weekStart));
@@ -182,6 +263,7 @@ class ReportServiceTest {
         assertThat(context).contains("69.5");                // week-end weight
         assertThat(context).contains("1 次");                // workouts done (1 completed)
         assertThat(context).contains("2 筆");                // meals logged
+        assertThat(context).contains("達標率");              // attainment-rate block
 
         ArgumentCaptor<WeeklyReport> saved = ArgumentCaptor.forClass(WeeklyReport.class);
         verify(reports).save(saved.capture());
