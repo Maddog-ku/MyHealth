@@ -14,12 +14,16 @@ import com.myhealth.habit.HabitType;
 import com.myhealth.meal.FavoriteMealRepository;
 import com.myhealth.meal.Meal;
 import com.myhealth.meal.MealRepository;
+import com.myhealth.streak.Achievement;
+import com.myhealth.streak.AchievementRepository;
 import com.myhealth.user.AppUser;
 import com.myhealth.user.BodyMeasurement;
 import com.myhealth.user.BodyMeasurementRepository;
 import com.myhealth.user.Gender;
 import com.myhealth.user.Profile;
 import com.myhealth.user.Role;
+import com.myhealth.workout.WorkoutGoal;
+import com.myhealth.workout.WorkoutGoalRepository;
 import com.myhealth.workout.WorkoutPlan;
 import com.myhealth.workout.WorkoutPlanRepository;
 import java.lang.reflect.Field;
@@ -46,6 +50,8 @@ class DataExportServiceTest {
     @Mock WeightGoalRepository weightGoals;
     @Mock FavoriteMealRepository favoriteMeals;
     @Mock HabitLogRepository habits;
+    @Mock AchievementRepository achievements;
+    @Mock WorkoutGoalRepository workoutGoals;
 
     final ObjectMapper objectMapper = new ObjectMapper();
     DataExportService service;
@@ -54,7 +60,7 @@ class DataExportServiceTest {
     @BeforeEach
     void setUp() {
         service = new DataExportService(measurements, workouts, meals, weightGoals,
-                favoriteMeals, habits, objectMapper);
+                favoriteMeals, habits, achievements, workoutGoals, objectMapper);
         user = new AppUser();
         user.setEmail("alice@example.com");
         user.setName("Alice");
@@ -99,6 +105,9 @@ class DataExportServiceTest {
         h.setType(HabitType.WATER);
         when(habits.findByUserIdOrderByDateAscTypeAsc(eq(1L))).thenReturn(List.of(h));
 
+        when(achievements.findByUserId(eq(1L))).thenReturn(List.of(new Achievement(user, "STREAK_7")));
+        when(workoutGoals.findByUserId(eq(1L))).thenReturn(Optional.of(new WorkoutGoal(user, 4)));
+
         ExportFile file = service.export(user);
 
         assertThat(file.exportedAt()).isNotBlank();
@@ -123,6 +132,12 @@ class DataExportServiceTest {
         assertThat(file.favoriteMeals()).isEmpty();
         assertThat(file.habits()).hasSize(1);
         assertThat(file.habits().get(0).type()).isEqualTo("WATER");
+
+        assertThat(file.achievements()).hasSize(1);
+        assertThat(file.achievements().get(0).code()).isEqualTo("STREAK_7");
+        assertThat(file.achievements().get(0).title()).isEqualTo("一週不間斷");
+        assertThat(file.workoutGoal()).isNotNull();
+        assertThat(file.workoutGoal().targetSessionsPerWeek()).isEqualTo(4);
     }
 
     @Test

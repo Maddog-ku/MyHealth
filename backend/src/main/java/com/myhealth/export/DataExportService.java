@@ -3,6 +3,7 @@ package com.myhealth.export;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.myhealth.auth.AuthMapper;
+import com.myhealth.export.ExportDtos.AchievementExport;
 import com.myhealth.export.ExportDtos.ExportFile;
 import com.myhealth.export.ExportDtos.FavoriteMealExport;
 import com.myhealth.export.ExportDtos.HabitExport;
@@ -10,13 +11,17 @@ import com.myhealth.export.ExportDtos.MealExport;
 import com.myhealth.export.ExportDtos.MeasurementExport;
 import com.myhealth.export.ExportDtos.WeightGoalExport;
 import com.myhealth.export.ExportDtos.WorkoutExport;
+import com.myhealth.export.ExportDtos.WorkoutGoalExport;
 import com.myhealth.goal.WeightGoal;
 import com.myhealth.goal.WeightGoalRepository;
 import com.myhealth.habit.HabitLogRepository;
 import com.myhealth.meal.FavoriteMealRepository;
 import com.myhealth.meal.MealRepository;
+import com.myhealth.streak.AchievementCatalog;
+import com.myhealth.streak.AchievementRepository;
 import com.myhealth.user.AppUser;
 import com.myhealth.user.BodyMeasurementRepository;
+import com.myhealth.workout.WorkoutGoalRepository;
 import com.myhealth.workout.WorkoutPlanRepository;
 import java.time.Instant;
 import java.util.List;
@@ -35,11 +40,14 @@ public class DataExportService {
     private final WeightGoalRepository weightGoals;
     private final FavoriteMealRepository favoriteMeals;
     private final HabitLogRepository habits;
+    private final AchievementRepository achievements;
+    private final WorkoutGoalRepository workoutGoals;
     private final ObjectMapper objectMapper;
 
     public DataExportService(BodyMeasurementRepository measurements, WorkoutPlanRepository workouts,
                              MealRepository meals, WeightGoalRepository weightGoals,
                              FavoriteMealRepository favoriteMeals, HabitLogRepository habits,
+                             AchievementRepository achievements, WorkoutGoalRepository workoutGoals,
                              ObjectMapper objectMapper) {
         this.measurements = measurements;
         this.workouts = workouts;
@@ -47,6 +55,8 @@ public class DataExportService {
         this.weightGoals = weightGoals;
         this.favoriteMeals = favoriteMeals;
         this.habits = habits;
+        this.achievements = achievements;
+        this.workoutGoals = workoutGoals;
         this.objectMapper = objectMapper;
     }
 
@@ -84,6 +94,14 @@ public class DataExportService {
                 .map(h -> new HabitExport(h.getDate(), h.getType().name(), h.getCompletedAt()))
                 .toList();
 
+        List<AchievementExport> achievementExports = achievements.findByUserId(userId).stream()
+                .map(a -> new AchievementExport(a.getCode(), badgeTitle(a.getCode()), a.getUnlockedAt()))
+                .toList();
+
+        WorkoutGoalExport workoutGoalExport = workoutGoals.findByUserId(userId)
+                .map(g -> new WorkoutGoalExport(g.getTargetSessionsPerWeek(), g.getCreatedAt()))
+                .orElse(null);
+
         return new ExportFile(
                 Instant.now().toString(),
                 AuthMapper.toUserResponse(user),
@@ -92,7 +110,18 @@ public class DataExportService {
                 mealExports,
                 goalExport,
                 favoriteExports,
-                habitExports);
+                habitExports,
+                achievementExports,
+                workoutGoalExport);
+    }
+
+    /** Human-readable badge title from the catalog, or null for a retired code. */
+    private String badgeTitle(String code) {
+        try {
+            return AchievementCatalog.valueOf(code).title();
+        } catch (IllegalArgumentException unknown) {
+            return null;
+        }
     }
 
     private WeightGoalExport toGoalExport(WeightGoal g) {

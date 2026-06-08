@@ -24,7 +24,9 @@ public final class ExportDtos {
             List<MealExport> meals,
             WeightGoalExport weightGoal,
             List<FavoriteMealExport> favoriteMeals,
-            List<HabitExport> habits
+            List<HabitExport> habits,
+            List<AchievementExport> achievements,
+            WorkoutGoalExport workoutGoal
     ) {
     }
 
@@ -93,6 +95,20 @@ public final class ExportDtos {
             LocalDate date,
             String type,
             Instant completedAt
+    ) {
+    }
+
+    /** An unlocked achievement; {@code title} is the catalog title, or null for a retired code. */
+    public record AchievementExport(
+            String code,
+            String title,
+            Instant unlockedAt
+    ) {
+    }
+
+    public record WorkoutGoalExport(
+            int targetSessionsPerWeek,
+            Instant createdAt
     ) {
     }
 }

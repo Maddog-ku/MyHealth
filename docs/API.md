@@ -384,7 +384,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 
 `GET /me/export`
 
-回傳目前使用者的**完整資料快照** JSON（個人檔案、體重量測、運動、餐點、體重目標、常用餐點、習慣紀錄）。運動／餐點的 items 以巢狀 JSON 嵌入（非字串）。回應帶 `Content-Disposition: attachment; filename="myhealth-export-<日期>.json"`，前端用帶 JWT 的請求取得後在瀏覽器端產生下載，資料全程不離開裝置。涵蓋範圍與 `DELETE /me` 會清除的資料一致。
+回傳目前使用者的**完整資料快照** JSON（個人檔案、體重量測、運動、餐點、體重目標、常用餐點、習慣紀錄、已解鎖成就、每週訓練目標）。運動／餐點的 items 以巢狀 JSON 嵌入（非字串）。回應帶 `Content-Disposition: attachment; filename="myhealth-export-<日期>.json"`，前端用帶 JWT 的請求取得後在瀏覽器端產生下載，資料全程不離開裝置。涵蓋範圍與 `DELETE /me` 會清除的資料一致。
 
 **Response 200**
 ```json
@@ -396,7 +396,9 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
   "meals": [ ],
   "weightGoal": null,
   "favoriteMeals": [ ],
-  "habits": [ ]
+  "habits": [ ],
+  "achievements": [ { "code": "STREAK_7", "title": "一週不間斷", "unlockedAt": "2026-06-05T10:00:00Z" } ],
+  "workoutGoal": { "targetSessionsPerWeek": 4, "createdAt": "2026-05-30T00:00:00Z" }
 }
 ```
 

@@ -53,7 +53,7 @@ class ExportControllerTest {
                 "2026-06-07T00:00:00Z",
                 new UserResponse(1L, "alice@example.com", "Alice", Role.USER, null,
                         Instant.parse("2026-05-30T00:00:00Z")),
-                List.of(), List.of(), List.of(), null, List.of(), List.of()));
+                List.of(), List.of(), List.of(), null, List.of(), List.of(), List.of(), null));
 
         mockMvc.perform(get("/api/v1/me/export"))
                 .andExpect(status().isOk())
