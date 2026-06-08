@@ -559,7 +559,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 |---|---|---|
 | `weeks` | ✗ | 往前統計的週數（1–12，超出範圍自動夾住），預設 4 |
 
-範圍為「本週週一往前推 `weeks-1` 週」至今天；`series` 一定包含連續 `weeks` 個以週一對齊的桶（沒有訓練的週填 0），方便畫趨勢圖。各部位（`byCategory`）依次數由多到少排序。
+範圍為「本週週一往前推 `weeks-1` 週」至今天；`series` 一定包含連續 `weeks` 個以週一對齊的桶（沒有訓練的週填 0），方便畫趨勢圖。各部位（`byCategory`）依次數由多到少排序。`neglectedCategories` 列出在此範圍內**完全沒有專項訓練**的主要肌群（`legs`、`chest`、`back`、`arms`、`abs`、`glutes`；`cardio`/`full_body` 不列入），供前端提示訓練平衡。
 
 **Response 200**
 ```json
@@ -577,7 +577,8 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
   ],
   "series": [
     { "weekStart": "2026-05-18", "sessions": 2, "sets": 22, "kcal": 420 }
-  ]
+  ],
+  "neglectedCategories": ["back", "arms", "abs", "glutes"]
 }
 ```
 

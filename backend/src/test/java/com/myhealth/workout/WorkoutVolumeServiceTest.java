@@ -75,6 +75,9 @@ class WorkoutVolumeServiceTest {
         assertThat(res.series().get(3).sessions()).isEqualTo(2);  // current week (last bucket)
         assertThat(res.series().get(2).sessions()).isEqualTo(1);  // a week ago
         assertThat(res.series().get(0).sessions()).isEqualTo(0);  // empty earlier week still present
+
+        // Only legs + chest were trained → the other primary groups read as neglected.
+        assertThat(res.neglectedCategories()).containsExactly("back", "arms", "abs", "glutes");
     }
 
     @Test
@@ -96,6 +99,9 @@ class WorkoutVolumeServiceTest {
         assertThat(res.byCategory()).isEmpty();
         assertThat(res.series()).hasSize(6);              // buckets still present for the chart
         assertThat(res.series().stream().allMatch(w -> w.sessions() == 0)).isTrue();
+        // Nothing trained → every primary muscle group is neglected.
+        assertThat(res.neglectedCategories())
+                .containsExactly("legs", "chest", "back", "arms", "abs", "glutes");
     }
 
     private WorkoutPlan plan(LocalDate date, String category, int[] setsPerItem,

@@ -35,7 +35,9 @@ public final class WorkoutVolumeDtos {
             int activeDays,
             double avgSessionsPerWeek,
             List<CategoryVolume> byCategory,
-            List<WeekVolume> series
+            List<WeekVolume> series,
+            /** Primary muscle groups with no dedicated session in the range — a balance nudge. */
+            List<String> neglectedCategories
     ) {
     }
 }

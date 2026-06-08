@@ -33,6 +33,14 @@ public class WorkoutVolumeService {
     static final int MAX_WEEKS = 12;
     private static final int DEFAULT_WEEKS = 4;
 
+    /**
+     * Primary muscle groups we expect a balanced routine to touch. cardio and full_body are
+     * left out — they aren't a single group — so "neglected" means a targeted group went
+     * untrained in the range. Ordered so the nudge reads consistently.
+     */
+    private static final List<String> PRIMARY_MUSCLE_GROUPS =
+            List.of("legs", "chest", "back", "arms", "abs", "glutes");
+
     private final WorkoutPlanRepository workouts;
     private final ObjectMapper objectMapper;
 
@@ -97,8 +105,12 @@ public class WorkoutVolumeService {
 
         double avgPerWeek = Math.round((double) totalSessions / weeks * 10.0) / 10.0;
 
+        List<String> neglected = PRIMARY_MUSCLE_GROUPS.stream()
+                .filter(group -> !byCategory.containsKey(group))
+                .toList();
+
         return new VolumeResponse(fromWeekStart, today, weeks, totalSessions, totalSets, totalKcal,
-                activeDays.size(), avgPerWeek, categories, series);
+                activeDays.size(), avgPerWeek, categories, series, neglected);
     }
 
     private int clampWeeks(Integer weeks) {

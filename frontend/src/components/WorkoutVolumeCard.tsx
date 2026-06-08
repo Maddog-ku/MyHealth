@@ -147,6 +147,23 @@ export function WorkoutVolumeCard() {
                 ))}
               </ul>
             </div>
+
+            {(data!.neglectedCategories?.length ?? 0) > 0 && (
+              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-3">
+                <p className="text-[11px] font-bold text-amber-700 dark:text-amber-300">這段期間較少練到</p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {data!.neglectedCategories.map((code) => (
+                    <span
+                      key={code}
+                      className="rounded-full border border-amber-500/30 bg-white/60 dark:bg-slate-950/30 px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300"
+                    >
+                      {categoryLabel(code)}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[10px] text-muted-foreground">安排一次這些部位的訓練，維持整體平衡。</p>
+              </div>
+            )}
           </>
         ) : (
           <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-950/10 py-10 text-center">

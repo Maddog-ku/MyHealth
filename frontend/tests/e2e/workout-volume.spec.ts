@@ -22,6 +22,7 @@ function volume(weeks: number): Record<string, unknown> {
       { weekStart: "2026-05-25", sessions: 3, sets: 30, kcal: 560 },
       { weekStart: "2026-06-01", sessions: 4, sets: 44, kcal: 840 },
     ],
+    neglectedCategories: ["arms", "abs", "glutes"],
   };
 }
 
@@ -66,6 +67,8 @@ test("shows training-volume totals, per-category bars and reacts to the range se
   // Per-category breakdown renders the busiest group first.
   await expect(page.getByText("腿部肌群")).toBeVisible();
   await expect(page.getByText("胸部塑造")).toBeVisible();
+  // Neglected primary muscle groups are surfaced as a balance nudge.
+  await expect(page.getByText("這段期間較少練到")).toBeVisible();
 
   // Default range is 4 weeks.
   await expect(lastWeeks === 4 || lastWeeks === 0).toBeTruthy();

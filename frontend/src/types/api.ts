@@ -131,6 +131,8 @@ export interface WorkoutVolume {
   avgSessionsPerWeek: number;
   byCategory: CategoryVolume[];
   series: WeekVolume[];
+  /** Primary muscle groups with no dedicated session in the range — a balance nudge. */
+  neglectedCategories: string[];
 }
 
 export interface WorkoutGoalProgress {

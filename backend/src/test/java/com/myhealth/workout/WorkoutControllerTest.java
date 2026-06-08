@@ -180,13 +180,15 @@ class WorkoutControllerTest {
                         LocalDate.of(2026, 5, 4), LocalDate.of(2026, 6, 7), 8, 12, 140, 1500, 9, 1.5,
                         List.of(new com.myhealth.workout.WorkoutVolumeDtos.CategoryVolume("legs", 5, 60, 700)),
                         List.of(new com.myhealth.workout.WorkoutVolumeDtos.WeekVolume(
-                                LocalDate.of(2026, 5, 4), 2, 24, 240))));
+                                LocalDate.of(2026, 5, 4), 2, 24, 240)),
+                        List.of("back", "arms")));
 
         mockMvc.perform(get("/api/v1/workouts/volume").param("weeks", "8"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalSessions").value(12))
                 .andExpect(jsonPath("$.byCategory[0].category").value("legs"))
-                .andExpect(jsonPath("$.series[0].sessions").value(2));
+                .andExpect(jsonPath("$.series[0].sessions").value(2))
+                .andExpect(jsonPath("$.neglectedCategories[0]").value("back"));
     }
 
     @Test
@@ -195,7 +197,7 @@ class WorkoutControllerTest {
         when(volumeService.volume(any(), eq((Integer) null))).thenReturn(
                 new com.myhealth.workout.WorkoutVolumeDtos.VolumeResponse(
                         LocalDate.of(2026, 5, 18), LocalDate.of(2026, 6, 7), 4, 0, 0, 0, 0, 0.0,
-                        List.of(), List.of()));
+                        List.of(), List.of(), List.of()));
 
         mockMvc.perform(get("/api/v1/workouts/volume"))
                 .andExpect(status().isOk())
