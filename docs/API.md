@@ -643,7 +643,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 | `weeks` | ✓ | 模板重複週數（1–4） |
 | `intensity` | ✗ | `low` \| `medium` \| `high`，預設 `medium`；套用某天時沿用此強度 |
 
-目標（`goal`）取自個人檔案（減脂／增肌／維持），不需傳入。AI 無法使用時回退到內建的分部位模板（仍尊重 `daysPerWeek`，減脂目標會多排有氧）。
+目標（`goal`）與訓練經驗（`experience`：初學者／中階／進階）取自個人檔案，不需傳入；兩者都會帶進 AI 規劃 prompt，讓課表貼合使用者的目標與程度。AI 無法使用時回退到內建的分部位模板（仍尊重 `daysPerWeek`，減脂目標會多排有氧）。
 
 **Response 201**
 ```json
@@ -921,6 +921,24 @@ Content-Type：`multipart/form-data`
     "aliases": ["雞肉", "chicken breast", "chicken"]
   }
 ]
+```
+
+### 今日飲食建議 — `GET /foods/suggestions`  *(需登入)*
+
+依當日熱量收支與蛋白質缺口，從食物 catalog 推薦幾項具體食物（常見份量）。缺口由後端以 `GET /stats/budget` 同源計算：`proteinGapG = max(0, 蛋白質目標 − 已攝取)`。超出預算時改推低熱量、低油的選項。完全不需 AI（決定性）。
+
+**Response 200**
+```json
+{
+  "remainingKcal": 500,
+  "proteinGapG": 60,
+  "over": false,
+  "headline": "下一餐優先補蛋白質（缺口約 60g）",
+  "items": [
+    { "id": "chicken-breast", "name": "雞胸肉", "category": "蛋白質",
+      "grams": 150, "kcal": 248, "protein": 46.5, "reason": "高蛋白，補足今日蛋白質缺口" }
+  ]
+}
 ```
 
 ---
@@ -1282,6 +1300,8 @@ Health Plan 是 Dashboard 的聚合層，整合今日熱量預算、體重目標
 - `weekStart` 選填，可為該週任一日（後端正規化到週一）；省略則取當週。
 - 涵蓋區間為 `weekStart … min(weekStart+6, 今天)`。
 - **不**觸發 AI；`narrative` 為已快取的敘述，未生成過則為 `null`。
+- `adherence` 為當週達標率（皆 0~100）：`caloriePct`（有記錄的天數中攝取未超標的比例）、`proteinPct`（實際蛋白質 ÷ 目標蛋白質）、`workoutPct`（完成次數 ÷ 每週訓練目標；未設目標時 `workoutTarget` 為 `null`、`workoutPct` 為 0）、`loggingPct`（有記錄餐點的天數 ÷ 已涵蓋天數）。
+- `trends` 為偵測到的可行動訊號（可能為空）：`PROTEIN_LOW`、`LOGGING_GAP`（依本週數字）、`WORKOUT_DECLINE`、`WEIGHT_PLATEAU`（與上週比較，跨週訊號僅在兩週皆完整涵蓋 7 天時才觸發，避免半週誤判）。每筆含 `type` / `severity`（`info`｜`warn`）/ `title` / `detail`。
 
 **Response 200**
 ```json
@@ -1294,6 +1314,14 @@ Health Plan 是 Dashboard 的聚合層，整合今日熱量預算、體重目標
     "weightStart": 70.0, "weightEnd": 69.4, "weightDelta": -0.6,
     "workoutsDone": 3, "mealsLogged": 14, "daysCovered": 7
   },
+  "adherence": {
+    "caloriePct": 86, "proteinPct": 92, "workoutPct": 75,
+    "workoutTarget": 4, "loggingPct": 100, "daysLogged": 7, "daysCovered": 7
+  },
+  "trends": [
+    { "type": "WORKOUT_DECLINE", "severity": "warn", "title": "訓練量下降",
+      "detail": "完成訓練從上週 4 次降到本週 2 次…" }
+  ],
   "narrative": "攝取：本週平均約 1800 大卡…\n運動：完成 3 次訓練…\n體重：約下降 0.6 公斤…\n本週建議：…",
   "generatedAt": "2026-06-05T10:00:00Z"
 }
@@ -1340,7 +1368,7 @@ Health Plan 是 Dashboard 的聚合層，整合今日熱量預算、體重目標
 }
 ```
 
-徽章目錄(寫死於 `AchievementCatalog`)：`STREAK_3/7/30`、`MEALS_50/100`、`WORKOUTS_10/50`、`FIRST_WEIGHT`。
+徽章目錄(寫死於 `AchievementCatalog`)：`STREAK_3/7/30`、`MEALS_50/100`、`WORKOUTS_10/50`、`FIRST_WEIGHT`、`PHOTO_5/25`(照片記餐筆數)、`WEEKLY_GOAL_1/4`(達成每週訓練目標的週數；未設定每週訓練目標時恆為 0)。
 
 ---
 
