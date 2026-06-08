@@ -27,4 +27,30 @@ class FoodServiceTest {
     void search_capsLimit() {
         assertThat(service.search("a", 1)).hasSize(1);
     }
+
+    @Test
+    void suggest_protein_picksMostProteinDenseFoods_whenWithinBudget() {
+        var res = service.suggest(600, 30, false);
+
+        assertThat(res.over()).isFalse();
+        assertThat(res.proteinGapG()).isEqualTo(30);
+        assertThat(res.headline()).contains("補蛋白質");
+        assertThat(res.items()).isNotEmpty().hasSizeLessThanOrEqualTo(3);
+        // All picks are protein-category foods, ordered by protein density (highest first).
+        assertThat(res.items()).allSatisfy(item -> assertThat(item.category()).isEqualTo("蛋白質"));
+        assertThat(res.items().get(0).protein())
+                .isGreaterThanOrEqualTo(res.items().get(res.items().size() - 1).protein());
+    }
+
+    @Test
+    void suggest_over_steersToLightFoods() {
+        var res = service.suggest(-200, 0, true);
+
+        assertThat(res.over()).isTrue();
+        assertThat(res.remainingKcal()).isZero(); // negative remaining clamped to 0
+        assertThat(res.headline()).contains("超過預算");
+        assertThat(res.items()).isNotEmpty();
+        // Over budget → every pick is a low-calorie serving.
+        assertThat(res.items()).allSatisfy(item -> assertThat(item.kcal()).isLessThanOrEqualTo(300));
+    }
 }

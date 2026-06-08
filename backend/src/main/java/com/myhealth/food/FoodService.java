@@ -1,8 +1,11 @@
 package com.myhealth.food;
 
 import com.myhealth.food.FoodDtos.FoodResponse;
+import com.myhealth.food.FoodDtos.FoodSuggestion;
+import com.myhealth.food.FoodDtos.FoodSuggestionsResponse;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.stereotype.Service;
@@ -11,6 +14,9 @@ import org.springframework.stereotype.Service;
 public class FoodService {
     private static final int DEFAULT_LIMIT = 10;
     private static final int MAX_LIMIT = 20;
+    private static final int MAX_SUGGESTIONS = 3;
+    /** A protein food still counts as "light" (offered when over budget) below this density. */
+    private static final int LIGHT_KCAL_PER_100G = 170;
 
     private static final List<FoodCatalogItem> CATALOG = List.of(
             item("chicken-breast", "雞胸肉", "蛋白質", List.of("雞肉", "chicken breast", "chicken"), 150, 165, 31.0, 3.6, 0.0),
@@ -44,6 +50,37 @@ public class FoodService {
                 .limit(cap)
                 .map(FoodCatalogItem::toResponse)
                 .toList();
+    }
+
+    /**
+     * Pick a few concrete foods (common servings) to fill today's gap. When over budget we
+     * steer toward light, lower-calorie options; otherwise we surface the most protein-dense
+     * foods so the next meal closes the protein gap. Deterministic — no AI needed.
+     */
+    public FoodSuggestionsResponse suggest(int remainingKcal, int proteinGapG, boolean over) {
+        int gap = Math.max(0, proteinGapG);
+        String reason = over
+                ? "低熱量高蛋白，控制總熱量"
+                : gap > 0 ? "高蛋白，補足今日蛋白質缺口" : "均衡蛋白來源";
+
+        List<FoodSuggestion> items = (over
+                ? CATALOG.stream()
+                        .filter(item -> "蔬菜".equals(item.category())
+                                || ("蛋白質".equals(item.category()) && item.kcalPer100g() <= LIGHT_KCAL_PER_100G))
+                        .sorted(Comparator.comparingInt(FoodCatalogItem::kcalPer100g))
+                : CATALOG.stream()
+                        .filter(item -> "蛋白質".equals(item.category()))
+                        .sorted(Comparator.comparingDouble(FoodCatalogItem::proteinPer100g).reversed()))
+                .limit(MAX_SUGGESTIONS)
+                .map(item -> item.toSuggestion(reason))
+                .toList();
+
+        String headline = over
+                ? "今日熱量已超過預算，下一餐選低熱量高蛋白"
+                : gap > 0 ? "下一餐優先補蛋白質（缺口約 %dg）".formatted(gap)
+                : "下一餐維持均衡蛋白";
+
+        return new FoodSuggestionsResponse(Math.max(0, remainingKcal), gap, over, headline, items);
     }
 
     private static FoodCatalogItem item(String id, String name, String category, List<String> aliases,
@@ -87,6 +124,18 @@ public class FoodService {
                     grams(carbPer100g * ratio),
                     aliases
             );
+        }
+
+        FoodSuggestion toSuggestion(String reason) {
+            double ratio = servingGrams / 100.0;
+            return new FoodSuggestion(
+                    id,
+                    name,
+                    category,
+                    servingGrams,
+                    (int) Math.round(kcalPer100g * ratio),
+                    grams(proteinPer100g * ratio),
+                    reason);
         }
 
         private static BigDecimal grams(double value) {

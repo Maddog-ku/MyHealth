@@ -24,6 +24,14 @@ export function useFoodSearch(query: string) {
   });
 }
 
+/** Concrete next-meal food picks grounded in today's remaining budget and protein gap. */
+export function useFoodSuggestions(date: string) {
+  return useQuery({
+    queryKey: qk.foodSuggestions(date),
+    queryFn: () => api.foodSuggestions(),
+  });
+}
+
 export function useCreateMeal(date: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -33,6 +41,7 @@ export function useCreateMeal(date: string) {
       qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
       qc.invalidateQueries({ queryKey: qk.healthPlan(date) });
       qc.invalidateQueries({ queryKey: qk.calorieBudget(date) });
+      qc.invalidateQueries({ queryKey: qk.foodSuggestions(date) });
     },
   });
 }
@@ -52,6 +61,7 @@ export function useConfirmMeal(date: string) {
       qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
       qc.invalidateQueries({ queryKey: qk.healthPlan(date) });
       qc.invalidateQueries({ queryKey: qk.calorieBudget(date) });
+      qc.invalidateQueries({ queryKey: qk.foodSuggestions(date) });
     },
   });
 }
@@ -66,6 +76,7 @@ export function useCopyMeal(date: string) {
       qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
       qc.invalidateQueries({ queryKey: qk.healthPlan(date) });
       qc.invalidateQueries({ queryKey: qk.calorieBudget(date) });
+      qc.invalidateQueries({ queryKey: qk.foodSuggestions(date) });
     },
   });
 }
@@ -79,6 +90,7 @@ export function useCopyFavoriteMeal(date: string) {
       qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
       qc.invalidateQueries({ queryKey: qk.healthPlan(date) });
       qc.invalidateQueries({ queryKey: qk.calorieBudget(date) });
+      qc.invalidateQueries({ queryKey: qk.foodSuggestions(date) });
     },
   });
 }
@@ -113,6 +125,7 @@ export function useUpdateMeal(date: string) {
       qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
       qc.invalidateQueries({ queryKey: qk.healthPlan(date) });
       qc.invalidateQueries({ queryKey: qk.calorieBudget(date) });
+      qc.invalidateQueries({ queryKey: qk.foodSuggestions(date) });
     },
   });
 }
@@ -126,6 +139,7 @@ export function useDeleteMeal(date: string) {
       qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
       qc.invalidateQueries({ queryKey: qk.healthPlan(date) });
       qc.invalidateQueries({ queryKey: qk.calorieBudget(date) });
+      qc.invalidateQueries({ queryKey: qk.foodSuggestions(date) });
     },
   });
 }

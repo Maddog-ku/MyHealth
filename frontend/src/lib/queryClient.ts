@@ -28,6 +28,7 @@ export const qk = {
   recentMeals: (date: string) => ["meals", "recent", date] as const,
   favoriteMeals: ["meals", "favorites"] as const,
   foods: (q: string) => ["foods", q] as const,
+  foodSuggestions: (date: string) => ["foods", "suggestions", date] as const,
   aiStatus: ["ai", "status"] as const,
   chat: ["ai", "chat"] as const,
   weeklyReport: (weekStart: string) => ["reports", "weekly", weekStart] as const,

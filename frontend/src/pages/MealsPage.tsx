@@ -25,6 +25,7 @@ import {
   useDeleteMeal,
   useFavoriteMeal,
   useFavoriteMeals,
+  useFoodSuggestions,
   useMeals,
   usePreviewMeal,
   useRecentMeals,
@@ -55,6 +56,7 @@ export function MealsPage() {
   const deleteFavoriteMeal = useDeleteFavoriteMeal();
   const deleteMeal = useDeleteMeal(today);
   const healthPlan = useHealthPlan(today);
+  const foodSuggestions = useFoodSuggestions(today);
 
   async function requestMealPreview({ slot, description, imageFile }: AddMealPreviewRequest) {
     const form = new FormData();
@@ -97,7 +99,12 @@ export function MealsPage() {
 
   return (
     <section className="grid gap-6 animate-fade-in pb-10">
-      <MealPlanSuggestionCard plan={healthPlan.data ?? null} loading={healthPlan.isLoading} selectedSlot={slot} />
+      <MealPlanSuggestionCard
+        plan={healthPlan.data ?? null}
+        loading={healthPlan.isLoading}
+        selectedSlot={slot}
+        suggestions={foodSuggestions.data ?? null}
+      />
 
       <AddMealForm
         slot={slot}

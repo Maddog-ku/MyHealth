@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
-import type { AuthResponse, CalorieBudget, ChatMessage, DailyHabits, DailyStats, FavoriteMeal, FoodCatalogItem, FoodItem, HabitType, HealthPlan, HealthPlanSettings, HealthPlanSettingsRequest, Meal, MealPreview, NotificationFeed, PageEnvelope, Profile, RecentMeal, SearchResponse, SessionList, StreakSummary, SystemStatus, User, WeeklyReport, WeightGoalResponse, WorkoutGoalResponse, WorkoutPlan, WorkoutSchedule, WorkoutVolume } from "@/types/api";
+import type { AuthResponse, CalorieBudget, ChatMessage, DailyHabits, DailyStats, FavoriteMeal, FoodCatalogItem, FoodItem, FoodSuggestions, HabitType, HealthPlan, HealthPlanSettings, HealthPlanSettingsRequest, Meal, MealPreview, NotificationFeed, PageEnvelope, Profile, RecentMeal, SearchResponse, SessionList, StreakSummary, SystemStatus, User, WeeklyReport, WeightGoalResponse, WorkoutGoalResponse, WorkoutPlan, WorkoutSchedule, WorkoutVolume } from "@/types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -190,6 +190,8 @@ export const api = {
 
   foods: (q: string, limit = 8) =>
     http.get<FoodCatalogItem[]>("/foods", { params: { q, limit } }).then((r) => r.data),
+
+  foodSuggestions: () => http.get<FoodSuggestions>("/foods/suggestions").then((r) => r.data),
 
   aiStatus: () =>
     http
