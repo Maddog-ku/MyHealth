@@ -91,6 +91,7 @@ class GoalServiceTest {
         assertThat(p.ratePerWeekKg()).isEqualTo(-2.0);
         assertThat(p.projectedDate()).isEqualTo(TODAY.plusDays(21)); // 6kg / 2kg-per-week = 3 weeks
         assertThat(p.onTrack()).isTrue();                   // +21d is before the +30d deadline
+        assertThat(p.requiredRatePerWeekKg()).isEqualTo(-1.4); // -6kg over 30 days (≈4.29 weeks)
         assertThat(p.achieved()).isFalse();
     }
 

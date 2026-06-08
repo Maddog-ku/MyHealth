@@ -80,7 +80,7 @@ class HealthPlanServiceTest {
         when(weightGoals.get(user)).thenReturn(new WeightGoalResponse(new WeightGoalProgress(
                 new BigDecimal("70.0"), new BigDecimal("78.0"), new BigDecimal("76.0"),
                 date.minusDays(30), date.plusDays(20), new BigDecimal("-6.0"),
-                new BigDecimal("-2.0"), 25, -0.5, date.plusDays(84),
+                new BigDecimal("-2.0"), 25, -0.5, -2.1, date.plusDays(84),
                 false, false, Instant.parse("2026-05-09T00:00:00Z"))));
         when(workoutGoals.get(user)).thenReturn(new WorkoutGoalResponse(new WorkoutGoalProgress(
                 4, 2, 2, 50, date.minusDays(0), false,
@@ -105,7 +105,7 @@ class HealthPlanServiceTest {
                 .thenReturn(new WeightGoalResponse(new WeightGoalProgress(
                         new BigDecimal("70.0"), new BigDecimal("76.0"), new BigDecimal("76.0"),
                         date, date.plusDays(60), new BigDecimal("-6.0"),
-                        BigDecimal.ZERO, 0, null, null, null, false,
+                        BigDecimal.ZERO, 0, null, null, null, null, false,
                         Instant.parse("2026-06-08T00:00:00Z"))));
         when(workoutGoals.set(user, new com.myhealth.workout.WorkoutGoalDtos.SetWorkoutGoalRequest(4)))
                 .thenReturn(new WorkoutGoalResponse(new WorkoutGoalProgress(4, 0, 4, 0, date, false,

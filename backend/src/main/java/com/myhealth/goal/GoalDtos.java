@@ -24,7 +24,10 @@ public final class GoalDtos {
      * @param remainingKg    target − current (0 when reached/overshot in the right way)
      * @param changeSoFarKg  current − start
      * @param progressPct    0–100, clamped; only counts movement toward the target
-     * @param ratePerWeekKg  average kg/week since the goal started, or null if &lt;7 days / no change
+     * @param ratePerWeekKg         average kg/week since the goal started, or null if &lt;7 days / no change
+     * @param requiredRatePerWeekKg signed kg/week still needed from today to hit the target by
+     *                              {@code targetDate}; null when no deadline, already achieved, or
+     *                              the deadline has passed
      * @param projectedDate  estimated attainment date at the current rate, or null if not projectable
      * @param onTrack        whether the projection meets {@code targetDate}; null if it can't be judged
      */
@@ -38,6 +41,7 @@ public final class GoalDtos {
             BigDecimal changeSoFarKg,
             int progressPct,
             Double ratePerWeekKg,
+            Double requiredRatePerWeekKg,
             LocalDate projectedDate,
             Boolean onTrack,
             boolean achieved,

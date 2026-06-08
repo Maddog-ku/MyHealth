@@ -51,7 +51,7 @@ class GoalControllerTest {
         WeightGoalProgress p = new WeightGoalProgress(
                 new BigDecimal("70.0"), new BigDecimal("80.0"), new BigDecimal("76.0"),
                 LocalDate.of(2026, 5, 23), LocalDate.of(2026, 7, 6),
-                new BigDecimal("-6.0"), new BigDecimal("-4.0"), 40, -2.0,
+                new BigDecimal("-6.0"), new BigDecimal("-4.0"), 40, -2.0, -2.8,
                 LocalDate.of(2026, 6, 27), true, false, Instant.parse("2026-05-23T00:00:00Z"));
         return new WeightGoalResponse(p);
     }

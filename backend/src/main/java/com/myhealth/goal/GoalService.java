@@ -87,10 +87,24 @@ public class GoalService {
 
         LocalDate projectedDate = projectedDate(today, achieved, remaining, need, ratePerWeek);
         Boolean onTrack = onTrack(achieved, goal.getTargetDate(), projectedDate);
+        Double requiredRate = requiredRatePerWeek(today, achieved, remaining, goal.getTargetDate());
 
         return new WeightGoalProgress(target, start, current, goal.getStartDate(), goal.getTargetDate(),
                 scale1(remaining), scale1(change), progressPct, round2(ratePerWeek),
-                projectedDate, onTrack, achieved, goal.getCreatedAt());
+                round2(requiredRate), projectedDate, onTrack, achieved, goal.getCreatedAt());
+    }
+
+    /**
+     * Signed kg/week still needed to hit the target exactly on {@code targetDate}. Null when there's
+     * no deadline, the goal is already achieved, or the deadline is today/past (no future weeks to
+     * spread the remaining change over).
+     */
+    private Double requiredRatePerWeek(LocalDate today, boolean achieved, BigDecimal remaining, LocalDate targetDate) {
+        if (achieved || targetDate == null || !targetDate.isAfter(today)) {
+            return null;
+        }
+        double weeksUntilTarget = ChronoUnit.DAYS.between(today, targetDate) / 7.0;
+        return remaining.doubleValue() / weeksUntilTarget;
     }
 
     private int progressPct(BigDecimal need, BigDecimal change, BigDecimal current, BigDecimal target) {

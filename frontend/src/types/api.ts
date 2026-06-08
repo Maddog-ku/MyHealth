@@ -472,6 +472,8 @@ export interface WeightGoalProgress {
   changeSoFarKg: number;
   progressPct: number;
   ratePerWeekKg: number | null;
+  /** Signed kg/week needed from today to hit the target by targetDate; null if no/elapsed deadline or achieved. */
+  requiredRatePerWeekKg: number | null;
   projectedDate: string | null;
   onTrack: boolean | null;
   achieved: boolean;

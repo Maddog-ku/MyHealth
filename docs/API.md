@@ -1438,6 +1438,7 @@ Health Plan 是 Dashboard 的聚合層，整合今日熱量預算、體重目標
 | `remainingKg` / `changeSoFarKg` | 目標−目前 / 目前−起始 |
 | `progressPct` | 0–100,只計入朝目標方向的進展 |
 | `ratePerWeekKg` | 自起始日起的平均週速率;不足 7 天或無變化為 `null` |
+| `requiredRatePerWeekKg` | 從今天到 `targetDate` 如期達標所需的每週速率(帶正負號);無期限／已達標／期限已過為 `null` |
 | `projectedDate` | 依目前速率預估達標日;無法推估為 `null` |
 | `onTrack` | 預估是否在 `targetDate` 前達成;已達標為 `true`,無法判斷為 `null` |
 | `achieved` | 是否已達標(依目標方向判定) |
@@ -1449,7 +1450,7 @@ Health Plan 是 Dashboard 的聚合層，整合今日熱量預算、體重目標
     "targetWeightKg": 70.0, "startWeightKg": 80.0, "currentWeightKg": 76.0,
     "startDate": "2026-05-23", "targetDate": "2026-08-01",
     "remainingKg": -6.0, "changeSoFarKg": -4.0, "progressPct": 40,
-    "ratePerWeekKg": -2.0, "projectedDate": "2026-06-27",
+    "ratePerWeekKg": -2.0, "requiredRatePerWeekKg": -0.6, "projectedDate": "2026-06-27",
     "onTrack": true, "achieved": false, "createdAt": "2026-05-23T00:00:00Z"
   }
 }

@@ -109,6 +109,16 @@ function GoalProgress({ progress: p }: { progress: WeightGoalProgress }) {
         <Metric label="預估達標" value={fmtDate(p.projectedDate)} icon={<CalendarClock className="size-3" />} />
       </div>
 
+      {p.requiredRatePerWeekKg != null && (
+        <p className="text-[10px] text-muted-foreground">
+          要如期達標，每週需{" "}
+          <span className="font-semibold text-slate-700 dark:text-slate-200">
+            {p.requiredRatePerWeekKg > 0 ? "+" : ""}{p.requiredRatePerWeekKg.toFixed(1)} kg
+          </span>
+          {p.ratePerWeekKg != null && `（目前 ${p.ratePerWeekKg > 0 ? "+" : ""}${p.ratePerWeekKg} kg/週）`}
+        </p>
+      )}
+
       {p.targetDate && (
         <p className="text-[10px] text-muted-foreground">
           目標日：{fmtDate(p.targetDate)}
