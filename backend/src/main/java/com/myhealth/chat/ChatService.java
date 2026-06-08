@@ -7,6 +7,9 @@ import com.myhealth.ai.AiProvider.WeightLog;
 import com.myhealth.ai.AiProvider.WorkoutRequest;
 import com.myhealth.chat.ChatDtos.ChatMessageResponse;
 import com.myhealth.chat.ChatDtos.ChatReplyResponse;
+import com.myhealth.healthplan.HealthPlanDtos.HealthPlanResponse;
+import com.myhealth.healthplan.HealthPlanDtos.PlanAction;
+import com.myhealth.healthplan.HealthPlanService;
 import com.myhealth.meal.Meal;
 import com.myhealth.meal.MealDtos.MealResponse;
 import com.myhealth.meal.MealRepository;
@@ -67,10 +70,11 @@ public class ChatService {
     private final MealService mealService;
     private final WorkoutService workoutService;
     private final UserService userService;
+    private final HealthPlanService healthPlan;
 
     public ChatService(ChatMessageRepository messages, AiProvider provider, StatsService stats,
                        MealRepository meals, WorkoutPlanRepository workouts, MealService mealService,
-                       WorkoutService workoutService, UserService userService) {
+                       WorkoutService workoutService, UserService userService, HealthPlanService healthPlan) {
         this.messages = messages;
         this.provider = provider;
         this.stats = stats;
@@ -79,6 +83,7 @@ public class ChatService {
         this.mealService = mealService;
         this.workoutService = workoutService;
         this.userService = userService;
+        this.healthPlan = healthPlan;
     }
 
     @Transactional(readOnly = true)
@@ -322,7 +327,33 @@ public class ChatService {
 
         appendTodayMeals(sb, user, today);
         appendTodayWorkouts(sb, user, today);
+        appendHealthPlan(sb, user, today);
         return sb.toString();
+    }
+
+    /**
+     * The same Health Plan summary the Dashboard shows, so the coach answers "我今天該做什麼"
+     * from the user's real prioritized next actions instead of inventing advice. Best-effort:
+     * the chat must never fail just because the plan couldn't be assembled.
+     */
+    private void appendHealthPlan(StringBuilder sb, AppUser user, LocalDate today) {
+        try {
+            HealthPlanResponse plan = healthPlan.get(user, today);
+            sb.append("健康計畫就緒分數: ").append(plan.readinessScore()).append(" / 100\n");
+            List<PlanAction> actions = plan.nextActions();
+            if (actions == null || actions.isEmpty()) {
+                sb.append("今日健康計畫建議: 目前沒有待辦，維持現狀即可\n");
+                return;
+            }
+            sb.append("今日健康計畫建議（依優先順序；使用者問「今天該做什麼」時請據此回答，勿自行發明）:\n");
+            int i = 1;
+            for (PlanAction action : actions) {
+                sb.append("  ").append(i++).append(". ").append(action.title())
+                        .append("：").append(action.detail()).append('\n');
+            }
+        } catch (RuntimeException ex) {
+            // best-effort context; never block the chat if the plan can't be built
+        }
     }
 
     private void appendTodayMeals(StringBuilder sb, AppUser user, LocalDate today) {

@@ -16,6 +16,8 @@ import com.myhealth.ai.AiProvider.MealLog;
 import com.myhealth.ai.AiProvider.WeightLog;
 import com.myhealth.ai.AiProvider.WorkoutRequest;
 import com.myhealth.chat.ChatDtos.ChatReplyResponse;
+import com.myhealth.healthplan.HealthPlanDtos.HealthPlanResponse;
+import com.myhealth.healthplan.HealthPlanDtos.PlanAction;
 import com.myhealth.meal.MealDtos.MealResponse;
 import com.myhealth.meal.MealRepository;
 import com.myhealth.meal.MealService;
@@ -55,13 +57,15 @@ class ChatServiceTest {
     @Mock MealService mealService;
     @Mock WorkoutService workoutService;
     @Mock com.myhealth.user.UserService userService;
+    @Mock com.myhealth.healthplan.HealthPlanService healthPlan;
 
     ChatService service;
     AppUser user;
 
     @BeforeEach
     void setUp() {
-        service = new ChatService(messages, provider, stats, meals, workouts, mealService, workoutService, userService);
+        service = new ChatService(messages, provider, stats, meals, workouts, mealService, workoutService,
+                userService, healthPlan);
         user = new AppUser();
         user.setEmail("bob@example.com");
         user.setName("Bob");
@@ -97,6 +101,22 @@ class ChatServiceTest {
         assertThat(res.reply().content()).contains("午餐");
         verify(mealService).create(eq(user), isNull(), eq("雞胸肉沙拉"), eq("lunch"), any(), eq(false));
         verify(provider, never()).chat(any(), any(), any());
+    }
+
+    @Test
+    void plainChat_injectsHealthPlanPrioritiesIntoContext() {
+        when(healthPlan.get(eq(user), any())).thenReturn(new HealthPlanResponse(
+                LocalDate.now(), "減脂", 70, null, null, null, null,
+                List.of(new PlanAction("LOG_MEAL", "記錄第一餐", "今天尚未記錄餐點，先建立今日飲食基準。", 60, "/meals"))));
+        when(provider.chat(any(), any(), eq("我今天該做什麼"))).thenReturn("先記錄今天第一餐吧 🍽️");
+
+        ChatReplyResponse res = service.send(user, "我今天該做什麼");
+
+        assertThat(res.reply().content()).isEqualTo("先記錄今天第一餐吧 🍽️");
+        ArgumentCaptor<String> context = ArgumentCaptor.forClass(String.class);
+        verify(provider).chat(context.capture(), any(), eq("我今天該做什麼"));
+        assertThat(context.getValue()).contains("健康計畫就緒分數: 70");
+        assertThat(context.getValue()).contains("記錄第一餐");  // prioritized next action surfaced to the model
     }
 
     @Test
