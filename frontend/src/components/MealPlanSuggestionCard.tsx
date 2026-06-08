@@ -1,19 +1,22 @@
-import { Lightbulb } from "lucide-react";
+import { Lightbulb, Plus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { mealSlotLabel } from "@/lib/mealSlots";
-import type { FoodSuggestions, HealthPlan } from "@/types/api";
+import type { FoodSuggestion, FoodSuggestions, HealthPlan } from "@/types/api";
 
 export function MealPlanSuggestionCard({
   plan,
   loading,
   selectedSlot,
   suggestions,
+  onPickFood,
 }: {
   plan: HealthPlan | null;
   loading: boolean;
   selectedSlot: string;
   suggestions?: FoodSuggestions | null;
+  /** Called when a recommended food chip is clicked, to prefill the add-meal form. */
+  onPickFood?: (food: FoodSuggestion) => void;
 }) {
   if (loading) {
     return <Skeleton className="h-28 w-full rounded-3xl" />;
@@ -63,22 +66,40 @@ export function MealPlanSuggestionCard({
           <SuggestionPill label="建議熱量" value={`${targetKcal}`} unit="kcal" warn={plan.nutrition.over} />
           <SuggestionPill label="蛋白質" value={`${proteinTarget}`} unit="g" />
         </div>
-        {suggestions && suggestions.items.length > 0 && (
+        {suggestions?.items && suggestions.items.length > 0 && (
           <div className="md:col-span-2 space-y-1.5">
-            <p className="text-[11px] font-semibold text-muted-foreground">食物資料庫推薦</p>
+            <p className="text-[11px] font-semibold text-muted-foreground">
+              食物資料庫推薦{onPickFood ? "（點選帶入紀錄）" : ""}
+            </p>
             <div className="flex flex-wrap gap-1.5">
-              {suggestions.items.map((food) => (
-                <span
-                  key={food.id}
-                  title={food.reason}
-                  className="inline-flex items-baseline gap-1 rounded-full border border-emerald-500/20 bg-white/70 dark:bg-slate-950/30 px-2.5 py-1 text-[11px]"
-                >
-                  <span className="font-semibold text-slate-700 dark:text-slate-200">{food.name}</span>
-                  <span className="text-muted-foreground">
-                    {food.grams}g · {food.kcal}kcal · 蛋白 {food.protein}g
+              {suggestions.items.map((food) => {
+                const content = (
+                  <>
+                    {onPickFood && <Plus className="size-3 text-emerald-500 shrink-0" />}
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">{food.name}</span>
+                    <span className="text-muted-foreground">
+                      {food.grams}g · {food.kcal}kcal · 蛋白 {food.protein}g
+                    </span>
+                  </>
+                );
+                const className =
+                  "inline-flex items-baseline gap-1 rounded-full border border-emerald-500/20 bg-white/70 dark:bg-slate-950/30 px-2.5 py-1 text-[11px]";
+                return onPickFood ? (
+                  <button
+                    key={food.id}
+                    type="button"
+                    title={`${food.reason}（點選帶入新增餐點）`}
+                    onClick={() => onPickFood(food)}
+                    className={`${className} items-center transition-colors hover:border-emerald-500/50 hover:bg-emerald-500/10`}
+                  >
+                    {content}
+                  </button>
+                ) : (
+                  <span key={food.id} title={food.reason} className={className}>
+                    {content}
                   </span>
-                </span>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

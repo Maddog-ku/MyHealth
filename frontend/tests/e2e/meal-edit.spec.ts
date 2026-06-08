@@ -258,6 +258,22 @@ test("meals page shows next meal guidance from the health plan", async ({ page }
     }),
   );
   await page.route("**/api/v1/foods**", async (route) => {
+    if (route.request().url().includes("/foods/suggestions")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          remainingKcal: 1000,
+          proteinGapG: 94,
+          over: false,
+          headline: "下一餐優先補蛋白質（缺口約 94g）",
+          items: [
+            { id: "chicken-breast", name: "雞胸肉", category: "蛋白質", grams: 150, kcal: 248, protein: 46.5, reason: "高蛋白" },
+          ],
+        }),
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -297,6 +313,10 @@ test("meals page shows next meal guidance from the health plan", async ({ page }
   await expect(page.getByText("目前蛋白質約達成 37%")).toBeVisible();
   await expect(page.getByText("700")).toBeVisible();
   await expect(page.getByText("45", { exact: true })).toBeVisible();
+
+  // The database-grounded food chip is clickable and prefills the add-meal description.
+  await page.getByRole("button", { name: /雞胸肉/ }).click();
+  await expect(page.locator("#description")).toHaveValue("雞胸肉 150g");
 });
 
 test("user can reuse a recent meal and save today's meal as a favorite", async ({ page }) => {

@@ -35,7 +35,7 @@ import { useHealthPlan } from "@/hooks/useHealthPlan";
 import { ApiError } from "@/api/client";
 import { todayLocalISO } from "@/lib/date";
 import { mealSlotLabel } from "@/lib/mealSlots";
-import type { FoodItem, Meal, MealPreview } from "@/types/api";
+import type { FoodItem, FoodSuggestion, Meal, MealPreview } from "@/types/api";
 
 export function MealsPage() {
   const today = useMemo(() => todayLocalISO(), []);
@@ -44,6 +44,7 @@ export function MealsPage() {
   const [preview, setPreview] = useState<MealPreview | null>(null);
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [formResetKey, setFormResetKey] = useState(0);
+  const [prefill, setPrefill] = useState({ text: "", nonce: 0 });
 
   const meals = useMeals(today);
   const recentMeals = useRecentMeals(today);
@@ -57,6 +58,11 @@ export function MealsPage() {
   const deleteMeal = useDeleteMeal(today);
   const healthPlan = useHealthPlan(today);
   const foodSuggestions = useFoodSuggestions(today);
+
+  function pickSuggestedFood(food: FoodSuggestion) {
+    // Drop the food + its serving into the add-meal description so the user can preview/log it.
+    setPrefill((prev) => ({ text: `${food.name} ${food.grams}g`, nonce: prev.nonce + 1 }));
+  }
 
   async function requestMealPreview({ slot, description, imageFile }: AddMealPreviewRequest) {
     const form = new FormData();
@@ -104,11 +110,14 @@ export function MealsPage() {
         loading={healthPlan.isLoading}
         selectedSlot={slot}
         suggestions={foodSuggestions.data ?? null}
+        onPickFood={pickSuggestedFood}
       />
 
       <AddMealForm
         slot={slot}
         resetKey={formResetKey}
+        prefillText={prefill.text}
+        prefillNonce={prefill.nonce}
         previewPending={previewMeal.isPending}
         confirmPending={confirmMeal.isPending}
         previewError={previewMeal.error}

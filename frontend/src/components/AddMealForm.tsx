@@ -24,6 +24,8 @@ export type AddMealPreviewRequest = {
 export function AddMealForm({
   slot,
   resetKey,
+  prefillText,
+  prefillNonce,
   previewPending,
   confirmPending,
   previewError,
@@ -33,6 +35,10 @@ export function AddMealForm({
 }: {
   slot: string;
   resetKey: number;
+  /** Text to drop into the description box (e.g. a picked food suggestion). */
+  prefillText?: string;
+  /** Bumped each time a prefill is requested, so re-picking the same food re-applies it. */
+  prefillNonce?: number;
   previewPending: boolean;
   confirmPending: boolean;
   previewError: unknown;
@@ -52,6 +58,14 @@ export function AddMealForm({
     setInputWarning(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [resetKey]);
+
+  // Apply a picked food suggestion into the description; keyed on nonce so the same
+  // food can be re-applied. Skips the initial mount (nonce 0 / no text).
+  useEffect(() => {
+    if (!prefillNonce || !prefillText) return;
+    setDescription(prefillText);
+    setInputWarning(null);
+  }, [prefillNonce, prefillText]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
