@@ -8,6 +8,7 @@ import com.myhealth.ai.AiProvider.FoodItem;
 import com.myhealth.ai.AiProvider.MealImage;
 import com.myhealth.common.ApiException;
 import com.myhealth.common.ErrorCode;
+import com.myhealth.food.FoodService;
 import com.myhealth.meal.MealDtos.CopyMealRequest;
 import com.myhealth.meal.MealDtos.FavoriteMealRequest;
 import com.myhealth.meal.MealDtos.FavoriteMealResponse;
@@ -38,16 +39,18 @@ public class MealService {
     private final MealRepository meals;
     private final FavoriteMealRepository favoriteMeals;
     private final AiProvider aiProvider;
+    private final FoodService foodService;
     private final FileStorageService fileStorage;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
 
     public MealService(MealRepository meals, FavoriteMealRepository favoriteMeals,
-                       AiProvider aiProvider, FileStorageService fileStorage, ObjectMapper objectMapper,
-                       TransactionTemplate transactionTemplate) {
+                       AiProvider aiProvider, FoodService foodService, FileStorageService fileStorage,
+                       ObjectMapper objectMapper, TransactionTemplate transactionTemplate) {
         this.meals = meals;
         this.favoriteMeals = favoriteMeals;
         this.aiProvider = aiProvider;
+        this.foodService = foodService;
         this.fileStorage = fileStorage;
         this.objectMapper = objectMapper;
         this.transactionTemplate = transactionTemplate;
@@ -103,7 +106,20 @@ public class MealService {
             log.warn("AI meal preview failed, returning empty analysis: {}", summarizeException(ex));
             analysis = AiProvider.MealAnalysis.empty();
         }
-        return toPreview(mealDate, slot, normalizedDescription, analysis);
+        return toPreview(mealDate, slot, normalizedDescription, groundAgainstCatalog(analysis));
+    }
+
+    /**
+     * Re-baseline each AI-identified food's nutrition against the food database (AI keeps the
+     * identification + grams; the catalog supplies per-100g nutrition). Applied in the preview
+     * so the confirm list shows database-grounded numbers the user can still adjust.
+     */
+    private AiProvider.MealAnalysis groundAgainstCatalog(AiProvider.MealAnalysis analysis) {
+        if (analysis == null || analysis.items() == null || analysis.items().isEmpty()) {
+            return analysis;
+        }
+        List<FoodItem> grounded = analysis.items().stream().map(foodService::ground).toList();
+        return new AiProvider.MealAnalysis(grounded, analysis.suggestion());
     }
 
     public MealResponse confirm(AppUser user, MultipartFile image, String description, String slot, LocalDate date,

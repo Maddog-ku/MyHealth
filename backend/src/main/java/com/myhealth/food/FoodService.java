@@ -1,5 +1,6 @@
 package com.myhealth.food;
 
+import com.myhealth.ai.AiProvider.FoodItem;
 import com.myhealth.food.FoodDtos.FoodResponse;
 import com.myhealth.food.FoodDtos.FoodSuggestion;
 import com.myhealth.food.FoodDtos.FoodSuggestionsResponse;
@@ -83,6 +84,39 @@ public class FoodService {
         return new FoodSuggestionsResponse(Math.max(0, remainingKcal), gap, over, headline, items);
     }
 
+    /**
+     * Snap an AI-identified food's nutrition to the catalog baseline when its name matches a
+     * catalog entry: the model keeps responsibility for identifying the food and its grams, the
+     * database provides the per-100g nutrition. Unmatched foods (and zero-gram items) pass
+     * through unchanged. Picks the longest-named match to prefer the most specific food.
+     */
+    public FoodItem ground(FoodItem item) {
+        if (item == null || item.name() == null || item.grams() <= 0) {
+            return item;
+        }
+        String name = normalize(item.name());
+        FoodCatalogItem match = CATALOG.stream()
+                .filter(catalogItem -> catalogItem.groundsFor(name))
+                .max(Comparator.comparingInt(catalogItem -> catalogItem.name().length()))
+                .orElse(null);
+        if (match == null) {
+            return item;
+        }
+        double ratio = item.grams() / 100.0;
+        return new FoodItem(
+                item.name(),
+                item.grams(),
+                (int) Math.round(match.kcalPer100g() * ratio),
+                round1(match.proteinPer100g() * ratio),
+                round1(match.fatPer100g() * ratio),
+                round1(match.carbPer100g() * ratio),
+                item.confidence());
+    }
+
+    private static double round1(double value) {
+        return Math.round(value * 10) / 10.0;
+    }
+
     private static FoodCatalogItem item(String id, String name, String category, List<String> aliases,
                                         int servingGrams, int kcalPer100g, double proteinPer100g,
                                         double fatPer100g, double carbPer100g) {
@@ -109,6 +143,17 @@ public class FoodService {
             return normalize(name).contains(q)
                     || normalize(category).contains(q)
                     || aliases.stream().anyMatch(alias -> normalize(alias).contains(q));
+        }
+
+        /** True when {@code normalizedFoodName} contains this food's name or a (≥2-char) alias. */
+        boolean groundsFor(String normalizedFoodName) {
+            if (normalizedFoodName.contains(normalize(name))) {
+                return true;
+            }
+            return aliases.stream().anyMatch(alias -> {
+                String normalizedAlias = normalize(alias);
+                return normalizedAlias.length() >= 2 && normalizedFoodName.contains(normalizedAlias);
+            });
         }
 
         FoodResponse toResponse() {

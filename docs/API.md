@@ -744,6 +744,8 @@ Content-Type：`multipart/form-data`
 
 推薦前端流程：先呼叫 `POST /meals/preview` 取得候選食物與總營養，讓使用者確認後再呼叫 `POST /meals/confirm` 寫入餐點日誌。這可避免照片辨識錯誤直接落地。
 
+預覽會用食物資料庫校準營養：AI 負責辨識食物與克數，凡名稱命中 catalog 的項目，其熱量與三大營養素會改以資料庫每 100g 基準按克數重算（取名稱最長的最精確匹配），未命中的食物維持 AI 估值。使用者仍可在確認清單再調整。
+
 `POST /meals/preview`
 Content-Type：`multipart/form-data`
 

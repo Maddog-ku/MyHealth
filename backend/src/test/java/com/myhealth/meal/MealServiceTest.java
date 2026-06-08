@@ -59,7 +59,9 @@ class MealServiceTest {
             TransactionCallback<?> cb = inv.getArgument(0);
             return cb.doInTransaction(null);
         });
-        service = new MealService(meals, favoriteMeals, aiProvider, fileStorage, objectMapper, transactionTemplate);
+        // Real FoodService: stateless catalog, so preview grounding runs against real data.
+        service = new MealService(meals, favoriteMeals, aiProvider, new com.myhealth.food.FoodService(),
+                fileStorage, objectMapper, transactionTemplate);
         owner = userWithId(1L);
     }
 
@@ -241,6 +243,37 @@ class MealServiceTest {
         assertThat(response.items()).hasSize(1);
         verify(fileStorage, never()).storeMealImage(any(), any());
         verify(meals, never()).save(any());
+    }
+
+    @Test
+    void preview_groundsRecognizedFoodNutritionAgainstCatalog() {
+        // AI identifies 雞胸肉 at 200g but gives wildly wrong nutrition; the catalog (165 kcal,
+        // 31g protein per 100g) re-baselines it to 200g servings, keeping the AI's name + grams.
+        when(aiProvider.analyzeMeal(eq("雞胸肉"), isNull())).thenReturn(new MealAnalysis(
+                List.of(new FoodItem("雞胸肉", 200, 999, 5.0, 80.0, 70.0, 0.6)),
+                "高蛋白"));
+
+        var response = service.preview(owner, null, "雞胸肉", "lunch", LocalDate.of(2026, 5, 30));
+
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().get(0).name()).isEqualTo("雞胸肉");
+        assertThat(response.items().get(0).grams()).isEqualTo(200);
+        assertThat(response.items().get(0).kcal()).isEqualTo(330);  // 165 * 2
+        assertThat(response.totalKcal()).isEqualTo(330);
+        assertThat(response.totalProtein()).isEqualByComparingTo("62.00");  // 31 * 2
+    }
+
+    @Test
+    void preview_leavesUnknownFoodUntouched() {
+        // 鮮蝦 passes the food-hint guard (蝦) but isn't in the catalog → nutrition untouched.
+        when(aiProvider.analyzeMeal(eq("鮮蝦"), isNull())).thenReturn(new MealAnalysis(
+                List.of(new FoodItem("鮮蝦", 100, 432, 12.0, 20.0, 30.0, 0.5)),
+                null));
+
+        var response = service.preview(owner, null, "鮮蝦", "lunch", LocalDate.of(2026, 5, 30));
+
+        assertThat(response.items().get(0).kcal()).isEqualTo(432);  // no catalog match → unchanged
+        assertThat(response.totalKcal()).isEqualTo(432);
     }
 
     @Test

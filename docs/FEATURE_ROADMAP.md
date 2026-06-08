@@ -43,4 +43,4 @@
 - AI 助理（Chat）已注入 Health Plan context：在系統 prompt 帶入就緒分數與 `nextActions` 優先事項，使用者問「今天該做什麼」時據此回答，與 Dashboard 同源；weekly report 已注入達標率與趨勢，workout schedule context 待後續。
 - AI 已可根據 `nextActions` 解釋今日優先事項（Chat 已串接；其餘入口陸續整合）。
 - 食物資料庫已接上今日營養缺口：`GET /foods/suggestions` 依 `GET /stats/budget` 的剩餘熱量與蛋白質缺口，從 catalog 推薦具體食物（常見份量、決定性、無需 AI），Meals 頁「下一餐建議」卡會列出推薦食物。
-- Vision meal flow 與 food database 進一步結合（AI 辨識候選項、資料庫負責營養素基準）待後續。
+- Vision/文字 meal preview 已與 food database 結合：AI 負責辨識食物與克數，命中 catalog 的項目改以資料庫每 100g 基準按克數重算營養素（取最長名稱的最精確匹配），未命中維持 AI 估值；使用者仍可在確認清單調整。
