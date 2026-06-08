@@ -23,6 +23,7 @@ import com.myhealth.common.ApiException;
 import com.myhealth.common.ErrorCode;
 import com.myhealth.common.GlobalExceptionHandler;
 import com.myhealth.meal.MealDtos.FavoriteMealResponse;
+import com.myhealth.meal.MealDtos.MealPreviewResponse;
 import com.myhealth.meal.MealDtos.MealResponse;
 import com.myhealth.meal.MealDtos.RecentMealResponse;
 import com.myhealth.user.AppUser;
@@ -124,6 +125,45 @@ class MealControllerTest {
         mockMvc.perform(multipart("/api/v1/meals").file(image).param("slot", "dinner"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(2));
+    }
+
+    @Test
+    void preview_returns200_withoutPersistingMeal() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        when(mealService.preview(any(), isNull(), eq("雞胸肉沙拉"), eq("lunch"), eq(LocalDate.of(2026, 5, 30))))
+                .thenReturn(new MealPreviewResponse(
+                        LocalDate.of(2026, 5, 30), "lunch", "雞胸肉沙拉",
+                        List.of(new FoodItem("雞胸肉", 150, 248, 46.5, 5.4, 0, 0.92)),
+                        248, new BigDecimal("46.5"), new BigDecimal("5.4"), BigDecimal.ZERO,
+                        "good"));
+
+        mockMvc.perform(multipart("/api/v1/meals/preview")
+                        .param("description", "雞胸肉沙拉")
+                        .param("slot", "lunch")
+                        .param("date", "2026-05-30"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.description").value("雞胸肉沙拉"))
+                .andExpect(jsonPath("$.items[0].name").value("雞胸肉"))
+                .andExpect(jsonPath("$.totalKcal").value(248));
+
+        verify(rateLimiter).checkMealCreate(any());
+    }
+
+    @Test
+    void confirm_returns201_withConfirmedItems() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        when(mealService.confirm(any(), isNull(), eq("雞胸肉沙拉"), eq("lunch"), eq(LocalDate.of(2026, 5, 30)),
+                eq("[{\"name\":\"雞胸肉\",\"grams\":150,\"kcal\":248,\"protein\":46.5,\"fat\":5.4,\"carb\":0,\"confidence\":1}]"),
+                eq("good"))).thenReturn(stubMeal(3L));
+
+        mockMvc.perform(multipart("/api/v1/meals/confirm")
+                        .param("description", "雞胸肉沙拉")
+                        .param("slot", "lunch")
+                        .param("date", "2026-05-30")
+                        .param("items", "[{\"name\":\"雞胸肉\",\"grams\":150,\"kcal\":248,\"protein\":46.5,\"fat\":5.4,\"carb\":0,\"confidence\":1}]")
+                        .param("aiSuggestion", "good"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(3));
     }
 
     @Test

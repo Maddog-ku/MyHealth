@@ -12,6 +12,8 @@ import { StreakCard } from "@/components/StreakCard";
 import { WeightGoalCard } from "@/components/WeightGoalCard";
 import { CalorieBudgetRing } from "@/components/CalorieBudgetRing";
 import { DailyHabitsCard } from "@/components/DailyHabitsCard";
+import { HealthPlanCard } from "@/components/HealthPlanCard";
+import { HealthPlanSettingsCard } from "@/components/HealthPlanSettingsCard";
 import { useDailyStats } from "@/hooks/useDailyStats";
 import { useAiStatus } from "@/hooks/useAiStatus";
 import { useMe } from "@/hooks/useAuth";
@@ -277,6 +279,10 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Integrated health plan */}
+      <HealthPlanCard date={today} />
+      <HealthPlanSettingsCard />
 
       {/* Daily calorie budget ring */}
       <CalorieBudgetRing />

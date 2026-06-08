@@ -15,6 +15,15 @@ export function useFavoriteMeals() {
   return useQuery({ queryKey: qk.favoriteMeals, queryFn: () => api.favoriteMeals() });
 }
 
+export function useFoodSearch(query: string) {
+  const q = query.trim();
+  return useQuery({
+    queryKey: qk.foods(q),
+    queryFn: () => api.foods(q, 8),
+    enabled: q.length > 0,
+  });
+}
+
 export function useCreateMeal(date: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -22,6 +31,27 @@ export function useCreateMeal(date: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.meals(date) });
       qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
+      qc.invalidateQueries({ queryKey: qk.healthPlan(date) });
+      qc.invalidateQueries({ queryKey: qk.calorieBudget(date) });
+    },
+  });
+}
+
+export function usePreviewMeal() {
+  return useMutation({
+    mutationFn: (form: FormData) => api.previewMeal(form),
+  });
+}
+
+export function useConfirmMeal(date: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (form: FormData) => api.confirmMeal(form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.meals(date) });
+      qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
+      qc.invalidateQueries({ queryKey: qk.healthPlan(date) });
+      qc.invalidateQueries({ queryKey: qk.calorieBudget(date) });
     },
   });
 }
@@ -34,6 +64,8 @@ export function useCopyMeal(date: string) {
       qc.invalidateQueries({ queryKey: qk.meals(date) });
       qc.invalidateQueries({ queryKey: qk.recentMeals(date) });
       qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
+      qc.invalidateQueries({ queryKey: qk.healthPlan(date) });
+      qc.invalidateQueries({ queryKey: qk.calorieBudget(date) });
     },
   });
 }
@@ -45,6 +77,8 @@ export function useCopyFavoriteMeal(date: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.meals(date) });
       qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
+      qc.invalidateQueries({ queryKey: qk.healthPlan(date) });
+      qc.invalidateQueries({ queryKey: qk.calorieBudget(date) });
     },
   });
 }
@@ -77,6 +111,8 @@ export function useUpdateMeal(date: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.meals(date) });
       qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
+      qc.invalidateQueries({ queryKey: qk.healthPlan(date) });
+      qc.invalidateQueries({ queryKey: qk.calorieBudget(date) });
     },
   });
 }
@@ -88,6 +124,8 @@ export function useDeleteMeal(date: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.meals(date) });
       qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
+      qc.invalidateQueries({ queryKey: qk.healthPlan(date) });
+      qc.invalidateQueries({ queryKey: qk.calorieBudget(date) });
     },
   });
 }

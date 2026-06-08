@@ -15,6 +15,7 @@ spring:
       validation-timeout: ${DB_VALIDATION_TIMEOUT_MS:3000}
       keepalive-time: 30000
       max-lifetime: 600000
+      idle-timeout: ${DB_IDLE_TIMEOUT_MS:300000}
       maximum-pool-size: ${DB_POOL_MAX:10}
       minimum-idle: ${DB_POOL_MIN_IDLE:2}
   jpa:

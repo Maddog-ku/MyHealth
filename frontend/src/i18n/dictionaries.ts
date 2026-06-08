@@ -53,6 +53,13 @@ const zhTW: Dict = {
   "settings.avatar.female": "元氣女孩",
   "settings.avatar.femaleDesc": "溫暖貼心的健身夥伴",
 
+  "settings.system.title": "系統狀態",
+  "settings.system.desc": "檢查後端、資料庫、AI 與限流服務是否正常。",
+  "settings.system.refresh": "重新檢查",
+  "settings.system.loading": "檢查中",
+  "settings.system.checkedAt": "更新於",
+  "settings.system.error": "無法取得系統狀態，請確認後端服務是否啟動。",
+
   "settings.danger.title": "危險操作區",
   "settings.danger.desc": "刪除帳號將永久清除您的所有資料，包含運動紀錄、飲食紀錄、體重趨勢與個人檔案，且無法復原。",
   "settings.danger.deleteBtn": "刪除我的帳號",
@@ -105,6 +112,13 @@ const en: Dict = {
   "settings.avatar.maleDesc": "A sunny, upbeat fitness buddy",
   "settings.avatar.female": "Lively Girl",
   "settings.avatar.femaleDesc": "A warm, caring fitness buddy",
+
+  "settings.system.title": "System status",
+  "settings.system.desc": "Checks backend, database, AI and rate-limit services.",
+  "settings.system.refresh": "Refresh",
+  "settings.system.loading": "Checking",
+  "settings.system.checkedAt": "Updated",
+  "settings.system.error": "Unable to load system status. Check that the backend is running.",
 
   "settings.danger.title": "Danger zone",
   "settings.danger.desc": "Deleting your account permanently erases all your data — workouts, meals, weight trends and profile — and cannot be undone.",

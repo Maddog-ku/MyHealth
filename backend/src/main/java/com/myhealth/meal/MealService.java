@@ -14,6 +14,7 @@ import com.myhealth.meal.MealDtos.FavoriteMealResponse;
 import com.myhealth.meal.FileStorageService.StoredFile;
 import com.myhealth.user.AppUser;
 import com.myhealth.meal.MealDtos.MealResponse;
+import com.myhealth.meal.MealDtos.MealPreviewResponse;
 import com.myhealth.meal.MealDtos.RecentMealResponse;
 import com.myhealth.meal.MealDtos.UpdateMealRequest;
 import java.math.BigDecimal;
@@ -63,11 +64,7 @@ public class MealService {
      */
     public MealResponse create(AppUser user, MultipartFile image, String description, String slot, LocalDate date,
                                boolean requireFoodHint) {
-        String normalizedDescription = MealInputGuard.normalizeDescription(description);
-        if (normalizedDescription == null && (image == null || image.isEmpty())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "image or description is required");
-        }
-        MealInputGuard.validateDescription(normalizedDescription, requireFoodHint);
+        String normalizedDescription = validateMealInput(image, description, requireFoodHint);
         LocalDate mealDate = date == null ? LocalDate.now() : date;
         String imageUrl = fileStorage.storeMealImage(image, mealDate);
         MealImage mealImage;
@@ -95,6 +92,47 @@ public class MealService {
         }
     }
 
+    public MealPreviewResponse preview(AppUser user, MultipartFile image, String description, String slot, LocalDate date) {
+        String normalizedDescription = validateMealInput(image, description, true);
+        LocalDate mealDate = date == null ? LocalDate.now() : date;
+        MealImage mealImage = toMealImage(image);
+        AiProvider.MealAnalysis analysis;
+        try {
+            analysis = aiProvider.analyzeMeal(normalizedDescription, mealImage);
+        } catch (RuntimeException ex) {
+            log.warn("AI meal preview failed, returning empty analysis: {}", summarizeException(ex));
+            analysis = AiProvider.MealAnalysis.empty();
+        }
+        return toPreview(mealDate, slot, normalizedDescription, analysis);
+    }
+
+    public MealResponse confirm(AppUser user, MultipartFile image, String description, String slot, LocalDate date,
+                                String itemsJson, String aiSuggestion) {
+        String normalizedDescription = validateMealInput(image, description, true);
+        LocalDate mealDate = date == null ? LocalDate.now() : date;
+        List<FoodItem> items = readConfirmedItems(itemsJson);
+        if (items.size() > 5) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "items must contain 5 entries or fewer");
+        }
+        String imageUrl = fileStorage.storeMealImage(image, mealDate);
+        AiProvider.MealAnalysis analysis = new AiProvider.MealAnalysis(items, aiSuggestion);
+        try {
+            return transactionTemplate.execute(status -> persist(user, mealDate, slot, normalizedDescription, imageUrl, analysis));
+        } catch (RuntimeException ex) {
+            fileStorage.delete(imageUrl);
+            throw ex;
+        }
+    }
+
+    private String validateMealInput(MultipartFile image, String description, boolean requireFoodHint) {
+        String normalizedDescription = MealInputGuard.normalizeDescription(description);
+        if (normalizedDescription == null && (image == null || image.isEmpty())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "image or description is required");
+        }
+        MealInputGuard.validateDescription(normalizedDescription, requireFoodHint);
+        return normalizedDescription;
+    }
+
     private MealImage toMealImage(MultipartFile image) {
         if (image == null || image.isEmpty()) {
             return null;
@@ -117,6 +155,20 @@ public class MealService {
         applyItems(meal, analysis.items());
         meal.setAiSuggestion(analysis.suggestion());
         return toResponse(meals.save(meal));
+    }
+
+    private MealPreviewResponse toPreview(LocalDate date, String slot, String description, AiProvider.MealAnalysis analysis) {
+        List<FoodItem> items = analysis.items() == null ? List.of() : analysis.items();
+        return new MealPreviewResponse(
+                date,
+                slot,
+                description,
+                items,
+                items.stream().mapToInt(FoodItem::kcal).sum(),
+                sum(items.stream().mapToDouble(FoodItem::protein).sum()),
+                sum(items.stream().mapToDouble(FoodItem::fat).sum()),
+                sum(items.stream().mapToDouble(FoodItem::carb).sum()),
+                analysis.suggestion());
     }
 
     public List<MealResponse> list(AppUser user, LocalDate date) {
@@ -347,6 +399,14 @@ public class MealService {
     private List<FoodItem> readItems(String json) {
         return JsonColumns.read(objectMapper, json, new TypeReference<List<FoodItem>>() {
         });
+    }
+
+    private List<FoodItem> readConfirmedItems(String json) {
+        try {
+            return readItems(json);
+        } catch (RuntimeException ex) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "items must be valid food item JSON");
+        }
     }
 
     private String summarizeException(RuntimeException ex) {

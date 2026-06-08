@@ -107,6 +107,51 @@ scripts/dev.sh --reset -y   # 跳過確認（非互動／CI 環境必須加）
 
 ---
 
+## Production Docker 部署
+
+專案提供 production 容器骨架：
+- `backend/Dockerfile`：Spring Boot jar，prod profile，uploads 掛載到 volume
+- `frontend/Dockerfile`：Vite build + nginx 靜態服務
+- `frontend/nginx.conf`：同源反向代理 `/api/*` 到 backend
+- `docker-compose.prod.yml`：Postgres + Redis + backend + frontend
+
+首次部署：
+
+```bash
+cp .env.prod.example .env.prod
+# 編輯 .env.prod：務必替換 POSTGRES_PASSWORD、SPRING_DATASOURCE_PASSWORD、JWT_SECRET、CORS_ALLOWED_ORIGINS
+
+scripts/prod-check.sh
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+scripts/prod-check.sh --url http://localhost:8088
+```
+
+預設只對外開 `http://localhost:8088`，前端會以同源 `/api/v1` 呼叫後端；backend、Postgres、Redis 留在 compose network 內。production compose 會等待 Postgres、Redis、backend readiness 都健康後再啟動 frontend；部署後的 `prod-check.sh --url` 會同時檢查 `/healthz` 與 API proxy。若放到正式網域，將 `CORS_ALLOWED_ORIGINS` 改成你的 `https://...` 網域，並在反向代理或防火牆上只開 frontend/HTTPS 入口。
+
+本機 Ollama 若跑在宿主機，`.env.prod.example` 預設使用：
+
+```env
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+```
+
+Linux server 若沒有 `host.docker.internal`，可改成實際宿主機 IP、內網 DNS，或把 Ollama 也納入部署環境。正式環境建議保留 `RATE_LIMIT_BACKEND=redis`，讓多個 backend replica 共用限流狀態。
+
+更新映像：
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+```
+
+停止服務但保留資料 volume：
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml down
+```
+
+> ⚠️ 不要在 production 使用 `down -v`，那會刪除 Postgres、Redis 與 uploads volume。
+
+---
+
 ## 技術概覽
 
 - **前端**：React + Vite + TypeScript、Tailwind、shadcn 風格元件（Radix）、TanStack Query、React Router、Recharts

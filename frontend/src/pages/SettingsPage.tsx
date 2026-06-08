@@ -14,6 +14,7 @@ import { LANGS, type Lang } from "@/i18n/dictionaries";
 import { ChangePasswordCard } from "@/components/ChangePasswordCard";
 import { SessionsCard } from "@/components/SessionsCard";
 import { DataExportCard } from "@/components/DataExportCard";
+import { SystemStatusCard } from "@/components/SystemStatusCard";
 
 const AVATAR_OPTIONS = [
   { value: "male" as const, labelKey: "settings.avatar.male", descKey: "settings.avatar.maleDesc", src: "/assistant/coach-male.png" },
@@ -230,6 +231,9 @@ export function SettingsPage() {
 
       {/* Export my data */}
       <DataExportCard />
+
+      {/* System diagnostics */}
+      <SystemStatusCard />
 
       {/* Danger Zone — account deletion */}
       <Card className="border border-rose-500/20 dark:border-rose-500/15 bg-rose-500/[0.03] dark:bg-rose-950/10 rounded-3xl overflow-hidden">

@@ -16,9 +16,12 @@ OpenAPI JSON（非 prod）：`http://localhost:8080/v3/api-docs`
 5. [Me（個人資料）](#5-me個人資料)
 6. [Workouts（運動菜單）](#6-workouts運動菜單)
 7. [Meals（飲食紀錄）](#7-meals飲食紀錄)
+7b. [Foods（食物資料庫）](#7b-foods食物資料庫)
 8. [Stats（統計）](#8-stats統計)
+8b. [Health Plan（健康計畫）](#8b-health-plan健康計畫)
 9. [Habits（每日習慣）](#9-habits每日習慣)
 10. [AI Gateway](#10-ai-gateway)
+10b. [System Diagnostics（系統狀態）](#10b-system-diagnostics系統狀態)
 11. [資料型別參考](#11-資料型別參考)
 12. [HTTP 狀態碼](#12-http-狀態碼)
 13. [速率限制與分頁](#13-速率限制與分頁)
@@ -737,7 +740,56 @@ Content-Type：`multipart/form-data`
 
 ---
 
-### 7.2 取得當日飲食
+### 7.2 AI 餐點預覽與確認
+
+推薦前端流程：先呼叫 `POST /meals/preview` 取得候選食物與總營養，讓使用者確認後再呼叫 `POST /meals/confirm` 寫入餐點日誌。這可避免照片辨識錯誤直接落地。
+
+`POST /meals/preview`
+Content-Type：`multipart/form-data`
+
+| Part | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `image` | file (jpg/png/webp, ≤ 10 MB) | ✗ | 餐點照片；只用於 AI 分析，不會在 preview 階段保存 |
+| `description` | string | ✗ | 文字描述 |
+| `slot` | string | ✓ | `breakfast` \| `lunch` \| `dinner` \| `snack` |
+| `date` | string (YYYY-MM-DD) | ✗ | 預設今日 |
+
+**Response 200**
+```json
+{
+  "date": "2026-05-25",
+  "slot": "lunch",
+  "description": "雞胸肉沙拉 + 半碗糙米飯",
+  "items": [
+    { "name": "雞胸肉", "grams": 150, "kcal": 248, "protein": 46.5, "fat": 5.4, "carb": 0, "confidence": 0.92 }
+  ],
+  "totalKcal": 248,
+  "totalProtein": 46.5,
+  "totalFat": 5.4,
+  "totalCarb": 0,
+  "aiSuggestion": "蛋白質充足，建議補充綠色蔬菜增加纖維。"
+}
+```
+
+`POST /meals/confirm`
+Content-Type：`multipart/form-data`
+
+| Part | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `image` | file (jpg/png/webp, ≤ 10 MB) | ✗ | 使用者確認後才保存的原餐點照片 |
+| `description` | string | ✗ | 確認後的文字描述 |
+| `slot` | string | ✓ | `breakfast` \| `lunch` \| `dinner` \| `snack` |
+| `date` | string (YYYY-MM-DD) | ✗ | 預設今日 |
+| `items` | JSON string | ✓ | `FoodItem[]`，最多 5 筆；後端依此重新計算總量 |
+| `aiSuggestion` | string | ✗ | preview 回傳的 AI 建議 |
+
+**Response 201**：同 `MealResponse`
+
+**Errors**：`400 BAD_REQUEST`（未提供圖片或描述、`items` JSON 無效或超過 5 筆）、`413 PAYLOAD_TOO_LARGE`、`415 UNSUPPORTED_MEDIA_TYPE`
+
+---
+
+### 7.3 取得當日飲食
 
 `GET /meals?date=2026-05-25`
 
@@ -745,11 +797,11 @@ Content-Type：`multipart/form-data`
 
 ---
 
-### 7.3 取得單筆
+### 7.4 取得單筆
 
 `GET /meals/{id}`
 
-### 7.4 最近可重用餐點
+### 7.5 最近可重用餐點
 
 `GET /meals/recent?beforeDate=2026-06-01&limit=5`
 
@@ -781,7 +833,7 @@ Content-Type：`multipart/form-data`
 }
 ```
 
-### 7.5 常用餐點
+### 7.6 常用餐點
 
 `GET /meals/favorites`
 
@@ -800,7 +852,7 @@ Content-Type：`multipart/form-data`
 
 `DELETE /meals/favorites/{id}` → 204
 
-### 7.6 複製餐點
+### 7.7 複製餐點
 
 `POST /meals/{id}/copy`
 
@@ -822,7 +874,7 @@ Content-Type：`multipart/form-data`
 
 **Response 201**：同 `MealResponse`
 
-### 7.7 更新餐點（手動修正 AI 結果）
+### 7.8 更新餐點（手動修正 AI 結果）
 
 `PUT /meals/{id}`
 
@@ -837,9 +889,39 @@ Content-Type：`multipart/form-data`
 ```
 後端會依 `items` 重新計算 `total*` 欄位。
 
-### 7.8 刪除餐點
+### 7.9 刪除餐點
 
 `DELETE /meals/{id}` → 204
+
+---
+
+## 7b. Foods（食物資料庫）
+
+常見食物搜尋，用於餐點 AI 預覽確認清單、既有餐點手動修正與手動補項目。第一版使用後端內建 catalog；回應營養素以 `servingGrams` 這份常見份量計算，前端加入餐點時可直接轉成 `FoodItem`，並在使用者調整克數或切換 0.5/1/1.5/2 份時按比例重算熱量與三大營養素。
+
+`GET /foods?q=雞&limit=8`
+
+| Query | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `q` | string | ✗ | 食物名稱、分類或 alias；空白回 `[]` |
+| `limit` | number | ✗ | 預設 10，上限 20 |
+
+**Response 200**
+```json
+[
+  {
+    "id": "chicken-breast",
+    "name": "雞胸肉",
+    "category": "蛋白質",
+    "servingGrams": 150,
+    "kcal": 248,
+    "protein": 46.5,
+    "fat": 5.4,
+    "carb": 0,
+    "aliases": ["雞肉", "chicken breast", "chicken"]
+  }
+]
+```
 
 ---
 
@@ -918,6 +1000,121 @@ Content-Type：`multipart/form-data`
   ]
 }
 ```
+
+---
+
+## 8b. Health Plan（健康計畫）
+
+Health Plan 是 Dashboard 的聚合層，整合今日熱量預算、體重目標、每週訓練目標與整體 streak，回傳一組可直接顯示的計畫摘要與下一步建議。第一版為 read-only 推導，不新增資料表。
+
+### 8b.1 取得指定日期健康計畫
+
+`GET /health-plan?date=2026-06-08` *(需登入)*
+
+**Response 200**
+```json
+{
+  "date": "2026-06-08",
+  "primaryGoal": "減脂",
+  "readinessScore": 78,
+  "nutrition": {
+    "goalKcal": 1700,
+    "budgetKcal": 1950,
+    "intakeKcal": 1200,
+    "burnKcal": 250,
+    "remainingKcal": 750,
+    "consumedPct": 62,
+    "over": false,
+    "macros": [
+      { "name": "protein", "targetG": 149, "consumedG": 67, "pct": 45 }
+    ]
+  },
+  "weight": {
+    "configured": true,
+    "currentWeightKg": 76.0,
+    "targetWeightKg": 70.0,
+    "remainingKg": -6.0,
+    "progressPct": 25,
+    "targetDate": "2026-07-01",
+    "projectedDate": "2026-08-31",
+    "onTrack": false,
+    "achieved": false
+  },
+  "workout": {
+    "configured": true,
+    "workoutsDoneToday": 1,
+    "workoutsPlannedToday": 1,
+    "targetSessionsPerWeek": 4,
+    "completedThisWeek": 2,
+    "remainingThisWeek": 2,
+    "progressPct": 50,
+    "achievedThisWeek": false
+  },
+  "streak": { "current": 3, "longest": 8, "lastActiveDate": "2026-06-08" },
+  "nextActions": [
+    {
+      "type": "PLAN_WORKOUT",
+      "title": "安排下一次訓練",
+      "detail": "本週還差 2 次訓練，建議先排入行事曆。",
+      "priority": 70,
+      "href": "/workouts"
+    }
+  ]
+}
+```
+
+### 8b.2 取得今日健康計畫
+
+`GET /health-plan/today` *(需登入)*
+
+等同 `GET /health-plan?date=<server today>`。
+
+### 8b.3 取得健康計畫設定
+
+`GET /health-plan/settings` *(需登入)*
+
+回傳目前整合設定：主目標、目前體重、體重目標進度、每週訓練目標進度。
+
+**Response 200**
+```json
+{
+  "primaryGoal": "fat_loss",
+  "currentWeightKg": 76.0,
+  "weightGoal": null,
+  "workoutGoal": null
+}
+```
+
+`weightGoal` 與 `workoutGoal` 形狀分別同 `/weight-goal`、`/workout-goal` 的 `progress`；尚未設定時為 `null`。
+
+### 8b.4 更新健康計畫設定
+
+`PUT /health-plan/settings` *(需登入)*
+
+此端點是整合目標入口，會同步更新：
+- `primaryGoal` → `profile.goal`
+- `weightGoal` → 體重目標（`enabled=false` 時清除）
+- `workoutGoal` → 每週訓練目標（`enabled=false` 時清除）
+
+**Request**
+```json
+{
+  "primaryGoal": "muscle_gain",
+  "weightGoal": {
+    "enabled": true,
+    "targetWeightKg": 82.0,
+    "targetDate": "2026-09-01"
+  },
+  "workoutGoal": {
+    "enabled": true,
+    "targetSessionsPerWeek": 4
+  }
+}
+```
+
+**Response 200**：同 `GET /health-plan/settings`
+
+**Errors**：`400 BAD_REQUEST`（啟用目標但缺少必填值）、`400 VALIDATION_ERROR`
 
 ---
 
@@ -1045,6 +1242,35 @@ Content-Type：`multipart/form-data`
 **對話直接記錄體重**：若訊息是在回報目前體重（例如「我今天體重 68.5 公斤」「幫我記體重 70」），助手會抽取公斤數，走 `UserService.logWeight` 更新個人資料體重並寫入一筆完整的體量快照（`note=chat_weight_log`，等同 `PUT /me/profile` 只改體重），`reply` 回傳確認訊息，並設 `weightLogged=true`、`loggedDate` 為日期（前端據此刷新個人資料與體重趨勢統計）。純詢問（如「我體重會不會太重」）不會記錄；體重須落在 20–400 kg 的合理範圍，否則視為誤判不記錄（避免把身高等數字誤當體重）。
 
 **清除歷史** — `DELETE /ai/chat/history`  *(需登入)* → `204 No Content`
+
+---
+
+## 10b. System Diagnostics（系統狀態）
+
+### 10b.1 取得系統狀態
+
+`GET /system/status` *(需登入)*
+
+回傳後端、資料庫、AI provider 與限流後端的狀態。此端點只提供診斷摘要，不暴露資料庫 URL、Redis URI 或 secret。
+
+**Response 200**
+```json
+{
+  "status": "UP",
+  "checkedAt": "2026-06-08T00:00:00Z",
+  "components": [
+    { "key": "backend", "label": "Backend API", "status": "UP", "detail": "request handled" },
+    { "key": "database", "label": "Database", "status": "UP", "detail": "connection validated" },
+    { "key": "ai", "label": "AI provider", "status": "UP", "detail": "local text=gemma4:e4b vision=gemma4:e4b idle" },
+    { "key": "rateLimit", "label": "Rate limiter", "status": "UP", "detail": "memory backend" }
+  ]
+}
+```
+
+`status` 可為：
+- `UP`：所有元件正常。
+- `DEGRADED`：非資料庫元件異常，核心 API 仍可處理請求。
+- `DOWN`：資料庫不可用，核心功能無法正常運作。
 
 ---
 
@@ -1282,7 +1508,7 @@ Content-Type：`multipart/form-data`
 | `POST /auth/login` | 10 req / min / IP + email | ✅ 已實作；預設 memory fixed window，可切 Redis Bucket4j token bucket |
 | `POST /auth/refresh` | 30 req / min / IP | ✅ 已實作；預設 memory fixed window，可切 Redis Bucket4j token bucket |
 | 登入後一般 API | 120 req / min / user | 📋 規劃中 |
-| AI 端點（`/workouts/generate`、`POST /meals`） | 20 req / min / user | ✅ 已實作；預設 memory fixed window，可切 Redis Bucket4j token bucket |
+| AI 端點（`/workouts/generate`、`POST /meals`、`POST /meals/preview`） | 20 req / min / user | ✅ 已實作；預設 memory fixed window，可切 Redis Bucket4j token bucket |
 
 超限回 `429 RATE_LIMITED`。設定 `RATE_LIMIT_BACKEND=redis` 時，限流狀態會存放在 Redis，適合多台 backend 共用；Redis 不可用時預設 `RATE_LIMIT_REDIS_FAIL_OPEN=false`，會回 `503`，正式環境建議維持 fail-closed。預設不信任 `X-Forwarded-For`；只有後端部署在可信任 reverse proxy 後方時才設定 `RATE_LIMIT_TRUST_FORWARDED_FOR=true`。目前限流不回傳 `X-RateLimit-*` header。
 

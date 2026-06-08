@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarRange, Sparkles, Trash2, Plus, Bed, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
   useGenerateWorkoutSchedule,
   useWorkoutSchedules,
 } from "@/hooks/useWorkoutSchedule";
+import { useHealthPlanSettings } from "@/hooks/useHealthPlan";
 import { ApiError } from "@/api/client";
 import { mondayOfWeekLocalISO } from "@/lib/date";
 import type { ScheduleDay, WorkoutSchedule } from "@/types/api";
@@ -54,13 +55,23 @@ export function WorkoutSchedulePanel() {
   const [daysPerWeek, setDaysPerWeek] = useState(3);
   const [weeks, setWeeks] = useState(4);
   const [intensity, setIntensity] = useState("medium");
+  const [daysTouched, setDaysTouched] = useState(false);
 
   const schedules = useWorkoutSchedules();
+  const planSettings = useHealthPlanSettings();
   const generate = useGenerateWorkoutSchedule();
   const remove = useDeleteWorkoutSchedule();
 
   // Show the most recently generated schedule.
   const current = schedules.data?.data?.[0] ?? null;
+  const plannedSessions = planSettings.data?.workoutGoal?.targetSessionsPerWeek ?? null;
+  const planDefaultDays = plannedSessions == null ? null : Math.max(2, Math.min(6, plannedSessions));
+
+  useEffect(() => {
+    if (!daysTouched && planDefaultDays != null) {
+      setDaysPerWeek(planDefaultDays);
+    }
+  }, [daysTouched, planDefaultDays]);
 
   return (
     <Card className="border border-slate-100/80 dark:border-slate-900/60 bg-white/70 dark:bg-slate-950/40 backdrop-blur-xl shadow-xl shadow-slate-100/50 dark:shadow-none rounded-3xl overflow-hidden">
@@ -77,7 +88,14 @@ export function WorkoutSchedulePanel() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] items-end">
           <div className="grid gap-1.5">
             <label className="text-xs font-semibold text-slate-500 px-1">每週訓練天數</label>
-            <Select value={String(daysPerWeek)} onValueChange={(v) => setDaysPerWeek(Number(v))} disabled={generate.isPending}>
+            <Select
+              value={String(daysPerWeek)}
+              onValueChange={(v) => {
+                setDaysTouched(true);
+                setDaysPerWeek(Number(v));
+              }}
+              disabled={generate.isPending}
+            >
               <SelectTrigger className="rounded-2xl border-slate-200/80 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 py-5">
                 <SelectValue />
               </SelectTrigger>
@@ -87,6 +105,11 @@ export function WorkoutSchedulePanel() {
                 ))}
               </SelectContent>
             </Select>
+            {planDefaultDays != null && (
+              <p className="px-1 text-[10px] font-medium text-muted-foreground">
+                依健康計畫預設 {planDefaultDays} 天/週
+              </p>
+            )}
           </div>
 
           <div className="grid gap-1.5">

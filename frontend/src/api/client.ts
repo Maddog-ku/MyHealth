@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
-import type { AuthResponse, CalorieBudget, ChatMessage, DailyHabits, DailyStats, FavoriteMeal, FoodItem, HabitType, Meal, NotificationFeed, PageEnvelope, Profile, RecentMeal, SearchResponse, SessionList, StreakSummary, User, WeeklyReport, WeightGoalResponse, WorkoutGoalResponse, WorkoutPlan, WorkoutSchedule, WorkoutVolume } from "@/types/api";
+import type { AuthResponse, CalorieBudget, ChatMessage, DailyHabits, DailyStats, FavoriteMeal, FoodCatalogItem, FoodItem, HabitType, HealthPlan, HealthPlanSettings, HealthPlanSettingsRequest, Meal, MealPreview, NotificationFeed, PageEnvelope, Profile, RecentMeal, SearchResponse, SessionList, StreakSummary, SystemStatus, User, WeeklyReport, WeightGoalResponse, WorkoutGoalResponse, WorkoutPlan, WorkoutSchedule, WorkoutVolume } from "@/types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -175,6 +175,8 @@ export const api = {
     http.get<PageEnvelope<RecentMeal>>("/meals/recent", { params: { beforeDate, limit } }).then((r) => r.data),
   favoriteMeals: () => http.get<FavoriteMeal[]>("/meals/favorites").then((r) => r.data),
   createMeal: (form: FormData) => http.post<Meal>("/meals", form).then((r) => r.data),
+  previewMeal: (form: FormData) => http.post<MealPreview>("/meals/preview", form).then((r) => r.data),
+  confirmMeal: (form: FormData) => http.post<Meal>("/meals/confirm", form).then((r) => r.data),
   updateMeal: (id: number, body: { items: FoodItem[]; aiSuggestion: string | null }) =>
     http.put<Meal>(`/meals/${id}`, body).then((r) => r.data),
   favoriteMeal: (id: number, name?: string) =>
@@ -185,6 +187,9 @@ export const api = {
     http.post<Meal>(`/meals/favorites/${id}/copy`, body).then((r) => r.data),
   deleteFavoriteMeal: (id: number) => http.delete<void>(`/meals/favorites/${id}`).then(() => undefined),
   deleteMeal: (id: number) => http.delete<void>(`/meals/${id}`).then(() => undefined),
+
+  foods: (q: string, limit = 8) =>
+    http.get<FoodCatalogItem[]>("/foods", { params: { q, limit } }).then((r) => r.data),
 
   aiStatus: () =>
     http
@@ -224,6 +229,14 @@ export const api = {
   calorieBudget: (date: string) =>
     http.get<CalorieBudget>("/stats/budget", { params: { date } }).then((r) => r.data),
 
+  healthPlan: (date?: string) =>
+    date
+      ? http.get<HealthPlan>("/health-plan", { params: { date } }).then((r) => r.data)
+      : http.get<HealthPlan>("/health-plan/today").then((r) => r.data),
+  healthPlanSettings: () => http.get<HealthPlanSettings>("/health-plan/settings").then((r) => r.data),
+  updateHealthPlanSettings: (body: HealthPlanSettingsRequest) =>
+    http.put<HealthPlanSettings>("/health-plan/settings", body).then((r) => r.data),
+
   dailyHabits: (date: string) =>
     http.get<DailyHabits>("/habits/daily", { params: { date } }).then((r) => r.data),
   toggleHabit: (type: HabitType, body: { date: string; completed: boolean }) =>
@@ -236,4 +249,6 @@ export const api = {
   setWeightGoal: (body: { targetWeightKg: number; targetDate?: string | null }) =>
     http.put<WeightGoalResponse>("/weight-goal", body).then((r) => r.data),
   deleteWeightGoal: () => http.delete<void>("/weight-goal").then(() => undefined),
+
+  systemStatus: () => http.get<SystemStatus>("/system/status").then((r) => r.data),
 };

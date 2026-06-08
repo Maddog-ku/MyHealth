@@ -32,6 +32,19 @@ public final class MealDtos {
     ) {
     }
 
+    public record MealPreviewResponse(
+            LocalDate date,
+            String slot,
+            String description,
+            List<FoodItem> items,
+            int totalKcal,
+            BigDecimal totalProtein,
+            BigDecimal totalFat,
+            BigDecimal totalCarb,
+            String aiSuggestion
+    ) {
+    }
+
     public record UpdateMealRequest(
             @NotNull @Size(max = 5) List<@Valid FoodItem> items,
             @Size(max = 120) @Pattern(regexp = "^[\\p{L}\\p{N}\\s，。,.!?、:：()（）_-]*$") String aiSuggestion

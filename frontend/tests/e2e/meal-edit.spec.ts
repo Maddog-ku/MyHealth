@@ -49,6 +49,25 @@ test("user can manually correct an AI meal estimate and totals update", async ({
   await page.route("**/api/v1/me", async (route) => {
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(USER) });
   });
+  await page.route("**/*foods*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          id: "sweet-potato",
+          name: "地瓜",
+          category: "主食",
+          servingGrams: 120,
+          kcal: 103,
+          protein: 1.92,
+          fat: 0.12,
+          carb: 24.12,
+          aliases: ["番薯", "sweet potato"],
+        },
+      ]),
+    });
+  });
 
   await page.route("**/api/v1/meals**", async (route) => {
     const request = route.request();
@@ -104,6 +123,12 @@ test("user can manually correct an AI meal estimate and totals update", async ({
   // NumField order per row: grams, kcal, protein, fat, carb → kcal is index 1.
   const kcalInput = page.getByRole("spinbutton").nth(1);
   await kcalInput.fill("300");
+  await page.getByPlaceholder("搜尋雞胸肉、白飯、地瓜...").fill("地瓜");
+  await page.getByRole("button", { name: "加入地瓜" }).click();
+  await expect(page.getByPlaceholder("食物名稱").nth(1)).toHaveValue("地瓜");
+  await page.getByRole("button", { name: "套用2 份" }).click();
+  await expect(page.getByRole("spinbutton").nth(5)).toHaveValue("240");
+  await expect(page.getByRole("spinbutton").nth(6)).toHaveValue("206");
 
   await page.getByRole("button", { name: "儲存修正" }).click();
 
@@ -115,8 +140,12 @@ test("user can manually correct an AI meal estimate and totals update", async ({
   // The request the frontend sent matches the documented contract: confidence
   // forced to 1, aiSuggestion cleared to null.
   expect(lastPutBody).not.toBeNull();
+  expect(lastPutBody.items).toHaveLength(2);
   expect(lastPutBody.items[0].kcal).toBe(300);
   expect(lastPutBody.items[0].confidence).toBe(1);
+  expect(lastPutBody.items[1].name).toBe("地瓜");
+  expect(lastPutBody.items[1].grams).toBe(240);
+  expect(lastPutBody.items[1].kcal).toBe(206);
   expect(lastPutBody.aiSuggestion).toBeNull();
 });
 
@@ -191,6 +220,83 @@ test("user can add a food item manually when the AI returned nothing", async ({ 
   expect(lastPutBody.items).toHaveLength(1);
   expect(lastPutBody.items[0].name).toBe("地瓜");
   expect(lastPutBody.items[0].kcal).toBe(110);
+});
+
+test("meals page shows next meal guidance from the health plan", async ({ page }) => {
+  await seedAuth(page);
+
+  await page.route("**/api/v1/me", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(USER) }),
+  );
+  await page.route("**/api/v1/health-plan**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        date: "2026-06-01",
+        primaryGoal: "減脂",
+        readinessScore: 72,
+        nutrition: {
+          goalKcal: 1700,
+          budgetKcal: 1900,
+          intakeKcal: 900,
+          burnKcal: 200,
+          remainingKcal: 1000,
+          consumedPct: 47,
+          over: false,
+          macros: [
+            { name: "protein", targetG: 149, consumedG: 55, pct: 37 },
+            { name: "carb", targetG: 149, consumedG: 100, pct: 67 },
+            { name: "fat", targetG: 57, consumedG: 30, pct: 53 },
+          ],
+        },
+        weight: { configured: false, currentWeightKg: 55, targetWeightKg: null, remainingKg: null, progressPct: 0, targetDate: null, projectedDate: null, onTrack: null, achieved: false },
+        workout: { configured: false, workoutsDoneToday: 0, workoutsPlannedToday: 0, targetSessionsPerWeek: null, completedThisWeek: null, remainingThisWeek: null, progressPct: null, achievedThisWeek: false },
+        streak: { current: 1, longest: 3, lastActiveDate: "2026-06-01" },
+        nextActions: [],
+      }),
+    }),
+  );
+  await page.route("**/api/v1/foods**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          id: "sweet-potato",
+          name: "地瓜",
+          category: "主食",
+          servingGrams: 120,
+          kcal: 103,
+          protein: 1.92,
+          fat: 0.12,
+          carb: 24.12,
+          aliases: ["番薯", "sweet potato"],
+        },
+      ]),
+    });
+  });
+  await page.route("**/api/v1/meals**", async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (request.method() === "GET" && url.includes("/meals/favorites")) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+      return;
+    }
+    if (request.method() === "GET" && url.includes("/meals/recent")) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [], page: 0, size: 20, total: 0 }) });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [], page: 0, size: 20, total: 0 }) });
+  });
+
+  await page.goto("/meals");
+
+  await expect(page.getByText("下一餐建議")).toBeVisible();
+  await expect(page.getByText("下一餐優先補蛋白質")).toBeVisible();
+  await expect(page.getByText("目前蛋白質約達成 37%")).toBeVisible();
+  await expect(page.getByText("700")).toBeVisible();
+  await expect(page.getByText("45", { exact: true })).toBeVisible();
 });
 
 test("user can reuse a recent meal and save today's meal as a favorite", async ({ page }) => {
@@ -318,4 +424,162 @@ test("user can reuse a recent meal and save today's meal as a favorite", async (
   await page.getByRole("button", { name: "收藏此餐為常用餐點" }).last().click();
   expect(favoriteCalled).toBe(true);
   await expect.poll(async () => page.getByText("雞胸肉", { exact: true }).count()).toBeGreaterThanOrEqual(2);
+});
+
+test("user previews an AI meal estimate before confirming it into the log", async ({ page }) => {
+  await seedAuth(page);
+
+  let meals: Array<Record<string, unknown>> = [];
+  let previewCalled = false;
+  let confirmCalled = false;
+  let foodsCalled = false;
+  let confirmBody = "";
+
+  const preview = {
+    date: "2026-06-01",
+    slot: "lunch",
+    description: "雞胸肉沙拉",
+    items: [{ name: "雞胸肉", grams: 150, kcal: 248, protein: 46.5, fat: 5.4, carb: 0, confidence: 0.9 }],
+    totalKcal: 248,
+    totalProtein: 46.5,
+    totalFat: 5.4,
+    totalCarb: 0,
+    aiSuggestion: "蛋白足夠，可補充蔬菜。",
+  };
+
+  await page.route("**/api/v1/me", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(USER) }),
+  );
+  await page.route("**/api/v1/health-plan**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        date: "2026-06-01",
+        primaryGoal: "維持健康",
+        readinessScore: 80,
+        nutrition: {
+          goalKcal: 1800,
+          budgetKcal: 1800,
+          intakeKcal: 0,
+          burnKcal: 0,
+          remainingKcal: 1800,
+          consumedPct: 0,
+          over: false,
+          macros: [
+            { name: "protein", targetG: 120, consumedG: 0, pct: 0 },
+            { name: "carb", targetG: 180, consumedG: 0, pct: 0 },
+            { name: "fat", targetG: 60, consumedG: 0, pct: 0 },
+          ],
+        },
+        weight: { configured: false, currentWeightKg: 55, targetWeightKg: null, remainingKg: null, progressPct: 0, targetDate: null, projectedDate: null, onTrack: null, achieved: false },
+        workout: { configured: false, workoutsDoneToday: 0, workoutsPlannedToday: 0, targetSessionsPerWeek: null, completedThisWeek: null, remainingThisWeek: null, progressPct: null, achievedThisWeek: false },
+        streak: { current: 0, longest: 0, lastActiveDate: null },
+        nextActions: [],
+      }),
+    }),
+  );
+  await page.route("**/*foods*", async (route) => {
+    foodsCalled = true;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          id: "sweet-potato",
+          name: "地瓜",
+          category: "主食",
+          servingGrams: 120,
+          kcal: 103,
+          protein: 1.92,
+          fat: 0.12,
+          carb: 24.12,
+          aliases: ["番薯", "sweet potato"],
+        },
+      ]),
+    });
+  });
+  await page.route("**/api/v1/meals**", async (route) => {
+    const request = route.request();
+    const url = request.url();
+    if (request.method() === "GET" && url.includes("/meals/favorites")) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+      return;
+    }
+    if (request.method() === "GET" && url.includes("/meals/recent")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: [], page: 0, size: 20, total: 0 }),
+      });
+      return;
+    }
+    if (request.method() === "POST" && url.includes("/meals/preview")) {
+      previewCalled = true;
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(preview) });
+      return;
+    }
+    if (request.method() === "POST" && url.includes("/meals/confirm")) {
+      confirmCalled = true;
+      confirmBody = request.postData() ?? "";
+      const itemsMatch = confirmBody.match(/name="items"\r\n\r\n([\s\S]*?)\r\n--/);
+      const confirmedItems = itemsMatch ? JSON.parse(itemsMatch[1]) : preview.items;
+      meals = [
+        {
+          id: 7,
+          ...preview,
+          items: confirmedItems,
+          totalKcal: confirmedItems.reduce((s: number, i: Record<string, unknown>) => s + num(i.kcal), 0),
+          totalProtein: confirmedItems.reduce((s: number, i: Record<string, unknown>) => s + num(i.protein), 0),
+          totalFat: confirmedItems.reduce((s: number, i: Record<string, unknown>) => s + num(i.fat), 0),
+          totalCarb: confirmedItems.reduce((s: number, i: Record<string, unknown>) => s + num(i.carb), 0),
+          createdAt: "2026-06-01T04:00:00Z",
+        },
+      ];
+      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(meals[0]) });
+      return;
+    }
+    if (request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: meals, page: 0, size: 20, total: meals.length }),
+      });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+
+  await page.goto("/meals");
+  await page.getByPlaceholder("例：水煮雞胸肉 150克、水煮蛋一顆、地瓜一條，或是簡述所吃的食物...").fill("雞胸肉沙拉");
+  await page.getByRole("button", { name: "預覽 AI 分析" }).click();
+
+  expect(previewCalled).toBe(true);
+  await expect(page.getByText("AI 餐點預覽")).toBeVisible();
+  await expect(page.getByText("確認候選項後才會寫入今日餐點日誌")).toBeVisible();
+  await expect(page.getByPlaceholder("食物名稱")).toHaveValue("雞胸肉");
+  await expect(page.getByText("今天尚未建立任何飲食紀錄")).toBeVisible();
+
+  await page.getByRole("spinbutton").nth(1).fill("300");
+  await expect(page.getByText("300", { exact: false }).first()).toBeVisible();
+  await page.getByPlaceholder("搜尋雞胸肉、白飯、地瓜...").fill("地瓜");
+  await expect.poll(() => foodsCalled).toBe(true);
+  await page.getByRole("button", { name: "加入地瓜" }).click();
+  await expect(page.getByPlaceholder("食物名稱").nth(1)).toHaveValue("地瓜");
+  await page.getByRole("button", { name: "套用2 份" }).click();
+  await expect(page.getByRole("spinbutton").nth(5)).toHaveValue("240");
+  await expect(page.getByRole("spinbutton").nth(6)).toHaveValue("206");
+
+  await page.getByRole("button", { name: "確認儲存" }).click();
+
+  expect(confirmCalled).toBe(true);
+  expect(confirmBody).toContain('name":"雞胸肉');
+  expect(confirmBody).toContain('"kcal":300');
+  expect(confirmBody).toContain('name":"地瓜');
+  expect(confirmBody).toContain('"grams":240');
+  expect(confirmBody).toContain('"kcal":206');
+  expect(confirmBody).toContain("雞胸肉沙拉");
+  await expect.poll(async () => page.getByText("雞胸肉", { exact: true }).count()).toBeGreaterThanOrEqual(1);
+  await expect(page.getByText("300", { exact: false }).first()).toBeVisible();
+  await expect(page.getByText("AI 餐點預覽")).toHaveCount(0);
 });

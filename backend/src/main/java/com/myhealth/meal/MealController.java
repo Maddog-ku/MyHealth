@@ -7,6 +7,7 @@ import com.myhealth.meal.FileStorageService.StoredFile;
 import com.myhealth.meal.MealDtos.CopyMealRequest;
 import com.myhealth.meal.MealDtos.FavoriteMealRequest;
 import com.myhealth.meal.MealDtos.FavoriteMealResponse;
+import com.myhealth.meal.MealDtos.MealPreviewResponse;
 import com.myhealth.meal.MealDtos.MealResponse;
 import com.myhealth.meal.MealDtos.RecentMealResponse;
 import com.myhealth.user.AppUser;
@@ -55,6 +56,30 @@ public class MealController {
         rateLimiter.checkMealCreate(user);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(mealService.create(user, image, description, slot.name(), date));
+    }
+
+    @PostMapping(path = "/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    MealPreviewResponse preview(
+            @RequestPart(required = false) MultipartFile image,
+            @RequestParam(required = false) String description,
+            @RequestParam MealSlot slot,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        AppUser user = currentUser.require();
+        rateLimiter.checkMealCreate(user);
+        return mealService.preview(user, image, description, slot.name(), date);
+    }
+
+    @PostMapping(path = "/confirm", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    ResponseEntity<MealResponse> confirm(
+            @RequestPart(required = false) MultipartFile image,
+            @RequestParam(required = false) String description,
+            @RequestParam MealSlot slot,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam String items,
+            @RequestParam(required = false) String aiSuggestion) {
+        AppUser user = currentUser.require();
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(mealService.confirm(user, image, description, slot.name(), date, items, aiSuggestion));
     }
 
     @GetMapping

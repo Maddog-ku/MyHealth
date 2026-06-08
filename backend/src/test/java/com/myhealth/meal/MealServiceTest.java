@@ -227,6 +227,38 @@ class MealServiceTest {
     }
 
     @Test
+    void preview_returnsAnalysisWithoutPersistingMealOrImage() {
+        when(aiProvider.analyzeMeal(eq("雞胸肉沙拉"), isNull())).thenReturn(new MealAnalysis(
+                List.of(new FoodItem("雞胸肉", 150, 248, 46.5, 5.4, 0.0, 0.92)),
+                "蛋白足夠"));
+
+        var response = service.preview(owner, null, "雞胸肉沙拉", "lunch", LocalDate.of(2026, 5, 30));
+
+        assertThat(response.date()).isEqualTo(LocalDate.of(2026, 5, 30));
+        assertThat(response.slot()).isEqualTo("lunch");
+        assertThat(response.totalKcal()).isEqualTo(248);
+        assertThat(response.totalProtein()).isEqualByComparingTo("46.50");
+        assertThat(response.items()).hasSize(1);
+        verify(fileStorage, never()).storeMealImage(any(), any());
+        verify(meals, never()).save(any());
+    }
+
+    @Test
+    void confirm_throwsBadRequest_whenItemsJsonIsInvalid() {
+        assertThatThrownBy(() -> service.confirm(owner, null, "雞胸肉沙拉", "lunch",
+                LocalDate.of(2026, 5, 30), "{not-json", "good"))
+                .isInstanceOf(ApiException.class)
+                .satisfies(e -> {
+                    ApiException ae = (ApiException) e;
+                    assertThat(ae.status()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(ae.errorCode()).isEqualTo(ErrorCode.BAD_REQUEST);
+                });
+
+        verify(fileStorage, never()).storeMealImage(any(), any());
+        verify(meals, never()).save(any());
+    }
+
+    @Test
     void list_filtersByUserAndDate() {
         when(meals.findByUserIdAndDateOrderByCreatedAtDesc(1L, LocalDate.of(2026, 5, 30))).thenReturn(List.of());
         assertThat(service.list(owner, LocalDate.of(2026, 5, 30))).isEmpty();

@@ -3,6 +3,8 @@
 .env
 .env.*
 !.env.example
+!.env.prod.example
+prod.env
 # Catch-all for credentials people sometimes drop in the repo
 **/credentials.json
 **/secrets.json

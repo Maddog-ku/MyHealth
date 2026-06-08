@@ -1,0 +1,6 @@
+target/
+uploads/
+.mvn/wrapper/*.lck
+*.log
+hs_err_pid*
+replay_pid*

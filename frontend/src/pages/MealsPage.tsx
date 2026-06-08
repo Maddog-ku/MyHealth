@@ -1,228 +1,123 @@
-import { FormEvent, useMemo, useRef, useState } from "react";
-import { Apple, Copy, Image as ImageIcon, Pencil, Plus, Save, Sparkles, Star, Trash2, UtensilsCrossed, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Apple, Pencil, Save, Sparkles, Star, Trash2, UtensilsCrossed } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AddMealForm, type AddMealPreviewRequest } from "@/components/AddMealForm";
 import { AiGenerationPanel } from "@/components/AiGenerationPanel";
+import {
+  EditableFoodRows,
+  cleanFoodRows,
+  emptyFoodItem,
+  summarizeItems,
+  toEditableFoodItem,
+  type EditableFoodItem,
+} from "@/components/EditableFoodRows";
+import { MealPlanSuggestionCard } from "@/components/MealPlanSuggestionCard";
+import { QuickReusePanel } from "@/components/QuickReusePanel";
 import {
   useCopyFavoriteMeal,
   useCopyMeal,
-  useCreateMeal,
+  useConfirmMeal,
   useDeleteFavoriteMeal,
   useDeleteMeal,
   useFavoriteMeal,
   useFavoriteMeals,
   useMeals,
+  usePreviewMeal,
   useRecentMeals,
   useUpdateMeal,
 } from "@/hooks/useMeals";
+import { useHealthPlan } from "@/hooks/useHealthPlan";
 import { ApiError } from "@/api/client";
 import { todayLocalISO } from "@/lib/date";
-import type { FavoriteMeal, FoodItem, Meal, RecentMeal } from "@/types/api";
-
-const SLOTS = [
-  { value: "breakfast", label: "早餐", time: "上午 06:00 - 09:00" },
-  { value: "lunch", label: "午餐", time: "中午 11:30 - 13:30" },
-  { value: "dinner", label: "晚餐", time: "晚上 17:30 - 20:00" },
-  { value: "snack", label: "點心", time: "全天輕食紀錄" },
-];
-
-const FOOD_HINT =
-  /(早餐|午餐|晚餐|宵夜|點心|餐點|便當|飯|米飯|白飯|糙米|麵|麵包|吐司|粥|湯|沙拉|壽司|水餃|雞|雞胸|牛|牛肉|豬|豬肉|魚|鮭魚|蝦|蛋|豆腐|起司|乳酪|優格|牛奶|豆漿|咖啡|茶|果汁|水|蔬菜|青菜|花椰菜|地瓜|馬鈴薯|玉米|水果|香蕉|蘋果|燕麥|堅果|蛋白|碳水|脂肪|熱量|卡路里|kcal|calorie|rice|noodle|bread|toast|oat|chicken|beef|pork|fish|salmon|shrimp|egg|tofu|cheese|yogurt|milk|coffee|tea|juice|salad|vegetable|banana|apple|potato|meal|breakfast|lunch|dinner|snack)/i;
-
-const PROMPT_INJECTION_HINT =
-  /(忽略.*規則|忽略.*指示|系統提示|開發者訊息|prompt|system prompt|developer message|ignore previous|ignore above|json schema|扮演|角色扮演)/i;
-
-function mealDescriptionWarning(value: string) {
-  const trimmed = value.trim().replace(/\s+/g, " ");
-  if (!trimmed) return null;
-  if (trimmed.length > 300) return "餐點描述請控制在 300 字內，並只填寫食物、飲品與份量。";
-  if (PROMPT_INJECTION_HINT.test(trimmed)) return "請只輸入餐點內容，不要輸入指令、角色扮演或系統提示文字。";
-  if (!FOOD_HINT.test(trimmed)) return "請確認輸入內容是否為飲食或餐點描述，例如「雞胸肉 150g、白飯一碗」。";
-  return null;
-}
-
-function slotLabel(value: string): string {
-  return SLOTS.find((s) => s.value === value)?.label ?? value;
-}
+import { mealSlotLabel } from "@/lib/mealSlots";
+import type { FoodItem, Meal, MealPreview } from "@/types/api";
 
 export function MealsPage() {
   const today = useMemo(() => todayLocalISO(), []);
   const [slot, setSlot] = useState("lunch");
-  const [description, setDescription] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [inputWarning, setInputWarning] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<MealPreview | null>(null);
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [formResetKey, setFormResetKey] = useState(0);
 
   const meals = useMeals(today);
   const recentMeals = useRecentMeals(today);
   const favoriteMeals = useFavoriteMeals();
-  const createMeal = useCreateMeal(today);
+  const previewMeal = usePreviewMeal();
+  const confirmMeal = useConfirmMeal(today);
   const copyMeal = useCopyMeal(today);
   const copyFavoriteMeal = useCopyFavoriteMeal(today);
   const favoriteMeal = useFavoriteMeal();
   const deleteFavoriteMeal = useDeleteFavoriteMeal();
   const deleteMeal = useDeleteMeal(today);
+  const healthPlan = useHealthPlan(today);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const trimmedDescription = description.trim().replace(/\s+/g, " ");
-    if (!trimmedDescription && !imageFile) return;
-    const warning = mealDescriptionWarning(trimmedDescription);
-    if (warning) {
-      setInputWarning(warning);
-      return;
-    }
-    setInputWarning(null);
+  async function requestMealPreview({ slot, description, imageFile }: AddMealPreviewRequest) {
     const form = new FormData();
     form.set("date", today);
     form.set("slot", slot);
-    if (trimmedDescription) form.set("description", trimmedDescription);
+    if (description) form.set("description", description);
     if (imageFile) form.set("image", imageFile);
     try {
-      await createMeal.mutateAsync(form);
-      setDescription("");
-      setImageFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      const result = await previewMeal.mutateAsync(form);
+      setPreview(result);
+      setPreviewFile(imageFile);
     } catch {
-      // shown via createMeal.error
+      // shown via previewMeal.error
     }
+  }
+
+  async function confirmPreview(items: FoodItem[]) {
+    if (!preview) return;
+    const form = new FormData();
+    form.set("date", preview.date);
+    form.set("slot", preview.slot);
+    if (preview.description) form.set("description", preview.description);
+    if (previewFile) form.set("image", previewFile);
+    form.set("items", JSON.stringify(items));
+    if (preview.aiSuggestion) form.set("aiSuggestion", preview.aiSuggestion);
+    try {
+      await confirmMeal.mutateAsync(form);
+      setPreview(null);
+      setPreviewFile(null);
+      setFormResetKey((value) => value + 1);
+    } catch {
+      // shown via confirmMeal.error
+    }
+  }
+
+  function clearPreview() {
+    setPreview(null);
+    setPreviewFile(null);
   }
 
   return (
     <section className="grid gap-6 animate-fade-in pb-10">
-      {/* Add Meal Form */}
-      <Card className="border border-slate-100/80 dark:border-slate-900/60 bg-white/70 dark:bg-slate-950/40 backdrop-blur-xl shadow-xl shadow-slate-100/50 dark:shadow-none rounded-3xl overflow-hidden accent-glow">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg font-bold flex items-center gap-2">
-            <UtensilsCrossed className="size-4.5 text-emerald-500" />
-            新增今日餐點紀錄
-          </CardTitle>
-          <CardDescription className="text-xs">輸入飲食內容描述，或上傳餐點照片，AI 將自動辨識並估算熱量與三大營養素</CardDescription>
-        </CardHeader>
-        <CardContent className="px-6 pb-6">
-          <form onSubmit={submit} className="grid gap-5">
-            {/* Slot selector pills - User Oriented */}
-            <div className="grid gap-2">
-              <Label className="text-xs font-semibold text-slate-500 px-1">選擇餐點時段</Label>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {SLOTS.map((s) => (
-                  <button
-                    key={s.value}
-                    type="button"
-                    disabled={createMeal.isPending}
-                    onClick={() => setSlot(s.value)}
-                    className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-center transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-60 ${
-                      slot === s.value
-                        ? "bg-gradient-to-tr from-emerald-500/10 to-teal-500/5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm shadow-emerald-500/5"
-                        : "bg-white/50 border-slate-100 dark:bg-slate-900/50 dark:border-slate-900 hover:border-slate-200 dark:hover:border-slate-800"
-                    }`}
-                  >
-                    <span className="text-sm">{s.label}</span>
-                    <span className="text-[9px] text-muted-foreground mt-0.5 font-normal tracking-tight hidden sm:inline">{s.time}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+      <MealPlanSuggestionCard plan={healthPlan.data ?? null} loading={healthPlan.isLoading} selectedSlot={slot} />
 
-            {/* Description Text Input */}
-            <div className="grid gap-1.5">
-              <Label htmlFor="description" className="text-xs font-semibold text-slate-500 px-1">餐點明細描述</Label>
-              <Input
-                id="description"
-                value={description}
-                onChange={(e) => {
-                  setDescription(e.target.value);
-                  setInputWarning(null);
-                }}
-                disabled={createMeal.isPending}
-                maxLength={300}
-                aria-invalid={!!inputWarning}
-                placeholder="例：水煮雞胸肉 150克、水煮蛋一顆、地瓜一條，或是簡述所吃的食物..."
-                className="rounded-2xl border-slate-200/80 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 py-5 focus-visible:ring-emerald-500 focus-visible:border-emerald-500/40 transition-all duration-300"
-              />
-            </div>
+      <AddMealForm
+        slot={slot}
+        resetKey={formResetKey}
+        previewPending={previewMeal.isPending}
+        confirmPending={confirmMeal.isPending}
+        previewError={previewMeal.error}
+        confirmError={confirmMeal.error}
+        onSlotChange={setSlot}
+        onPreview={requestMealPreview}
+      />
 
-            {/* Upload Zone & Submit Buttons */}
-            <div className="flex flex-wrap items-center justify-between gap-4 pt-1 border-t border-dashed border-slate-100 dark:border-slate-900/60">
-              <div className="flex items-center gap-3">
-                <input
-                  ref={fileInputRef}
-                  id="meal-image"
-                  type="file"
-                  accept="image/*"
-                  disabled={createMeal.isPending}
-                  className="hidden"
-                  onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
-                />
-                <Button
-                  type="button"
-                  disabled={createMeal.isPending}
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="rounded-2xl border-slate-200/80 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900/80 gap-2 text-xs py-5 px-4 font-medium transition-all-smooth"
-                >
-                  <ImageIcon className="size-4 text-emerald-500" />
-                  {imageFile ? "更換餐點照片" : "上傳餐點照片"}
-                </Button>
-                
-                {imageFile && (
-                  <Badge variant="secondary" className="rounded-xl gap-1.5 py-1 px-2.5 bg-emerald-500/5 border border-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold text-[10px]">
-                    <span className="truncate max-w-[120px]">{imageFile.name}</span>
-                    <button
-                      type="button"
-                      onClick={() => { setImageFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                      className="rounded-full hover:bg-emerald-500/10 p-0.5"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </Badge>
-                )}
-                {!imageFile && <span className="text-[10px] text-muted-foreground font-medium">照片或描述擇一輸入即可</span>}
-              </div>
-
-              <Button
-                type="submit"
-                disabled={createMeal.isPending || (!description.trim() && !imageFile)}
-                className="rounded-2xl py-5 px-6 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-semibold shadow-md shadow-emerald-500/10 hover:shadow-lg transition-all-smooth gap-1.5"
-              >
-                {createMeal.isPending ? (
-                  <>
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    AI 分析辨識中...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="size-4" />
-                    送出 AI 分析
-                  </>
-                )}
-              </Button>
-            </div>
-
-            {(inputWarning || (createMeal.error instanceof ApiError && createMeal.error.status === 400)) && (
-              <Alert variant="destructive" className="rounded-2xl border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-400">
-                <AlertTitle className="text-xs font-bold">請確認餐點內容</AlertTitle>
-                <AlertDescription className="text-[11px] opacity-90">
-                  {inputWarning ?? (createMeal.error instanceof ApiError ? createMeal.error.message : "請重新確認輸入內容。")}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {createMeal.error instanceof ApiError && createMeal.error.status === 503 && (
-              <Alert variant="destructive" className="rounded-2xl border-rose-500/20 bg-rose-500/5 text-rose-600 dark:text-rose-400">
-                <AlertTitle className="text-xs font-bold">AI 服務暫時離線</AlertTitle>
-                <AlertDescription className="text-[11px] opacity-90">請保留您的描述文字，待引擎連線後重新進行分析。</AlertDescription>
-              </Alert>
-            )}
-          </form>
-        </CardContent>
-      </Card>
+      {preview && (
+        <MealPreviewCard
+          preview={preview}
+          pending={confirmMeal.isPending}
+          onConfirm={confirmPreview}
+          onCancel={clearPreview}
+        />
+      )}
 
       <QuickReusePanel
         selectedSlot={slot}
@@ -240,7 +135,7 @@ export function MealsPage() {
       <div className="space-y-4">
         <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 px-1 tracking-wider uppercase">今日餐點日誌</h2>
 
-        {createMeal.isPending && <AiGenerationPanel kind="meal" />}
+        {(previewMeal.isPending || confirmMeal.isPending) && <AiGenerationPanel kind="meal" />}
         
         {meals.isLoading ? (
           <Skeleton className="h-40 w-full rounded-3xl" />
@@ -254,7 +149,7 @@ export function MealsPage() {
                   </div>
                   <div>
                     <CardTitle className="text-sm font-bold">
-                      {slotLabel(meal.slot)}
+                      {mealSlotLabel(meal.slot)}
                     </CardTitle>
                     <CardDescription className="text-[10px] mt-0.5">
                       紀錄於 {new Date(meal.createdAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}
@@ -363,7 +258,7 @@ export function MealsPage() {
               </CardContent>
             </Card>
           ))
-        ) : !createMeal.isPending ? (
+        ) : !previewMeal.isPending && !confirmMeal.isPending ? (
           <Card className="border border-dashed border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-950/10 rounded-3xl overflow-hidden py-12 text-center">
             <CardContent className="flex flex-col items-center gap-3">
               <div className="flex size-14 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-900 text-slate-400">
@@ -379,184 +274,106 @@ export function MealsPage() {
   );
 }
 
-function QuickReusePanel({
-  selectedSlot,
-  recent,
-  favorites,
-  loading,
-  copying,
-  deletingFavorite,
-  onCopyRecent,
-  onCopyFavorite,
-  onDeleteFavorite,
+function MealPreviewCard({
+  preview,
+  pending,
+  onConfirm,
+  onCancel,
 }: {
-  selectedSlot: string;
-  recent: RecentMeal[];
-  favorites: FavoriteMeal[];
-  loading: boolean;
-  copying: boolean;
-  deletingFavorite: boolean;
-  onCopyRecent: (id: number) => void;
-  onCopyFavorite: (id: number) => void;
-  onDeleteFavorite: (id: number) => void;
+  preview: MealPreview;
+  pending: boolean;
+  onConfirm: (items: FoodItem[]) => void;
+  onCancel: () => void;
 }) {
-  if (loading) {
-    return <Skeleton className="h-32 w-full rounded-3xl" />;
+  const [rows, setRows] = useState<EditableFoodItem[]>(
+    preview.items.length > 0 ? preview.items.map(toEditableFoodItem) : [emptyFoodItem()],
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  function confirm() {
+    const cleaned = cleanFoodRows(rows);
+    if (cleaned.some((r) => [r.grams, r.kcal, r.protein, r.fat, r.carb].some((n) => !Number.isFinite(n) || n < 0))) {
+      setError("份量與營養素必須為 0 以上的數值。");
+      return;
+    }
+    setError(null);
+    onConfirm(cleaned);
   }
 
-  if (recent.length === 0 && favorites.length === 0) {
-    return null;
-  }
+  const totals = summarizeItems(rows);
 
   return (
-    <Card className="border border-slate-100/80 dark:border-slate-900/60 bg-white/60 dark:bg-slate-950/35 backdrop-blur-xl shadow-xl shadow-slate-100/40 dark:shadow-none rounded-3xl overflow-hidden">
+    <Card className="border border-sky-500/15 bg-sky-500/5 dark:bg-sky-950/10 backdrop-blur-xl shadow-xl shadow-sky-100/40 dark:shadow-none rounded-3xl overflow-hidden">
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-bold flex items-center gap-2">
-          <Copy className="size-4 text-sky-500" />
-          快速重用
+        <CardTitle className="text-lg font-bold flex items-center gap-2">
+          <Sparkles className="size-4.5 text-sky-500" />
+          AI 餐點預覽
         </CardTitle>
-        <CardDescription className="text-xs">
-          複製後會加入今日{slotLabel(selectedSlot)}，不重新執行 AI 分析
-        </CardDescription>
+        <CardDescription className="text-xs">確認候選項後才會寫入今日餐點日誌</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-4 px-6 pb-6 lg:grid-cols-2">
-        <ReuseColumn
-          title="常用餐點"
-          empty="尚未收藏常用餐點"
-          items={favorites.map((f) => ({
-            id: f.id,
-            title: f.name,
-            meta: `${slotLabel(f.slot)} · ${f.totalKcal} kcal`,
-            description: f.description,
-            removable: true,
-          }))}
-          copying={copying}
-          deleting={deletingFavorite}
-          onCopy={onCopyFavorite}
-          onDelete={onDeleteFavorite}
+      <CardContent className="space-y-4 px-6 pb-6">
+        <div className="grid grid-cols-4 gap-2">
+          <NutrientBadge label="總卡路里" value={totals.kcal} unit="kcal" type="kcal" />
+          <NutrientBadge label="蛋白質" value={totals.protein} unit="g" type="protein" />
+          <NutrientBadge label="總脂肪" value={totals.fat} unit="g" type="fat" />
+          <NutrientBadge label="碳水化合物" value={totals.carb} unit="g" type="carb" />
+        </div>
+
+        {preview.items.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-4 text-center text-xs text-muted-foreground">
+            AI 沒有產生可靠候選項。可先在下方新增食物項目，或確認建立只有描述的餐點。
+          </div>
+        )}
+
+        <EditableFoodRows
+          rows={rows}
+          setRows={setRows}
+          disabled={pending}
+          title="確認成分明細"
+          keepOneRowOnRemove
+          rowClassName="bg-white/50 dark:bg-slate-950/20"
+          onError={setError}
         />
-        <ReuseColumn
-          title="最近餐點"
-          empty="沒有可重用的歷史餐點"
-          items={recent.map((m) => ({
-            id: m.id,
-            title: m.displayName,
-            meta: `${new Date(`${m.date}T00:00:00`).toLocaleDateString("zh-TW", {
-              month: "numeric",
-              day: "numeric",
-            })} · ${slotLabel(m.slot)} · ${m.totalKcal} kcal`,
-            description: m.description,
-            removable: false,
-          }))}
-          copying={copying}
-          deleting={false}
-          onCopy={onCopyRecent}
-        />
+
+        {error && (
+          <Alert variant="destructive" className="rounded-2xl border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-400">
+            <AlertDescription className="text-[11px]">{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {preview.aiSuggestion && (
+          <p className="rounded-2xl border border-sky-500/10 bg-white/50 p-3 text-xs leading-relaxed text-slate-600 dark:bg-slate-950/20 dark:text-slate-300">
+            {preview.aiSuggestion}
+          </p>
+        )}
+
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="button" variant="ghost" disabled={pending} onClick={onCancel} className="rounded-2xl">
+            回到輸入修改
+          </Button>
+          <Button
+            type="button"
+            disabled={pending}
+            onClick={confirm}
+            className="rounded-2xl bg-gradient-to-r from-sky-600 to-emerald-500 px-5 font-semibold text-white hover:from-sky-500 hover:to-emerald-400"
+          >
+            {pending ? "儲存中..." : "確認儲存"}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-function ReuseColumn({
-  title,
-  empty,
-  items,
-  copying,
-  deleting,
-  onCopy,
-  onDelete,
-}: {
-  title: string;
-  empty: string;
-  items: Array<{ id: number; title: string; meta: string; description?: string; removable: boolean }>;
-  copying: boolean;
-  deleting: boolean;
-  onCopy: (id: number) => void;
-  onDelete?: (id: number) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between px-1">
-        <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">{title}</span>
-        <span className="text-[10px] text-muted-foreground font-semibold">{items.length}</span>
-      </div>
-      {items.length > 0 ? (
-        <div className="space-y-2">
-          {items.map((item) => (
-            <div
-              key={`${title}-${item.id}`}
-              className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 dark:border-slate-900/50 bg-white/45 dark:bg-slate-950/20 p-3"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-xs font-bold text-slate-700 dark:text-slate-300">{item.title}</p>
-                <p className="mt-0.5 truncate text-[10px] font-medium text-muted-foreground">{item.meta}</p>
-                {item.description && <p className="mt-1 truncate text-[10px] text-muted-foreground">{item.description}</p>}
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={copying}
-                  onClick={() => onCopy(item.id)}
-                  aria-label={`複製${item.title}到今日`}
-                  className="size-8 rounded-full text-muted-foreground hover:bg-sky-500/5 hover:text-sky-500"
-                >
-                  <Copy className="size-4" />
-                </Button>
-                {item.removable && onDelete && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    disabled={deleting}
-                    onClick={() => onDelete(item.id)}
-                    aria-label={`移除常用餐點${item.title}`}
-                    className="size-8 rounded-full text-muted-foreground hover:bg-rose-500/5 hover:text-rose-500"
-                  >
-                    <X className="size-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-4 text-center text-xs text-muted-foreground">
-          {empty}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function emptyFoodItem(): FoodItem {
-  return { name: "", grams: 0, kcal: 0, protein: 0, fat: 0, carb: 0, confidence: 1 };
-}
-
 function MealEditor({ meal, date, onClose }: { meal: Meal; date: string; onClose: () => void }) {
   const update = useUpdateMeal(date);
-  const [rows, setRows] = useState<FoodItem[]>(
-    meal.items.length > 0 ? meal.items.map((i) => ({ ...i })) : [emptyFoodItem()],
+  const [rows, setRows] = useState<EditableFoodItem[]>(
+    meal.items.length > 0 ? meal.items.map(toEditableFoodItem) : [emptyFoodItem()],
   );
   const [error, setError] = useState<string | null>(null);
 
-  function setField(idx: number, field: keyof FoodItem, raw: string) {
-    setRows((prev) =>
-      prev.map((r, i) => (i === idx ? { ...r, [field]: field === "name" ? raw : Number(raw) } : r)),
-    );
-  }
-  function addRow() {
-    setRows((prev) => (prev.length >= 5 ? prev : [...prev, emptyFoodItem()]));
-  }
-  function removeRow(idx: number) {
-    setRows((prev) => prev.filter((_, i) => i !== idx));
-  }
-
   async function save() {
-    const cleaned = rows
-      .map((r) => ({ ...r, name: r.name.trim(), confidence: 1 }))
-      .filter((r) => r.name.length > 0);
+    const cleaned = cleanFoodRows(rows);
     if (cleaned.length === 0) {
       setError("請至少保留一個有名稱的食物項目，或直接刪除整筆紀錄。");
       return;
@@ -587,41 +404,13 @@ function MealEditor({ meal, date, onClose }: { meal: Meal; date: string; onClose
         </span>
       </div>
 
-      <div className="space-y-2">
-        {rows.map((row, idx) => (
-          <div
-            key={idx}
-            className="rounded-2xl border border-slate-100 dark:border-slate-900/50 bg-white/40 dark:bg-slate-950/20 p-3 space-y-2"
-          >
-            <div className="flex items-center gap-2">
-              <Input
-                value={row.name}
-                maxLength={80}
-                onChange={(e) => setField(idx, "name", e.target.value)}
-                placeholder="食物名稱"
-                className="flex-1 rounded-xl text-xs py-4 border-slate-200/80 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 focus-visible:ring-emerald-500"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => removeRow(idx)}
-                aria-label="刪除此項目"
-                className="rounded-full text-muted-foreground hover:text-rose-500 hover:bg-rose-500/5 size-8 shrink-0"
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </div>
-            <div className="grid grid-cols-5 gap-1.5">
-              <NumField label="克 (g)" value={row.grams} onChange={(v) => setField(idx, "grams", v)} />
-              <NumField label="熱量" value={row.kcal} onChange={(v) => setField(idx, "kcal", v)} />
-              <NumField label="蛋白" value={row.protein} onChange={(v) => setField(idx, "protein", v)} />
-              <NumField label="脂肪" value={row.fat} onChange={(v) => setField(idx, "fat", v)} />
-              <NumField label="碳水" value={row.carb} onChange={(v) => setField(idx, "carb", v)} />
-            </div>
-          </div>
-        ))}
-      </div>
+      <EditableFoodRows
+        rows={rows}
+        setRows={setRows}
+        disabled={update.isPending}
+        title="成分明細"
+        onError={setError}
+      />
 
       {error && (
         <Alert variant="destructive" className="rounded-2xl border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-400">
@@ -633,63 +422,35 @@ function MealEditor({ meal, date, onClose }: { meal: Meal; date: string; onClose
         手動修正後此餐會標記為使用者確認值（信心度 100%），並清除原本的 AI 飲食建議。
       </p>
 
-      <div className="flex items-center justify-between gap-2 pt-0.5">
+      <div className="flex items-center justify-end gap-2 pt-0.5">
         <Button
           type="button"
-          variant="outline"
-          onClick={addRow}
-          disabled={rows.length >= 5 || update.isPending}
-          className="rounded-2xl text-xs gap-1.5 border-slate-200/80 dark:border-slate-800 disabled:opacity-50"
+          variant="ghost"
+          onClick={onClose}
+          disabled={update.isPending}
+          className="rounded-2xl text-xs text-muted-foreground"
         >
-          <Plus className="size-4 text-emerald-500" />
-          新增項目
+          取消
         </Button>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onClose}
-            disabled={update.isPending}
-            className="rounded-2xl text-xs text-muted-foreground"
-          >
-            取消
-          </Button>
-          <Button
-            type="button"
-            onClick={save}
-            disabled={update.isPending}
-            className="rounded-2xl text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-500/10"
-          >
-            {update.isPending ? (
-              <>
-                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                儲存中...
-              </>
-            ) : (
-              <>
-                <Save className="size-4" />
-                儲存修正
-              </>
-            )}
-          </Button>
-        </div>
+        <Button
+          type="button"
+          onClick={save}
+          disabled={update.isPending}
+          className="rounded-2xl text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-500/10"
+        >
+          {update.isPending ? (
+            <>
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              儲存中...
+            </>
+          ) : (
+            <>
+              <Save className="size-4" />
+              儲存修正
+            </>
+          )}
+        </Button>
       </div>
-    </div>
-  );
-}
-
-function NumField({ label, value, onChange }: { label: string; value: number; onChange: (v: string) => void }) {
-  return (
-    <div className="grid gap-1">
-      <span className="text-[9px] text-muted-foreground font-semibold text-center uppercase tracking-wide">{label}</span>
-      <Input
-        type="number"
-        min={0}
-        inputMode="decimal"
-        value={Number.isFinite(value) ? value : 0}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded-xl text-center text-xs py-3 px-1 border-slate-200/80 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 focus-visible:ring-emerald-500"
-      />
     </div>
   );
 }

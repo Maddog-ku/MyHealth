@@ -158,6 +158,18 @@ export interface FoodItem {
   confidence: number;
 }
 
+export interface FoodCatalogItem {
+  id: string;
+  name: string;
+  category: string;
+  servingGrams: number;
+  kcal: number;
+  protein: number;
+  fat: number;
+  carb: number;
+  aliases: string[];
+}
+
 export interface Meal {
   id: number;
   date: string;
@@ -171,6 +183,18 @@ export interface Meal {
   totalCarb: number;
   aiSuggestion?: string;
   createdAt: string;
+}
+
+export interface MealPreview {
+  date: string;
+  slot: string;
+  description?: string;
+  items: FoodItem[];
+  totalKcal: number;
+  totalProtein: number;
+  totalFat: number;
+  totalCarb: number;
+  aiSuggestion?: string;
 }
 
 export interface FavoriteMeal {
@@ -297,6 +321,85 @@ export interface CalorieBudget {
   macros: MacroBudget[];
 }
 
+export interface HealthPlanNutrition {
+  goalKcal: number;
+  budgetKcal: number;
+  intakeKcal: number;
+  burnKcal: number;
+  remainingKcal: number;
+  consumedPct: number;
+  over: boolean;
+  macros: MacroBudget[];
+}
+
+export interface HealthPlanWeight {
+  configured: boolean;
+  currentWeightKg: number | null;
+  targetWeightKg: number | null;
+  remainingKg: number | null;
+  progressPct: number;
+  targetDate: string | null;
+  projectedDate: string | null;
+  onTrack: boolean | null;
+  achieved: boolean;
+}
+
+export interface HealthPlanWorkout {
+  configured: boolean;
+  workoutsDoneToday: number;
+  workoutsPlannedToday: number;
+  targetSessionsPerWeek: number | null;
+  completedThisWeek: number | null;
+  remainingThisWeek: number | null;
+  progressPct: number | null;
+  achievedThisWeek: boolean;
+}
+
+export interface HealthPlanStreak {
+  current: number;
+  longest: number;
+  lastActiveDate: string | null;
+}
+
+export interface HealthPlanAction {
+  type: string;
+  title: string;
+  detail: string;
+  priority: number;
+  href: string;
+}
+
+export interface HealthPlan {
+  date: string;
+  primaryGoal: string;
+  readinessScore: number;
+  nutrition: HealthPlanNutrition;
+  weight: HealthPlanWeight;
+  workout: HealthPlanWorkout;
+  streak: HealthPlanStreak;
+  nextActions: HealthPlanAction[];
+}
+
+export interface HealthPlanSettings {
+  primaryGoal: Goal;
+  currentWeightKg: number | null;
+  weightGoal: WeightGoalProgress | null;
+  workoutGoal: WorkoutGoalProgress | null;
+}
+
+export interface HealthPlanSettingsRequest {
+  primaryGoal: Goal;
+  weightGoal: {
+    enabled: boolean;
+    targetWeightKg: number | null;
+    targetDate?: string | null;
+  };
+  workoutGoal: {
+    enabled: boolean;
+    targetSessionsPerWeek: number | null;
+  };
+}
+
 export type HabitType = "WATER" | "STRETCH" | "PROTEIN" | "SLEEP";
 
 export interface HabitItem {
@@ -353,6 +456,21 @@ export interface NotificationItem {
 export interface NotificationFeed {
   items: NotificationItem[];
   unreadCount: number;
+}
+
+export type SystemComponentStatusValue = "UP" | "DEGRADED" | "DOWN";
+
+export interface SystemComponentStatus {
+  key: string;
+  label: string;
+  status: SystemComponentStatusValue;
+  detail: string;
+}
+
+export interface SystemStatus {
+  status: SystemComponentStatusValue;
+  checkedAt: string;
+  components: SystemComponentStatus[];
 }
 
 export interface PageEnvelope<T> {

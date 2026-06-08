@@ -8,17 +8,17 @@ const USER = {
   createdAt: "2026-05-30T00:00:00Z",
 };
 
-// A 3-day split starting Monday 2026-06-01, two weeks.
+// A 4-day split starting Monday 2026-06-01, two weeks.
 function schedule(): Record<string, unknown> {
   return {
-    id: 7, goal: "增肌", startDate: "2026-06-01", weeks: 2, daysPerWeek: 3, intensity: "medium",
+    id: 7, goal: "增肌", startDate: "2026-06-01", weeks: 2, daysPerWeek: 4, intensity: "medium",
     days: [
       { weekday: 1, rest: false, category: "legs", durationMin: 40, focus: "下肢肌力" },
       { weekday: 2, rest: true, category: null, durationMin: 0, focus: "休息與恢復" },
       { weekday: 3, rest: false, category: "chest", durationMin: 35, focus: "胸與三頭" },
       { weekday: 4, rest: true, category: null, durationMin: 0, focus: "休息與恢復" },
       { weekday: 5, rest: false, category: "back", durationMin: 35, focus: "背與二頭" },
-      { weekday: 6, rest: true, category: null, durationMin: 0, focus: "休息與恢復" },
+      { weekday: 6, rest: false, category: "arms", durationMin: 30, focus: "手臂與肩穩定" },
       { weekday: 7, rest: true, category: null, durationMin: 0, focus: "休息與恢復" },
     ],
     createdAt: "2026-06-01T00:00:00Z",
@@ -36,6 +36,26 @@ async function seed(page: Page, hasSchedule: () => boolean) {
   await page.route("**/api/v1/ai/**", (r) =>
     r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ loaded: true }) }),
   );
+  await page.route("**/api/v1/health-plan/settings", (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        primaryGoal: "muscle_gain",
+        currentWeightKg: 72,
+        weightGoal: null,
+        workoutGoal: {
+          targetSessionsPerWeek: 4,
+          completedThisWeek: 1,
+          remaining: 3,
+          progressPct: 25,
+          weekStart: "2026-06-01",
+          achieved: false,
+          createdAt: "2026-06-01T00:00:00Z",
+        },
+      }),
+    }),
+  );
   // The day's plain workout list — keep it empty so only the planner is exercised.
   await page.route("**/api/v1/workouts?**", (r) =>
     r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [], page: 0, size: 20, total: 0 }) }),
@@ -51,10 +71,12 @@ async function seed(page: Page, hasSchedule: () => boolean) {
 
 test("generates a weekly split and adds a training day to a date", async ({ page }) => {
   let generated = false;
+  let generateBody: Record<string, unknown> | null = null;
   let applyBody: Record<string, unknown> | null = null;
   await seed(page, () => generated);
 
   await page.route("**/api/v1/workout-schedules/generate", async (route) => {
+    generateBody = route.request().postDataJSON();
     generated = true;
     await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(schedule()) });
   });
@@ -70,8 +92,10 @@ test("generates a weekly split and adds a training day to a date", async ({ page
 
   // Empty state until a schedule is generated.
   await expect(page.getByText("還沒有週期課表")).toBeVisible();
+  await expect(page.getByText("依健康計畫預設 4 天/週")).toBeVisible();
 
   await page.getByRole("button", { name: "產生週期課表" }).click();
+  expect(generateBody).toMatchObject({ daysPerWeek: 4, weeks: 4, intensity: "medium" });
 
   // The split renders: a Monday leg day and at least one rest day.
   await expect(page.getByText("目標 · 增肌")).toBeVisible();
