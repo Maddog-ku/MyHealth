@@ -56,8 +56,9 @@ class AchievementServiceTest {
 
     @Test
     void reconcile_awardsEveryNewlyEarnedBadge_andBuildsFullWall() {
-        // longest=7, meals=100, workouts=10, weight=1 → earns all except STREAK_30 and WORKOUTS_50.
-        StreakMetrics metrics = new StreakMetrics(7, 100, 10, 1);
+        // longest=7, meals=100, workouts=10, weight=1 → earns all except STREAK_30 and WORKOUTS_50
+        // (and the photo/weekly-goal badges, whose metrics are 0 here).
+        StreakMetrics metrics = new StreakMetrics(7, 100, 10, 1, 0, 0);
 
         AchievementService.ReconcileResult res = service.reconcile(user, metrics);
 
@@ -74,7 +75,7 @@ class AchievementServiceTest {
     @Test
     void reconcile_isIdempotent_doesNotReAwardExisting() {
         when(repo.findByUserId(1L)).thenReturn(List.of(new Achievement(user, "STREAK_3")));
-        StreakMetrics metrics = new StreakMetrics(3, 0, 0, 0); // only STREAK_3 earned, already owned
+        StreakMetrics metrics = new StreakMetrics(3, 0, 0, 0, 0, 0); // only STREAK_3 earned, already owned
 
         AchievementService.ReconcileResult res = service.reconcile(user, metrics);
 
@@ -87,7 +88,7 @@ class AchievementServiceTest {
 
     @Test
     void reconcile_reportsProgress_forLockedBadge() {
-        StreakMetrics metrics = new StreakMetrics(0, 30, 0, 0); // 30/50 meals
+        StreakMetrics metrics = new StreakMetrics(0, 30, 0, 0, 0, 0); // 30/50 meals
 
         AchievementService.ReconcileResult res = service.reconcile(user, metrics);
 
@@ -98,9 +99,33 @@ class AchievementServiceTest {
     }
 
     @Test
+    void reconcile_awardsPhotoAndWeeklyGoalBadges() {
+        // 25 photo meals → PHOTO_5 + PHOTO_25; 4 weekly-goal hits → WEEKLY_GOAL_1 + WEEKLY_GOAL_4.
+        StreakMetrics metrics = new StreakMetrics(0, 0, 0, 0, 25, 4);
+
+        AchievementService.ReconcileResult res = service.reconcile(user, metrics);
+
+        assertThat(res.newlyUnlocked())
+                .contains("PHOTO_5", "PHOTO_25", "WEEKLY_GOAL_1", "WEEKLY_GOAL_4");
+        assertThat(view(res.views(), "PHOTO_25").unlocked()).isTrue();
+        assertThat(view(res.views(), "WEEKLY_GOAL_4").progress()).isEqualTo(4);
+    }
+
+    @Test
+    void reconcile_locksWeeklyGoalBadge_belowThreshold() {
+        StreakMetrics metrics = new StreakMetrics(0, 0, 0, 0, 2, 0); // 2 photos, no weekly hits
+
+        AchievementService.ReconcileResult res = service.reconcile(user, metrics);
+
+        assertThat(res.newlyUnlocked()).doesNotContain("PHOTO_5", "WEEKLY_GOAL_1");
+        assertThat(view(res.views(), "PHOTO_5").progress()).isEqualTo(2);
+        assertThat(view(res.views(), "WEEKLY_GOAL_1").unlocked()).isFalse();
+    }
+
+    @Test
     void reconcile_concurrentInsertRace_marksUnlockedButNotNewly() {
         when(repo.save(any())).thenThrow(new DataIntegrityViolationException("dup"));
-        StreakMetrics metrics = new StreakMetrics(0, 0, 0, 1); // earns FIRST_WEIGHT
+        StreakMetrics metrics = new StreakMetrics(0, 0, 0, 1, 0, 0); // earns FIRST_WEIGHT
 
         AchievementService.ReconcileResult res = service.reconcile(user, metrics);
 

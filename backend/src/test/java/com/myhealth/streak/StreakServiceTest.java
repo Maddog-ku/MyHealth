@@ -14,11 +14,14 @@ import com.myhealth.streak.StreakDtos.StreakSummaryResponse;
 import com.myhealth.user.AppUser;
 import com.myhealth.user.BodyMeasurementRepository;
 import com.myhealth.user.Role;
+import com.myhealth.workout.WorkoutGoal;
+import com.myhealth.workout.WorkoutGoalRepository;
 import com.myhealth.workout.WorkoutPlanRepository;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +39,7 @@ class StreakServiceTest {
 
     @Mock MealRepository meals;
     @Mock WorkoutPlanRepository workouts;
+    @Mock WorkoutGoalRepository workoutGoals;
     @Mock BodyMeasurementRepository bodyMeasurements;
     @Mock AchievementService achievements;
 
@@ -46,7 +50,7 @@ class StreakServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new StreakService(meals, workouts, bodyMeasurements, achievements);
+        service = new StreakService(meals, workouts, workoutGoals, bodyMeasurements, achievements);
         user = new AppUser();
         user.setEmail("a@b.c");
         user.setRole(Role.USER);
@@ -116,6 +120,11 @@ class StreakServiceTest {
         when(meals.countByUserId(1L)).thenReturn(60L);
         when(workouts.countByUserIdAndDoneTrue(1L)).thenReturn(12L);
         when(bodyMeasurements.countByUserId(1L)).thenReturn(1L);
+        when(meals.countPhotoMeals(1L)).thenReturn(7L);
+        // Three sessions this week against a target of 2 → one weekly-goal hit.
+        when(workouts.findDoneWorkoutDates(eq(1L), any(), any()))
+                .thenReturn(List.of(TODAY, TODAY, TODAY));
+        when(workoutGoals.findByUserId(1L)).thenReturn(Optional.of(new WorkoutGoal(user, 2)));
 
         AchievementView view = new AchievementView("STREAK_3", "三日連勝", "🔥", "x", 3, 3, true, null);
         when(achievements.reconcile(eq(user), any()))
@@ -135,6 +144,19 @@ class StreakServiceTest {
         assertThat(metrics.getValue().workoutCount()).isEqualTo(12L);
         assertThat(metrics.getValue().weightCount()).isEqualTo(1L);
         assertThat(metrics.getValue().longestStreak()).isEqualTo(3); // overall longest
+        assertThat(metrics.getValue().photoMealCount()).isEqualTo(7L);
+        assertThat(metrics.getValue().weeklyGoalHits()).isEqualTo(1); // 3 sessions ≥ target 2 in one week
+    }
+
+    @Test
+    void weeklyGoalHits_countsOnlyWeeksMeetingTarget() {
+        LocalDate w1 = LocalDate.of(2026, 6, 1);  // Monday
+        LocalDate w2 = w1.plusDays(7);
+        // Week 1: 3 sessions (≥2 → hit). Week 2: 1 session (<2 → miss).
+        List<LocalDate> done = List.of(w1, w1.plusDays(2), w1.plusDays(4), w2.plusDays(1));
+        assertThat(StreakService.weeklyGoalHits(done, 2)).isEqualTo(1);
+        assertThat(StreakService.weeklyGoalHits(done, 1)).isEqualTo(2);
+        assertThat(StreakService.weeklyGoalHits(done, 0)).isZero(); // no goal set
     }
 
     private static Set<LocalDate> days(LocalDate... d) {

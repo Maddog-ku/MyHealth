@@ -19,6 +19,10 @@ public interface MealRepository extends JpaRepository<Meal, Long> {
 
     long countByUserId(Long userId);
 
+    /** Total meals logged with a (non-empty) photo, for the photo-meal achievement. */
+    @Query("select count(m) from Meal m where m.user.id = :userId and m.imageUrl is not null and m.imageUrl <> ''")
+    long countPhotoMeals(@Param("userId") Long userId);
+
     boolean existsByUserIdAndDate(Long userId, LocalDate date);
 
     /** Distinct days that have at least one meal, for streak computation (date column only). */

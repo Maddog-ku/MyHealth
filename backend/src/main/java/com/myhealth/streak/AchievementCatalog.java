@@ -13,11 +13,15 @@ public enum AchievementCatalog {
     MEALS_100(Metric.MEAL_COUNT, 100, "飲食達人", "🥗", "累計記錄 100 筆餐點"),
     WORKOUTS_10(Metric.WORKOUT_COUNT, 10, "動起來", "💪", "累計完成 10 次訓練"),
     WORKOUTS_50(Metric.WORKOUT_COUNT, 50, "健身常客", "🏋️", "累計完成 50 次訓練"),
-    FIRST_WEIGHT(Metric.WEIGHT_LOGGED, 1, "踏出第一步", "⚖️", "第一次記錄體重");
+    FIRST_WEIGHT(Metric.WEIGHT_LOGGED, 1, "踏出第一步", "⚖️", "第一次記錄體重"),
+    PHOTO_5(Metric.PHOTO_MEAL_COUNT, 5, "鏡頭飲食", "📸", "用照片記錄 5 筆餐點"),
+    PHOTO_25(Metric.PHOTO_MEAL_COUNT, 25, "美食攝影師", "📷", "用照片記錄 25 筆餐點"),
+    WEEKLY_GOAL_1(Metric.WEEKLY_GOAL_HITS, 1, "達標起步", "🎯", "達成 1 週的訓練目標"),
+    WEEKLY_GOAL_4(Metric.WEEKLY_GOAL_HITS, 4, "週週達標", "🏅", "累計達成 4 週的訓練目標");
 
     /** Which cumulative number this badge is measured against. */
     public enum Metric {
-        LONGEST_STREAK, MEAL_COUNT, WORKOUT_COUNT, WEIGHT_LOGGED
+        LONGEST_STREAK, MEAL_COUNT, WORKOUT_COUNT, WEIGHT_LOGGED, PHOTO_MEAL_COUNT, WEEKLY_GOAL_HITS
     }
 
     private final Metric metric;
@@ -61,6 +65,8 @@ public enum AchievementCatalog {
             case MEAL_COUNT -> metrics.mealCount();
             case WORKOUT_COUNT -> metrics.workoutCount();
             case WEIGHT_LOGGED -> metrics.weightCount();
+            case PHOTO_MEAL_COUNT -> metrics.photoMealCount();
+            case WEEKLY_GOAL_HITS -> metrics.weeklyGoalHits();
         };
         return (int) Math.min(value, threshold);
     }

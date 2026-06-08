@@ -27,6 +27,12 @@ public interface WorkoutPlanRepository extends JpaRepository<WorkoutPlan, Long> 
     List<LocalDate> findDistinctDoneWorkoutDates(@Param("userId") Long userId,
                                                  @Param("from") LocalDate from, @Param("to") LocalDate to);
 
+    /** All completed-workout dates (with duplicates) for per-week aggregation in achievements. */
+    @Query("select w.date from WorkoutPlan w "
+            + "where w.user.id = :userId and w.done = true and w.date between :from and :to")
+    List<LocalDate> findDoneWorkoutDates(@Param("userId") Long userId,
+                                         @Param("from") LocalDate from, @Param("to") LocalDate to);
+
     int countByUserIdAndDateAndDoneTrue(Long userId, LocalDate date);
 
     int countByUserIdAndDateBetweenAndDoneTrue(Long userId, LocalDate from, LocalDate to);

@@ -5,10 +5,17 @@ import com.myhealth.streak.StreakDtos.StreakInfo;
 import com.myhealth.streak.StreakDtos.StreakSummaryResponse;
 import com.myhealth.user.AppUser;
 import com.myhealth.user.BodyMeasurementRepository;
+import com.myhealth.workout.WorkoutGoal;
+import com.myhealth.workout.WorkoutGoalRepository;
 import com.myhealth.workout.WorkoutPlanRepository;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.TemporalAdjusters;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import org.springframework.stereotype.Service;
@@ -27,14 +34,17 @@ public class StreakService {
 
     private final MealRepository meals;
     private final WorkoutPlanRepository workouts;
+    private final WorkoutGoalRepository workoutGoals;
     private final BodyMeasurementRepository bodyMeasurements;
     private final AchievementService achievements;
     private final ZoneId zoneId = ZoneId.systemDefault();
 
     public StreakService(MealRepository meals, WorkoutPlanRepository workouts,
-                         BodyMeasurementRepository bodyMeasurements, AchievementService achievements) {
+                         WorkoutGoalRepository workoutGoals, BodyMeasurementRepository bodyMeasurements,
+                         AchievementService achievements) {
         this.meals = meals;
         this.workouts = workouts;
+        this.workoutGoals = workoutGoals;
         this.bodyMeasurements = bodyMeasurements;
         this.achievements = achievements;
     }
@@ -61,11 +71,18 @@ public class StreakService {
         StreakInfo workoutStreak = streakOf(workoutDays, today);
         StreakInfo overallStreak = streakOf(overallDays, today);
 
+        int weeklyTarget = workoutGoals.findByUserId(userId)
+                .map(WorkoutGoal::getTargetSessionsPerWeek)
+                .orElse(0);
+        int weeklyGoalHits = weeklyGoalHits(workouts.findDoneWorkoutDates(userId, from, today), weeklyTarget);
+
         StreakMetrics metrics = new StreakMetrics(
                 overallStreak.longest(),
                 meals.countByUserId(userId),
                 workouts.countByUserIdAndDoneTrue(userId),
-                bodyMeasurements.countByUserId(userId));
+                bodyMeasurements.countByUserId(userId),
+                meals.countPhotoMeals(userId),
+                weeklyGoalHits);
 
         AchievementService.ReconcileResult rc = achievements.reconcile(user, metrics);
         return new StreakSummaryResponse(mealStreak, workoutStreak, overallStreak, rc.views(), rc.newlyUnlocked());
@@ -112,6 +129,23 @@ public class StreakService {
             prev = day;
         }
         return new StreakInfo(current, longest, prev); // prev is the last (max) day
+    }
+
+    /**
+     * How many distinct weeks (Monday-anchored) had at least {@code target} completed workouts.
+     * Returns 0 when no weekly goal is set, so the goal-based badges stay locked until the
+     * user opts into a target.
+     */
+    static int weeklyGoalHits(List<LocalDate> doneDates, int target) {
+        if (target <= 0) {
+            return 0;
+        }
+        Map<LocalDate, Integer> sessionsPerWeek = new HashMap<>();
+        for (LocalDate date : doneDates) {
+            LocalDate monday = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+            sessionsPerWeek.merge(monday, 1, Integer::sum);
+        }
+        return (int) sessionsPerWeek.values().stream().filter(count -> count >= target).count();
     }
 
     private Instant startOfDay(LocalDate date) {
