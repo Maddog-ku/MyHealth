@@ -33,7 +33,8 @@ export function DashboardPage() {
   const today = useMemo(() => todayLocalISO(), []);
   const [metric, setMetric] = useState<MetricKey>("weightKg");
   const selectedMetric = TREND_METRICS.find((m) => m.key === metric)!;
-  const sevenDaysAgo = useMemo(() => daysAgoLocalISO(6), []);
+  const [rangeDays, setRangeDays] = useState<number>(7);
+  const rangeFrom = useMemo(() => daysAgoLocalISO(rangeDays - 1), [rangeDays]);
   const stats = useDailyStats(today);
   const ai = useAiStatus();
   const { data: user } = useMe();
@@ -56,8 +57,8 @@ export function DashboardPage() {
   const [quickWeightOpen, setQuickWeightOpen] = useState(false);
 
   const range = useQuery({
-    queryKey: ["stats", "range", sevenDaysAgo, today],
-    queryFn: () => api.rangeStats(sevenDaysAgo, today),
+    queryKey: ["stats", "range", rangeFrom, today],
+    queryFn: () => api.rangeStats(rangeFrom, today),
     retry: false,
   });
 
@@ -112,25 +113,43 @@ export function DashboardPage() {
             <div>
               <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <TrendingUp className="size-4.5 text-emerald-500" />
-                近七日身體量測趨勢
+                近 {rangeDays} 日身體量測趨勢
               </CardTitle>
-              <CardDescription className="text-xs">選擇指標查看七日變化軌跡</CardDescription>
+              <CardDescription className="text-xs">選擇指標與範圍查看變化軌跡</CardDescription>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {TREND_METRICS.map((m) => (
-                <button
-                  key={m.key}
-                  type="button"
-                  onClick={() => setMetric(m.key)}
-                  className={`rounded-full px-2.5 py-1 text-[10px] font-bold border transition-colors ${
-                    metric === m.key
-                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                      : "bg-slate-50 dark:bg-slate-900/40 text-muted-foreground border-slate-100 dark:border-slate-800 hover:text-foreground"
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
+            <div className="flex flex-col items-stretch gap-1.5 sm:items-end">
+              <div className="flex flex-wrap gap-1.5">
+                {TREND_METRICS.map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => setMetric(m.key)}
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-bold border transition-colors ${
+                      metric === m.key
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                        : "bg-slate-50 dark:bg-slate-900/40 text-muted-foreground border-slate-100 dark:border-slate-800 hover:text-foreground"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-1.5">
+                {[7, 30, 90].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setRangeDays(d)}
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-bold border transition-colors ${
+                      rangeDays === d
+                        ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20"
+                        : "bg-slate-50 dark:bg-slate-900/40 text-muted-foreground border-slate-100 dark:border-slate-800 hover:text-foreground"
+                    }`}
+                  >
+                    {d} 天
+                  </button>
+                ))}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="pt-2">

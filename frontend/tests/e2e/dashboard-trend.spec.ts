@@ -37,9 +37,13 @@ test("the trend chart switches metric, and shows an empty state for one without 
 
   await page.goto("/");
 
-  // Default metric = 體重: data present → no empty state.
-  await expect(page.getByText("近七日身體量測趨勢")).toBeVisible();
+  // Default metric = 體重, default range = 7 days: data present → no empty state.
+  await expect(page.getByText("近 7 日身體量測趨勢")).toBeVisible();
   await expect(page.getByText(/目前尚無/)).toBeHidden();
+
+  // Switch the range to 30 days → the title reflects the new window.
+  await page.getByRole("button", { name: "30 天", exact: true }).click();
+  await expect(page.getByText("近 30 日身體量測趨勢")).toBeVisible();
 
   // Switch to 體脂率 (no data) → empty state names that metric.
   await page.getByRole("button", { name: "體脂率", exact: true }).click();
