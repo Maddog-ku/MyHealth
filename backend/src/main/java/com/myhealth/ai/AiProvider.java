@@ -69,11 +69,30 @@ public interface AiProvider {
     }
 
     /**
-     * Decide whether a chat message is the user logging a meal they ate (vs. asking
-     * for advice), and extract the slot + food description. Returns {@link MealLog#none()}
-     * on anything that isn't a clear logging intent, or on any model/parse failure.
+     * Classify a chat message into a single actionable intent — logging a meal, planning a
+     * workout, logging body weight, or none — in ONE model call (instead of one call per
+     * intent type), extracting the relevant fields. Returns {@link ChatIntent#none()} on
+     * plain conversation or any model/parse failure. Implementations validate/normalize
+     * fields so callers can map directly to {@link MealLog}/{@link WorkoutRequest}/{@link WeightLog}.
      */
-    MealLog detectMealLog(String userMessage);
+    ChatIntent detectIntent(String userMessage);
+
+    /**
+     * @param action one of "log_meal", "plan_workout", "log_weight", "none"
+     */
+    record ChatIntent(
+            String action,
+            String slot,
+            String food,
+            String category,
+            int durationMin,
+            String intensity,
+            double weightKg
+    ) {
+        public static ChatIntent none() {
+            return new ChatIntent("none", "", "", "", 30, "medium", 0);
+        }
+    }
 
     record MealLog(boolean isMeal, String slot, String food) {
         public static MealLog none() {
@@ -81,26 +100,11 @@ public interface AiProvider {
         }
     }
 
-    /**
-     * Decide whether a chat message is the user asking to plan/arrange a workout (vs. a
-     * how-to question), and extract category, duration and intensity. Returns
-     * {@link WorkoutRequest#none()} on anything that isn't a clear plan request or on failure.
-     */
-    WorkoutRequest detectWorkoutRequest(String userMessage);
-
     record WorkoutRequest(boolean isWorkout, String category, int durationMin, String intensity) {
         public static WorkoutRequest none() {
             return new WorkoutRequest(false, null, 0, null);
         }
     }
-
-    /**
-     * Decide whether a chat message is the user reporting their current body weight (vs.
-     * asking about weight in general), and extract the value in kilograms. Returns
-     * {@link WeightLog#none()} on anything that isn't a clear logging intent, on an
-     * out-of-range value, or on any model/parse failure.
-     */
-    WeightLog detectWeightLog(String userMessage);
 
     record WeightLog(boolean isWeight, double weightKg) {
         public static WeightLog none() {

@@ -1,6 +1,7 @@
 package com.myhealth.chat;
 
 import com.myhealth.ai.AiProvider;
+import com.myhealth.ai.AiProvider.ChatIntent;
 import com.myhealth.ai.AiProvider.ChatTurn;
 import com.myhealth.ai.AiProvider.MealLog;
 import com.myhealth.ai.AiProvider.WeightLog;
@@ -113,12 +114,16 @@ public class ChatService {
 
         ChatMessage userMessage = messages.save(new ChatMessage(user, "user", text));
 
-        // Detect actionable intents (record a meal / plan a workout / log weight); otherwise plain chat.
-        MealLog mealLog = mightBeMealLog(text) ? provider.detectMealLog(text) : MealLog.none();
-        WorkoutRequest workoutReq = (!mealLog.isMeal() && mightBeWorkout(text))
-                ? provider.detectWorkoutRequest(text) : WorkoutRequest.none();
-        WeightLog weightLog = (!mealLog.isMeal() && !workoutReq.isWorkout() && mightBeWeight(text))
-                ? provider.detectWeightLog(text) : WeightLog.none();
+        // Detect actionable intents (record a meal / plan a workout / log weight) in a single
+        // model call — only when a cheap keyword pre-gate hints at one — otherwise plain chat.
+        ChatIntent intent = (mightBeMealLog(text) || mightBeWorkout(text) || mightBeWeight(text))
+                ? provider.detectIntent(text) : ChatIntent.none();
+        MealLog mealLog = "log_meal".equals(intent.action())
+                ? new MealLog(true, intent.slot(), intent.food()) : MealLog.none();
+        WorkoutRequest workoutReq = "plan_workout".equals(intent.action())
+                ? new WorkoutRequest(true, intent.category(), intent.durationMin(), intent.intensity()) : WorkoutRequest.none();
+        WeightLog weightLog = "log_weight".equals(intent.action())
+                ? new WeightLog(true, intent.weightKg()) : WeightLog.none();
 
         String reply;
         boolean mealLogged = false;

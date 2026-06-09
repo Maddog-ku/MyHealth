@@ -471,39 +471,88 @@ public class LocalAiProvider implements AiProvider {
         };
     }
 
-    private static final String MEAL_INTENT_SYSTEM = """
-            你是一個嚴格的意圖判斷器，判斷使用者訊息是否「在敘述他已經吃了某餐，或明確要求把某餐記錄下來」。
+    /**
+     * One combined classifier covering all three actionable intents. Merging the former three
+     * separate prompts into a single call cuts up to 3 model round-trips per message to 1 — the
+     * main token/cost saver for cloud providers — while keeping every original detection rule
+     * (so accuracy and the "only act when explicit, else none" guardrails are unchanged).
+     */
+    private static final String INTENT_SYSTEM = """
+            你是一個嚴格的意圖判斷器，判斷使用者訊息屬於下列哪一種「動作」，並擷取對應欄位。
             只輸出 JSON，不要任何其他文字、說明或 Markdown。
 
-            判斷規則：
-            1. 只有當訊息明確包含『實際吃了哪些食物』或『要求記錄某餐』時，action 才是 "log_meal"。
-            2. 純粹詢問建議（例如「晚餐吃什麼比較好」「我可以吃雞排嗎」「幫我排菜單」）一律是 "none"。
-            3. 沒有具體食物內容時也是 "none"。
-            4. slot 由訊息判斷：早餐=breakfast、午餐=lunch、晚餐或晚上=dinner、點心或宵夜=snack；無法判斷給空字串。
-            5. food 只擷取吃的食物描述（保留份量字眼，例如「150g」「一碗」），不要包含時段詞或多餘字。
+            action 僅能是以下其一：
+            - "log_meal"：訊息明確敘述『實際吃了哪些食物』或『要求記錄某餐』。
+            - "plan_workout"：訊息明確要求『幫我排課表／菜單』或『我想練某部位』。
+            - "log_weight"：訊息明確包含『自己現在的體重數字』或『要求記錄體重』。
+            - "none"：其餘全部（包含純詢問建議、問動作怎麼做、閒聊、資料不足）。
 
-            只允許回傳此格式：
-            {"action":"log_meal"或"none","slot":"breakfast/lunch/dinner/snack或空字串","food":"食物描述或空字串"}
+            通則：只要是「詢問建議／問怎麼做」而非「陳述事實或要求記錄／安排」，一律 "none"。
+
+            log_meal 規則：
+            1. 純詢問（例如「晚餐吃什麼比較好」「我可以吃雞排嗎」）或沒有具體食物內容 => "none"。
+            2. slot：早餐=breakfast、午餐=lunch、晚餐或晚上=dinner、點心或宵夜=snack；無法判斷給空字串。
+            3. food 只擷取吃的食物描述（保留份量字眼，如「150g」「一碗」），不要含時段詞或多餘字。
+
+            plan_workout 規則：
+            1. 單純問動作怎麼做（例如「深蹲怎麼做」「棒式正確姿勢」）=> "none"。
+            2. category 對應其一（無法判斷給空字串）：腹肌/核心=abs、腰腹=waist、腿/深蹲/下肢=legs、
+               胸=chest、背=back、手臂/二頭/三頭=arms、臀/翹臀=glutes、有氧/跑步/心肺=cardio、全身=full_body。
+            3. durationMin 取訊息中的分鐘數整數；沒提到給 30。
+            4. intensity：輕鬆/低=low、普通/中等=medium、高/激烈=high；沒提到給 medium。
+
+            log_weight 規則：
+            1. 純詢問（例如「我體重會不會太重」「怎麼減重」）或沒有明確體重數字 => "none"。
+            2. weightKg 取訊息中的體重公斤數（可為小數）；單位為台斤或英磅時不要換算，給 0 並回 "none"。
+            3. 不要把身高、體脂率、年齡等其他數字當成體重。
+
+            只允許回傳此格式（未使用的欄位給空字串或預設值）：
+            {"action":"log_meal/plan_workout/log_weight/none","slot":"","food":"","category":"","durationMin":30,"intensity":"medium","weightKg":0}
 
             範例：
-            「我午餐吃了雞胸肉沙拉跟半碗糙米飯」=> {"action":"log_meal","slot":"lunch","food":"雞胸肉沙拉跟半碗糙米飯"}
-            「幫我記晚餐 牛肉麵一碗」=> {"action":"log_meal","slot":"dinner","food":"牛肉麵一碗"}
-            「晚餐吃什麼比較好？」=> {"action":"none","slot":"","food":""}
-            「深蹲怎麼做」=> {"action":"none","slot":"","food":""}
+            「我午餐吃了雞胸肉沙拉跟半碗糙米飯」=> {"action":"log_meal","slot":"lunch","food":"雞胸肉沙拉跟半碗糙米飯","category":"","durationMin":30,"intensity":"medium","weightKg":0}
+            「幫我排個練腿的菜單 30 分鐘」=> {"action":"plan_workout","slot":"","food":"","category":"legs","durationMin":30,"intensity":"medium","weightKg":0}
+            「我今天體重 68.5 公斤」=> {"action":"log_weight","slot":"","food":"","category":"","durationMin":30,"intensity":"medium","weightKg":68.5}
+            「深蹲怎麼做」=> {"action":"none","slot":"","food":"","category":"","durationMin":30,"intensity":"medium","weightKg":0}
+            「晚餐吃什麼比較好？」=> {"action":"none","slot":"","food":"","category":"","durationMin":30,"intensity":"medium","weightKg":0}
             """;
 
     @Override
-    public MealLog detectMealLog(String userMessage) {
-        JsonNode root = classifyIntent(MEAL_INTENT_SYSTEM, userMessage, "meal");
+    public ChatIntent detectIntent(String userMessage) {
+        JsonNode root = classifyIntent(INTENT_SYSTEM, userMessage, "intent");
         if (root == null) {
-            return MealLog.none();
+            return ChatIntent.none();
         }
-        boolean isLog = "log_meal".equalsIgnoreCase(root.path("action").asText(""));
-        String food = root.path("food").asText("").strip();
-        if (!isLog || food.isBlank()) {
-            return MealLog.none();
+        String action = root.path("action").asText("none").strip().toLowerCase();
+        switch (action) {
+            case "log_meal" -> {
+                String food = root.path("food").asText("").strip();
+                if (food.isBlank()) {
+                    return ChatIntent.none();
+                }
+                return new ChatIntent("log_meal", root.path("slot").asText("").strip().toLowerCase(),
+                        food, "", 30, "medium", 0);
+            }
+            case "plan_workout" -> {
+                String category = root.path("category").asText("").strip().toLowerCase();
+                if (category.isBlank()) {
+                    return ChatIntent.none();
+                }
+                return new ChatIntent("plan_workout", "", "", category,
+                        root.path("durationMin").asInt(30),
+                        root.path("intensity").asText("medium").strip().toLowerCase(), 0);
+            }
+            case "log_weight" -> {
+                double weight = root.path("weightKg").asDouble(0);
+                if (!Double.isFinite(weight) || weight < MIN_WEIGHT_KG || weight > MAX_WEIGHT_KG) {
+                    return ChatIntent.none();
+                }
+                return new ChatIntent("log_weight", "", "", "", 30, "medium", weight);
+            }
+            default -> {
+                return ChatIntent.none();
+            }
         }
-        return new MealLog(true, root.path("slot").asText("").strip().toLowerCase(), food);
     }
 
     /**
@@ -530,83 +579,9 @@ public class LocalAiProvider implements AiProvider {
         }
     }
 
-    private static final String WORKOUT_INTENT_SYSTEM = """
-            你是一個嚴格的意圖判斷器，判斷使用者訊息是否「要求安排／產生一份運動訓練菜單」。
-            只輸出 JSON，不要任何其他文字、說明或 Markdown。
-
-            判斷規則：
-            1. 只有當訊息明確要求『幫我排課表／菜單』或『我想練某部位』時，action 才是 "plan_workout"。
-            2. 單純問動作怎麼做（例如「深蹲怎麼做」「棒式正確姿勢」）一律是 "none"。
-            3. category 從訊息對應到下列其一（無法判斷給空字串）：
-               腹肌/核心=abs、腰腹=waist、腿/深蹲/下肢=legs、胸=chest、背=back、手臂/二頭/三頭=arms、
-               臀/翹臀=glutes、有氧/跑步/心肺=cardio、全身=full_body。
-            4. durationMin 取訊息中的分鐘數整數；沒提到給 30。
-            5. intensity：輕鬆/低=low、普通/中等=medium、高/激烈=high；沒提到給 medium。
-
-            只允許回傳此格式：
-            {"action":"plan_workout"或"none","category":"上列代碼或空字串","durationMin":30,"intensity":"low/medium/high"}
-
-            範例：
-            「幫我排個練腿的菜單 30 分鐘」=> {"action":"plan_workout","category":"legs","durationMin":30,"intensity":"medium"}
-            「我想練胸，強度高一點」=> {"action":"plan_workout","category":"chest","durationMin":30,"intensity":"high"}
-            「深蹲怎麼做」=> {"action":"none","category":"","durationMin":30,"intensity":"medium"}
-            """;
-
-    @Override
-    public WorkoutRequest detectWorkoutRequest(String userMessage) {
-        JsonNode root = classifyIntent(WORKOUT_INTENT_SYSTEM, userMessage, "workout");
-        if (root == null) {
-            return WorkoutRequest.none();
-        }
-        boolean isPlan = "plan_workout".equalsIgnoreCase(root.path("action").asText(""));
-        String category = root.path("category").asText("").strip().toLowerCase();
-        if (!isPlan || category.isBlank()) {
-            return WorkoutRequest.none();
-        }
-        return new WorkoutRequest(true, category,
-                root.path("durationMin").asInt(30),
-                root.path("intensity").asText("medium").strip().toLowerCase());
-    }
-
-    private static final String WEIGHT_INTENT_SYSTEM = """
-            你是一個嚴格的意圖判斷器，判斷使用者訊息是否「在回報自己目前的體重數值，或明確要求把體重記錄下來」。
-            只輸出 JSON，不要任何其他文字、說明或 Markdown。
-
-            判斷規則：
-            1. 只有當訊息明確包含『自己現在的體重數字』或『要求記錄體重』時，action 才是 "log_weight"。
-            2. 純粹詢問建議（例如「我體重會不會太重」「怎麼減重」「理想體重是多少」）一律是 "none"。
-            3. 沒有明確體重數字時也是 "none"。
-            4. weightKg 取訊息中的體重公斤數（可為小數）；單位若為台斤或英磅不要自行換算，一律給 0 並回 "none"。
-            5. 不要把身高、體脂率、年齡等其他數字當成體重。
-
-            只允許回傳此格式：
-            {"action":"log_weight"或"none","weightKg":數字}
-
-            範例：
-            「我今天體重 68.5 公斤」=> {"action":"log_weight","weightKg":68.5}
-            「幫我記體重 70」=> {"action":"log_weight","weightKg":70}
-            「早上量體重 72.3kg」=> {"action":"log_weight","weightKg":72.3}
-            「我會不會太胖」=> {"action":"none","weightKg":0}
-            「我身高 178」=> {"action":"none","weightKg":0}
-            """;
-
     /** Plausible human body-weight bounds (kg); anything outside is treated as a misread. */
     private static final double MIN_WEIGHT_KG = 20.0;
     private static final double MAX_WEIGHT_KG = 400.0;
-
-    @Override
-    public WeightLog detectWeightLog(String userMessage) {
-        JsonNode root = classifyIntent(WEIGHT_INTENT_SYSTEM, userMessage, "weight");
-        if (root == null) {
-            return WeightLog.none();
-        }
-        boolean isLog = "log_weight".equalsIgnoreCase(root.path("action").asText(""));
-        double weight = root.path("weightKg").asDouble(0);
-        if (!isLog || !Double.isFinite(weight) || weight < MIN_WEIGHT_KG || weight > MAX_WEIGHT_KG) {
-            return WeightLog.none();
-        }
-        return new WeightLog(true, weight);
-    }
 
     private String fallbackChatReply() {
         return "我現在連不上本機 AI 模型，沒辦法好好回覆你 😣 "

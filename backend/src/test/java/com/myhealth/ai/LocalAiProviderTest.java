@@ -374,38 +374,56 @@ class LocalAiProviderTest {
     }
 
     @Test
-    void detectWeightLog_parsesLogIntent() {
+    void detectIntent_parsesMealWorkoutAndWeight() {
         when(ollama.chat(any(), any(), any(), eq(true), any()))
-                .thenReturn("{\"action\":\"log_weight\",\"weightKg\":68.5}");
+                .thenReturn("{\"action\":\"log_meal\",\"slot\":\"lunch\",\"food\":\"雞胸肉沙拉\",\"category\":\"\",\"durationMin\":30,\"intensity\":\"medium\",\"weightKg\":0}");
+        AiProvider.ChatIntent meal = provider.detectIntent("我午餐吃了雞胸肉沙拉");
+        assertThat(meal.action()).isEqualTo("log_meal");
+        assertThat(meal.slot()).isEqualTo("lunch");
+        assertThat(meal.food()).isEqualTo("雞胸肉沙拉");
 
-        AiProvider.WeightLog log = provider.detectWeightLog("我今天體重 68.5 公斤");
+        when(ollama.chat(any(), any(), any(), eq(true), any()))
+                .thenReturn("{\"action\":\"plan_workout\",\"slot\":\"\",\"food\":\"\",\"category\":\"legs\",\"durationMin\":40,\"intensity\":\"high\",\"weightKg\":0}");
+        AiProvider.ChatIntent workout = provider.detectIntent("幫我排個練腿菜單 40 分鐘 強一點");
+        assertThat(workout.action()).isEqualTo("plan_workout");
+        assertThat(workout.category()).isEqualTo("legs");
+        assertThat(workout.durationMin()).isEqualTo(40);
+        assertThat(workout.intensity()).isEqualTo("high");
 
-        assertThat(log.isWeight()).isTrue();
-        assertThat(log.weightKg()).isEqualTo(68.5);
+        when(ollama.chat(any(), any(), any(), eq(true), any()))
+                .thenReturn("{\"action\":\"log_weight\",\"slot\":\"\",\"food\":\"\",\"category\":\"\",\"durationMin\":30,\"intensity\":\"medium\",\"weightKg\":68.5}");
+        AiProvider.ChatIntent weight = provider.detectIntent("我今天體重 68.5 公斤");
+        assertThat(weight.action()).isEqualTo("log_weight");
+        assertThat(weight.weightKg()).isEqualTo(68.5);
     }
 
     @Test
-    void detectWeightLog_returnsNone_onNoneAction() {
+    void detectIntent_returnsNone_onNoneAction() {
         when(ollama.chat(any(), any(), any(), eq(true), any()))
-                .thenReturn("{\"action\":\"none\",\"weightKg\":0}");
+                .thenReturn("{\"action\":\"none\",\"slot\":\"\",\"food\":\"\",\"category\":\"\",\"durationMin\":30,\"intensity\":\"medium\",\"weightKg\":0}");
 
-        assertThat(provider.detectWeightLog("我會不會太胖").isWeight()).isFalse();
+        assertThat(provider.detectIntent("我會不會太胖").action()).isEqualTo("none");
     }
 
     @Test
-    void detectWeightLog_returnsNone_whenValueOutOfPlausibleRange() {
+    void detectIntent_rejectsImplausibleWeight_andBlankFields() {
+        // Out-of-range weight → none.
         when(ollama.chat(any(), any(), any(), eq(true), any()))
-                .thenReturn("{\"action\":\"log_weight\",\"weightKg\":5}");  // implausible → rejected
+                .thenReturn("{\"action\":\"log_weight\",\"weightKg\":5}");
+        assertThat(provider.detectIntent("我體重 5 公斤").action()).isEqualTo("none");
 
-        assertThat(provider.detectWeightLog("我體重 5 公斤").isWeight()).isFalse();
+        // log_meal with no food → none.
+        when(ollama.chat(any(), any(), any(), eq(true), any()))
+                .thenReturn("{\"action\":\"log_meal\",\"slot\":\"lunch\",\"food\":\"\"}");
+        assertThat(provider.detectIntent("午餐").action()).isEqualTo("none");
     }
 
     @Test
-    void detectWeightLog_returnsNone_onOllamaFailure() {
+    void detectIntent_returnsNone_onOllamaFailure() {
         when(ollama.chat(any(), any(), any(), eq(true), any()))
                 .thenThrow(new OllamaClient.OllamaException("down"));
 
-        assertThat(provider.detectWeightLog("體重 70").isWeight()).isFalse();
+        assertThat(provider.detectIntent("體重 70").action()).isEqualTo("none");
     }
 
     @Test

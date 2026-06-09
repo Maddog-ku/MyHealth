@@ -12,9 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.myhealth.ai.AiProvider;
 import com.myhealth.ai.AiProvider.ExerciseItem;
-import com.myhealth.ai.AiProvider.MealLog;
-import com.myhealth.ai.AiProvider.WeightLog;
-import com.myhealth.ai.AiProvider.WorkoutRequest;
+import com.myhealth.ai.AiProvider.ChatIntent;
 import com.myhealth.chat.ChatDtos.ChatReplyResponse;
 import com.myhealth.healthplan.HealthPlanDtos.HealthPlanResponse;
 import com.myhealth.healthplan.HealthPlanDtos.PlanAction;
@@ -83,14 +81,12 @@ class ChatServiceTest {
         when(workouts.findByUserIdAndDateOrderByCreatedAtDesc(anyLong(), any())).thenReturn(List.of());
         when(stats.daily(any(), any())).thenReturn(dailyStats());
         // Default: no actionable intent — individual tests override as needed.
-        when(provider.detectMealLog(any())).thenReturn(MealLog.none());
-        when(provider.detectWorkoutRequest(any())).thenReturn(WorkoutRequest.none());
-        when(provider.detectWeightLog(any())).thenReturn(WeightLog.none());
+        when(provider.detectIntent(any())).thenReturn(ChatIntent.none());
     }
 
     @Test
     void mealLogIntent_recordsMeal_andSkipsChat() {
-        when(provider.detectMealLog(any())).thenReturn(new MealLog(true, "lunch", "雞胸肉沙拉"));
+        when(provider.detectIntent(any())).thenReturn(new ChatIntent("log_meal", "lunch", "雞胸肉沙拉", "", 30, "medium", 0));
         when(mealService.create(eq(user), isNull(), eq("雞胸肉沙拉"), eq("lunch"), any(), eq(false)))
                 .thenReturn(meal("雞胸肉沙拉", 300));
 
@@ -121,7 +117,7 @@ class ChatServiceTest {
 
     @Test
     void questionWithFoodWord_classifiedNone_fallsBackToChat() {
-        when(provider.detectMealLog(any())).thenReturn(MealLog.none());
+        when(provider.detectIntent(any())).thenReturn(ChatIntent.none());
         when(provider.chat(any(), any(), eq("晚餐吃什麼比較好"))).thenReturn("建議高蛋白餐 🍗");
 
         ChatReplyResponse res = service.send(user, "晚餐吃什麼比較好");
@@ -132,13 +128,14 @@ class ChatServiceTest {
     }
 
     @Test
-    void messageWithoutFoodCue_skipsClassifier() {
-        when(provider.chat(any(), any(), eq("深蹲怎麼做"))).thenReturn("膝蓋朝腳尖、核心收緊 💪");
+    void messageWithoutActionCue_skipsClassifier() {
+        // No meal/workout/weight keyword → the single intent classifier is never called.
+        when(provider.chat(any(), any(), eq("你好啊"))).thenReturn("嗨，今天想聊運動還是飲食呢 🙂");
 
-        ChatReplyResponse res = service.send(user, "深蹲怎麼做");
+        ChatReplyResponse res = service.send(user, "你好啊");
 
-        assertThat(res.reply().content()).contains("核心");
-        verify(provider, never()).detectMealLog(any());
+        assertThat(res.reply().content()).isNotBlank();
+        verify(provider, never()).detectIntent(any());
     }
 
     @Test
@@ -152,7 +149,7 @@ class ChatServiceTest {
 
     @Test
     void mealLoggingFailure_returnsGracefulReply() {
-        when(provider.detectMealLog(any())).thenReturn(new MealLog(true, "dinner", "芒果"));
+        when(provider.detectIntent(any())).thenReturn(new ChatIntent("log_meal", "dinner", "芒果", "", 30, "medium", 0));
         when(mealService.create(any(), any(), any(), any(), any(), eq(false)))
                 .thenThrow(new RuntimeException("boom"));
 
@@ -164,7 +161,7 @@ class ChatServiceTest {
 
     @Test
     void workoutRequest_generatesPlan_andSkipsChat() {
-        when(provider.detectWorkoutRequest(any())).thenReturn(new WorkoutRequest(true, "legs", 30, "medium"));
+        when(provider.detectIntent(any())).thenReturn(new ChatIntent("plan_workout", "", "", "legs", 30, "medium", 0));
         when(workoutService.generate(eq(user), any())).thenReturn(plan("legs", 220));
 
         ChatReplyResponse res = service.send(user, "幫我排個練腿的菜單");
@@ -178,7 +175,7 @@ class ChatServiceTest {
 
     @Test
     void weightLogIntent_recordsWeight_andSkipsChat() {
-        when(provider.detectWeightLog(any())).thenReturn(new WeightLog(true, 68.5));
+        when(provider.detectIntent(any())).thenReturn(new ChatIntent("log_weight", "", "", "", 30, "medium", 68.5));
         when(userService.logWeight(eq(user), any(BigDecimal.class))).thenReturn(new BigDecimal("68.5"));
 
         ChatReplyResponse res = service.send(user, "我今天體重 68.5 公斤");
@@ -193,17 +190,20 @@ class ChatServiceTest {
     }
 
     @Test
-    void messageWithoutWeightCue_skipsWeightClassifier() {
+    void howToQuestion_runsClassifierButDoesNotLog() {
+        // "深蹲" is a workout cue, so the classifier runs, but a how-to question maps to none.
+        when(provider.detectIntent(any())).thenReturn(ChatIntent.none());
         when(provider.chat(any(), any(), eq("深蹲怎麼做"))).thenReturn("膝蓋朝腳尖 💪");
 
         service.send(user, "深蹲怎麼做");
 
-        verify(provider, never()).detectWeightLog(any());
+        verify(workoutService, never()).generate(any(), any());
+        verify(userService, never()).logWeight(any(), any());
     }
 
     @Test
     void weightQuestion_classifiedNone_fallsBackToChat() {
-        when(provider.detectWeightLog(any())).thenReturn(WeightLog.none());
+        when(provider.detectIntent(any())).thenReturn(ChatIntent.none());
         when(provider.chat(any(), any(), eq("我體重會不會太重"))).thenReturn("體重要看整體狀態 🙂");
 
         ChatReplyResponse res = service.send(user, "我體重會不會太重");
@@ -214,7 +214,7 @@ class ChatServiceTest {
 
     @Test
     void weightLoggingFailure_returnsGracefulReply() {
-        when(provider.detectWeightLog(any())).thenReturn(new WeightLog(true, 70.0));
+        when(provider.detectIntent(any())).thenReturn(new ChatIntent("log_weight", "", "", "", 30, "medium", 70.0));
         when(userService.logWeight(any(), any())).thenThrow(new RuntimeException("boom"));
 
         ChatReplyResponse res = service.send(user, "幫我記體重 70");
