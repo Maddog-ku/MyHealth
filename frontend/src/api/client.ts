@@ -110,6 +110,7 @@ export const api = {
     http.post<AuthResponse>("/auth/login", { email, password }).then((r) => r.data),
   logout: (refreshToken: string) => http.post<void>("/auth/logout", { refreshToken }).then(() => undefined),
   me: () => http.get<User>("/me").then((r) => r.data),
+  updateAccount: (name: string) => http.put<User>("/me/account", { name }).then((r) => r.data),
   updateProfile: (profile: Profile) => http.put<Profile>("/me/profile", profile).then((r) => r.data),
   deleteAccount: () => http.delete<void>("/me").then(() => undefined),
   exportData: () => http.get<Record<string, unknown>>("/me/export").then((r) => r.data),

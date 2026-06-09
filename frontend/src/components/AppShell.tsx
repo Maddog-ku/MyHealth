@@ -90,7 +90,18 @@ export function AppShell() {
 
         {/* User Card & Logout bottom */}
         <div className="mt-auto pt-6 border-t border-slate-100 dark:border-slate-900/60">
-          <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50/50 dark:bg-slate-900/20 mb-3">
+          <NavLink
+            to="/account"
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 p-3 rounded-2xl mb-3 transition-colors text-left w-full",
+                isActive
+                  ? "bg-emerald-500/10 border border-emerald-500/20"
+                  : "bg-slate-50/50 dark:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-900/40 border border-transparent",
+              )
+            }
+            title={t("shell.accountTitle")}
+          >
             <div className="flex size-10 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
               <UserRound className="size-5" />
             </div>
@@ -98,7 +109,7 @@ export function AppShell() {
               <p className="text-sm font-semibold truncate">{user?.name || t("shell.userFallback")}</p>
               <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
             </div>
-          </div>
+          </NavLink>
 
           <Button
             variant="ghost"

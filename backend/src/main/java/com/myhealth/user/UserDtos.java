@@ -16,6 +16,12 @@ public final class UserDtos {
     private UserDtos() {
     }
 
+    /** Editable account info. Email is identity and not changeable here. */
+    public record UpdateAccountRequest(
+            @NotBlank @Size(max = 60) String name
+    ) {
+    }
+
     public record ProfileUpdateRequest(
             @NotNull Gender gender,
             @NotNull @DecimalMin("50") @DecimalMax("250") @Digits(integer = 3, fraction = 1) BigDecimal heightCm,

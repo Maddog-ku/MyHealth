@@ -20,6 +20,7 @@ const zhTW: Dict = {
 
   "shell.logout": "帳號登出",
   "shell.logoutShort": "登出",
+  "shell.accountTitle": "帳戶設定（修改密碼、資料與隱私、登入裝置）",
   "shell.aiOnline": "AI 引擎已連線",
   "shell.userFallback": "健康行者",
   "shell.greeting.morning": "早安，開啟美好活力的一天",
@@ -81,6 +82,7 @@ const en: Dict = {
 
   "shell.logout": "Sign out",
   "shell.logoutShort": "Sign out",
+  "shell.accountTitle": "Account settings (password, data & privacy, devices)",
   "shell.aiOnline": "AI engine connected",
   "shell.userFallback": "Health Walker",
   "shell.greeting.morning": "Good morning — start the day strong",

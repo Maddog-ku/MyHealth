@@ -1,19 +1,11 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Moon, Sun, SunMoon, Palette, Trash2, Bot, Check, Type, Languages } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Moon, Sun, SunMoon, Palette, Bot, Check, Type, Languages } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
-import { ApiError } from "@/api/client";
-import { useDeleteAccount, useMe, useUpdateProfile } from "@/hooks/useAuth";
+import { useMe, useUpdateProfile } from "@/hooks/useAuth";
 import { useTheme, type ThemeMode } from "@/hooks/useTheme";
 import { useFontScale, type FontScale } from "@/hooks/useFontScale";
 import { useI18n } from "@/i18n/i18n";
 import { LANGS, type Lang } from "@/i18n/dictionaries";
-import { ChangePasswordCard } from "@/components/ChangePasswordCard";
-import { SessionsCard } from "@/components/SessionsCard";
-import { DataExportCard } from "@/components/DataExportCard";
 import { SystemStatusCard } from "@/components/SystemStatusCard";
 import { HealthPlanSettingsCard } from "@/components/HealthPlanSettingsCard";
 import { AiEngineCard } from "@/components/AiEngineCard";
@@ -31,14 +23,11 @@ const FONT_OPTIONS: { value: FontScale; labelKey: string; sample: string }[] = [
 ];
 
 export function SettingsPage() {
-  const del = useDeleteAccount();
-  const navigate = useNavigate();
   const { mode, setTheme } = useTheme();
   const { scale, setFontScale } = useFontScale();
   const { lang, setLang, t } = useI18n();
   const { data: user } = useMe();
   const updateProfile = useUpdateProfile();
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   function chooseLang(next: Lang) {
     if (next === lang) return;
@@ -52,15 +41,6 @@ export function SettingsPage() {
   function chooseAvatar(avatar: "male" | "female") {
     if (!user?.profile || avatar === currentAvatar || updateProfile.isPending) return;
     updateProfile.mutate({ ...user.profile, assistantAvatar: avatar });
-  }
-
-  async function handleDelete() {
-    try {
-      await del.mutateAsync();
-      navigate("/login", { replace: true });
-    } catch {
-      // error rendered in the danger zone
-    }
   }
 
   return (
@@ -228,88 +208,11 @@ export function SettingsPage() {
       {/* Health plan settings (primary goal, weight & training targets) */}
       <HealthPlanSettingsCard />
 
-      {/* Change password */}
-      <ChangePasswordCard />
-
-      {/* Active login sessions / device management */}
-      <SessionsCard />
-
-      {/* Export my data */}
-      <DataExportCard />
-
       {/* Local AI engine status */}
       <AiEngineCard />
 
       {/* System diagnostics */}
       <SystemStatusCard />
-
-      {/* Danger Zone — account deletion */}
-      <Card className="border border-rose-500/20 dark:border-rose-500/15 bg-rose-500/[0.03] dark:bg-rose-950/10 rounded-3xl overflow-hidden">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg font-bold flex items-center gap-2 text-rose-600 dark:text-rose-400">
-            <AlertTriangle className="size-4.5" />
-            {t("settings.danger.title")}
-          </CardTitle>
-          <CardDescription className="text-xs">
-            {t("settings.danger.desc")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-6 pb-6">
-          {del.error instanceof ApiError && (
-            <Alert variant="destructive" className="mb-4 py-2.5 px-4 rounded-xl border-rose-500/20 bg-rose-500/5 text-rose-600 dark:text-rose-400">
-              <AlertTitle className="text-xs font-bold">{t("settings.danger.deleteFailed")}</AlertTitle>
-              <AlertDescription className="text-[11px] opacity-90">{del.error.message}</AlertDescription>
-            </Alert>
-          )}
-
-          {!confirmingDelete ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setConfirmingDelete(true)}
-              className="rounded-2xl py-5 px-6 gap-1.5 border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 hover:text-rose-700 dark:hover:text-rose-300 font-semibold text-sm"
-            >
-              <Trash2 className="size-4" />
-              {t("settings.danger.deleteBtn")}
-            </Button>
-          ) : (
-            <div className="flex flex-col gap-3 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4">
-              <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">
-                {t("settings.danger.confirmQuestion")}
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={del.isPending}
-                  className="rounded-2xl py-5 px-6 gap-1.5 bg-rose-600 hover:bg-rose-500 text-white font-semibold text-sm shadow-sm shadow-rose-500/10"
-                >
-                  {del.isPending ? (
-                    <>
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      {t("settings.danger.deleting")}
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="size-4" />
-                      {t("settings.danger.confirmBtn")}
-                    </>
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setConfirmingDelete(false)}
-                  disabled={del.isPending}
-                  className="rounded-2xl py-5 px-6 text-sm text-muted-foreground"
-                >
-                  {t("settings.danger.cancel")}
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </section>
   );
 }

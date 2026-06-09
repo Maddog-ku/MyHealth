@@ -310,6 +310,15 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 }
 ```
 
+### 5.1b 更新帳戶資訊
+
+`PUT /me/account`  *(需登入)* — 更新可編輯的帳戶資訊(目前為顯示名稱;Email 為登入身分,不可在此變更)。
+
+```json
+{ "name": "新的名稱" }
+```
+- `name` 必填、最長 60 字。回傳更新後的 `UserResponse`(同 `GET /me`)。
+
 ### 5.2 更新個人檔案
 
 `PUT /me/profile`

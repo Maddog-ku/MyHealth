@@ -8,6 +8,7 @@ import com.myhealth.auth.CurrentUser;
 import com.myhealth.user.SessionDtos.RevokeOthersRequest;
 import com.myhealth.user.SessionDtos.SessionListResponse;
 import com.myhealth.user.UserDtos.ProfileUpdateRequest;
+import com.myhealth.user.UserDtos.UpdateAccountRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -39,6 +40,11 @@ public class UserController {
     @GetMapping
     UserResponse me() {
         return userService.me(currentUser.require());
+    }
+
+    @PutMapping("/account")
+    UserResponse updateAccount(@Valid @RequestBody UpdateAccountRequest request) {
+        return userService.updateAccount(currentUser.require(), request.name());
     }
 
     @PutMapping("/profile")

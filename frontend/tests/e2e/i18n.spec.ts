@@ -43,7 +43,7 @@ test("switching to English translates the nav and settings, and persists", async
   await expect(page.getByRole("link", { name: "Dashboard" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
   await expect(page.getByText("Appearance")).toBeVisible();
-  await expect(page.getByText("Danger zone")).toBeVisible();
+  await expect(page.getByText("Font size")).toBeVisible();
 
   // Choice is persisted and applied to <html lang>.
   expect(await page.evaluate(() => localStorage.getItem("lang"))).toBe("en");

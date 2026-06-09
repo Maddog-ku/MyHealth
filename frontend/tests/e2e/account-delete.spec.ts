@@ -34,7 +34,7 @@ test("user can delete their account from settings and is returned to login", asy
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(USER) });
   });
 
-  await page.goto("/settings");
+  await page.goto("/account");
 
   // Danger zone is present and requires an explicit confirmation step.
   await expect(page.getByText("危險操作區")).toBeVisible();
@@ -66,14 +66,14 @@ test("user can cancel out of the account-deletion confirmation", async ({ page }
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(USER) });
   });
 
-  await page.goto("/settings");
+  await page.goto("/account");
 
   await page.getByRole("button", { name: "刪除我的帳號" }).click();
   await expect(page.getByText(/確定要永久刪除帳號嗎/)).toBeVisible();
   await page.getByRole("button", { name: "取消" }).click();
 
-  // Back to the resting state, still on settings, nothing deleted.
+  // Back to the resting state, still on the account page, nothing deleted.
   await expect(page.getByText(/確定要永久刪除帳號嗎/)).toBeHidden();
-  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page).toHaveURL(/\/account$/);
   expect(deleteCalled).toBe(false);
 });

@@ -63,6 +63,23 @@ class UserControllerTest {
     }
 
     @Test
+    void updateAccount_returns200_andUpdatesName() throws Exception {
+        when(currentUser.require()).thenReturn(stubUser());
+        when(userService.updateAccount(any(), eq("New Name"))).thenReturn(new UserResponse(
+                1L, "demo@example.com", "New Name", Role.USER, null, Instant.parse("2026-05-30T00:00:00Z")));
+
+        mockMvc.perform(put("/api/v1/me/account").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"New Name\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("New Name"));
+    }
+
+    @Test
+    void updateAccount_returns400_whenNameBlank() throws Exception {
+        mockMvc.perform(put("/api/v1/me/account").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"  \"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void updateProfile_returns200_whenValid() throws Exception {
         when(currentUser.require()).thenReturn(stubUser());
         when(userService.updateProfile(any(), any())).thenReturn(new ProfileResponse(

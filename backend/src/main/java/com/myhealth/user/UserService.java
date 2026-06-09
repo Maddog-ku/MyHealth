@@ -32,6 +32,14 @@ public class UserService {
         return AuthMapper.toUserResponse(user);
     }
 
+    /** Update the user's editable account info (currently the display name). */
+    @Transactional
+    public UserResponse updateAccount(AppUser user, String name) {
+        user.setName(name.strip());
+        users.save(user);
+        return AuthMapper.toUserResponse(user);
+    }
+
     @Transactional
     public ProfileResponse updateProfile(AppUser user, ProfileUpdateRequest request) {
         Profile profile = user.getProfile();

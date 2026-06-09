@@ -37,7 +37,7 @@ async function seed(page: Page) {
 
 test("exporting downloads a JSON file of the user's data", async ({ page }) => {
   await seed(page);
-  await page.goto("/settings");
+  await page.goto("/account");
 
   await expect(page.getByText("資料與隱私")).toBeVisible();
 

@@ -32,7 +32,7 @@ test("changing the password submits and confirms other devices were logged out",
     await route.fulfill({ status: 204, body: "" });
   });
 
-  await page.goto("/settings");
+  await page.goto("/account");
 
   await expect(page.getByText("修改密碼")).toBeVisible();
 
@@ -51,7 +51,7 @@ test("submit stays disabled until the form is valid", async ({ page }) => {
   await seed(page);
   await page.route("**/api/v1/me/password", (r) => r.fulfill({ status: 204, body: "" }));
 
-  await page.goto("/settings");
+  await page.goto("/account");
 
   const submit = page.getByRole("button", { name: "更新密碼" });
   await expect(submit).toBeDisabled();

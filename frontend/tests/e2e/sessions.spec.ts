@@ -51,7 +51,7 @@ test("lists login devices, flags the current one, and logs out another device", 
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ sessions: [] }) });
   });
 
-  await page.goto("/settings");
+  await page.goto("/account");
 
   await expect(page.getByText("登入裝置與安全")).toBeVisible();
   await expect(page.getByText("Chrome · macOS")).toBeVisible();

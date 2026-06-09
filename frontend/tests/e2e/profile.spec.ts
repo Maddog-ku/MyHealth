@@ -57,10 +57,10 @@ test("settings no longer contains the physiological profile form", async ({ page
 
   await page.goto("/settings");
 
-  // Settings keeps appearance + danger zone, but the body-metrics form moved out.
+  // Settings keeps appearance, but the body-metrics form and account/danger zone moved out.
   await expect(page.getByText("外觀視覺主題")).toBeVisible();
-  await expect(page.getByText("危險操作區")).toBeVisible();
   await expect(page.getByText("個人生理指標檔案")).toHaveCount(0);
+  await expect(page.getByText("危險操作區")).toHaveCount(0);
 
   // And the nav exposes the dedicated profile entry.
   await expect(page.getByRole("link", { name: "生理指標" }).first()).toBeVisible();
