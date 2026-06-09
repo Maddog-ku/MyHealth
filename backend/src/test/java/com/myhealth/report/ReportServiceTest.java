@@ -217,6 +217,22 @@ class ReportServiceTest {
     }
 
     @Test
+    void get_detectsBodyCompositionTrends_fromWeekMovement() {
+        LocalDate weekStart = LocalDate.of(2026, 5, 25);
+        // muscle 30.0 → 30.5 (+0.5 ≥ 0.3 → gain); body fat 25.0 → 24.0 (−1.0 ≤ −0.5 → down).
+        when(stats.range(eq(user), eq(weekStart), eq(weekStart.plusDays(6)))).thenReturn(
+                new RangeStatsResponse(weekStart, weekStart.plusDays(6), List.of(
+                        new SeriesPoint(weekStart, 0, 0, new BigDecimal("70.0"),
+                                new BigDecimal("25.0"), new BigDecimal("30.0"), null, null),
+                        new SeriesPoint(weekStart.plusDays(1), 0, 0, new BigDecimal("69.8"),
+                                new BigDecimal("24.0"), new BigDecimal("30.5"), null, null))));
+
+        WeeklyReportResponse res = service.get(user, weekStart);
+
+        assertThat(res.trends()).extracting(WeeklyTrend::type).contains("MUSCLE_GAIN", "BODYFAT_DOWN");
+    }
+
+    @Test
     void get_workoutAdherenceZero_whenNoGoalSet() {
         LocalDate weekStart = LocalDate.of(2026, 5, 25);
         when(stats.range(any(), any(), any())).thenReturn(range(weekStart));

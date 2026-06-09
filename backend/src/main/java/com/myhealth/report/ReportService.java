@@ -57,8 +57,13 @@ public class ReportService {
         this.transactionTemplate = transactionTemplate;
     }
 
-    /** Live numbers paired with the week's goal-attainment rates. */
-    record WeekData(WeeklySummary summary, WeeklyAdherence adherence) {
+    /**
+     * Live numbers, attainment rates, and the week's body-composition movement (carried-forward
+     * end minus start; null when unmeasured). The body-comp deltas drive trend detection but
+     * aren't part of the public summary.
+     */
+    record WeekData(WeeklySummary summary, WeeklyAdherence adherence,
+                    BigDecimal bodyFatDelta, BigDecimal muscleDelta) {
     }
 
     /** Monday of the week containing {@code date}; current week when null. */
@@ -151,7 +156,7 @@ public class ReportService {
             // Week is entirely in the future — nothing to summarize yet.
             WeeklySummary empty = new WeeklySummary(0, 0, 0, 0, goalKcal(user, weekStart),
                     null, null, null, 0, 0, 0);
-            return new WeekData(empty, new WeeklyAdherence(0, 0, 0, workoutTarget, 0, 0, 0));
+            return new WeekData(empty, new WeeklyAdherence(0, 0, 0, workoutTarget, 0, 0, 0), null, null);
         }
 
         RangeStatsResponse range = stats.range(user, weekStart, to);
@@ -166,6 +171,11 @@ public class ReportService {
         BigDecimal weightDelta = (weightStart != null && weightEnd != null)
                 ? weightEnd.subtract(weightStart) : null;
 
+        BigDecimal bodyFatDelta = days == 0 ? null
+                : delta(series.get(0).bodyFatPct(), series.get(days - 1).bodyFatPct());
+        BigDecimal muscleDelta = days == 0 ? null
+                : delta(series.get(0).muscleMassKg(), series.get(days - 1).muscleMassKg());
+
         Long userId = user.getId();
         List<Meal> weekMeals = meals.findByUserIdAndDateBetweenOrderByDateAsc(userId, weekStart, to);
         int mealsLogged = weekMeals.size();
@@ -177,7 +187,12 @@ public class ReportService {
         WeeklySummary summary = new WeeklySummary(totalIntake, avgIntake, totalBurn, totalIntake - totalBurn,
                 goalKcal, weightStart, weightEnd, weightDelta, workoutsDone, mealsLogged, days);
         WeeklyAdherence adherence = computeAdherence(user, to, series, weekMeals, days, workoutsDone, workoutTarget);
-        return new WeekData(summary, adherence);
+        return new WeekData(summary, adherence, bodyFatDelta, muscleDelta);
+    }
+
+    /** end − start when both are known, else null. */
+    private BigDecimal delta(BigDecimal start, BigDecimal end) {
+        return (start != null && end != null) ? end.subtract(start) : null;
     }
 
     /**
@@ -251,6 +266,19 @@ public class ReportService {
             trends.add(new WeeklyTrend("WEIGHT_PLATEAU", "info", "體重停滯",
                     "近兩週體重變化在 0.3 公斤內，%s進展趨緩，可重新檢視熱量或訓練安排。"
                             .formatted(goal == Goal.fat_loss ? "減脂" : "增肌")));
+        }
+
+        // Positive body-composition movement within the week — encouraging signals when measured.
+        if (current.muscleDelta() != null
+                && current.muscleDelta().compareTo(new BigDecimal("0.3")) >= 0) {
+            trends.add(new WeeklyTrend("MUSCLE_GAIN", "info", "肌肉量上升",
+                    "本週肌肉量增加約 %s kg，維持訓練強度與蛋白質攝取。".formatted(plain(current.muscleDelta()))));
+        }
+        if (current.bodyFatDelta() != null
+                && current.bodyFatDelta().compareTo(new BigDecimal("-0.5")) <= 0) {
+            trends.add(new WeeklyTrend("BODYFAT_DOWN", "info", "體脂下降",
+                    "本週體脂率下降約 %s%%，目前的飲食與運動安排很有效。"
+                            .formatted(plain(current.bodyFatDelta().abs()))));
         }
         return trends;
     }

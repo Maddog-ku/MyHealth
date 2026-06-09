@@ -1310,7 +1310,7 @@ Health Plan 是 Dashboard 的聚合層，整合今日熱量預算、體重目標
 - 涵蓋區間為 `weekStart … min(weekStart+6, 今天)`。
 - **不**觸發 AI；`narrative` 為已快取的敘述，未生成過則為 `null`。
 - `adherence` 為當週達標率（皆 0~100）：`caloriePct`（有記錄的天數中攝取未超標的比例）、`proteinPct`（實際蛋白質 ÷ 目標蛋白質）、`workoutPct`（完成次數 ÷ 每週訓練目標；未設目標時 `workoutTarget` 為 `null`、`workoutPct` 為 0）、`loggingPct`（有記錄餐點的天數 ÷ 已涵蓋天數）。
-- `trends` 為偵測到的可行動訊號（可能為空）：`PROTEIN_LOW`、`LOGGING_GAP`（依本週數字）、`WORKOUT_DECLINE`、`WEIGHT_PLATEAU`（與上週比較，跨週訊號僅在兩週皆完整涵蓋 7 天時才觸發，避免半週誤判）。每筆含 `type` / `severity`（`info`｜`warn`）/ `title` / `detail`。
+- `trends` 為偵測到的可行動訊號（可能為空）：`PROTEIN_LOW`、`LOGGING_GAP`（依本週數字）、`WORKOUT_DECLINE`、`WEIGHT_PLATEAU`（與上週比較，跨週訊號僅在兩週皆完整涵蓋 7 天時才觸發，避免半週誤判）、`MUSCLE_GAIN`／`BODYFAT_DOWN`（本週體組成正向變化：肌肉量 ≥ +0.3 kg、體脂率 ≤ −0.5%，僅在有量測時觸發）。每筆含 `type` / `severity`（`info`｜`warn`）/ `title` / `detail`。
 
 **Response 200**
 ```json
