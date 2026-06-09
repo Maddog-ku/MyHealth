@@ -49,6 +49,7 @@ class NotificationServiceTest {
     @Mock MealRepository meals;
     @Mock BodyMeasurementRepository bodyMeasurements;
     @Mock StatsService stats;
+    @Mock com.myhealth.report.WeeklyReportRepository weeklyReports;
     @Mock NotificationReadRepository reads;
 
     TransactionTemplate transactionTemplate;
@@ -61,7 +62,7 @@ class NotificationServiceTest {
     void setUp() {
         transactionTemplate = mock(TransactionTemplate.class);
         service = new NotificationService(achievements, streakService, meals, bodyMeasurements,
-                stats, reads, transactionTemplate);
+                stats, weeklyReports, reads, transactionTemplate);
         user = new AppUser();
         user.setEmail("a@b.c");
         user.setRole(Role.USER);
@@ -76,6 +77,9 @@ class NotificationServiceTest {
                 .thenReturn(Optional.of(measurement(TODAY)));
         // Healthy protein attainment by default → no protein nudge.
         lenient().when(stats.budget(eq(user), any())).thenReturn(budget(80));
+        // Last week's report already exists by default → no report nudge.
+        lenient().when(weeklyReports.findByUserIdAndWeekStart(eq(1L), any()))
+                .thenReturn(Optional.of(new com.myhealth.report.WeeklyReport(user, TODAY, "x", "model")));
     }
 
     /** Calorie budget whose only relevant field here is the protein attainment percent. */
@@ -126,6 +130,17 @@ class NotificationServiceTest {
         assertThat(protein.body()).contains("25%");
         // The "no meals" reminder must not also fire when a meal exists.
         assertThat(byType(feed.items(), "MEAL_REMINDER")).isNull();
+    }
+
+    @Test
+    void getFeed_addsReportReminder_whenLastWeekReportMissing() {
+        when(weeklyReports.findByUserIdAndWeekStart(eq(1L), any())).thenReturn(Optional.empty());
+
+        NotificationFeed feed = service.getFeed(user);
+
+        NotificationItem report = byType(feed.items(), "REPORT_REMINDER");
+        assertThat(report).isNotNull();
+        assertThat(report.title()).contains("上週回顧");
     }
 
     @Test

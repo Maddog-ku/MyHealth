@@ -1397,6 +1397,7 @@ Health Plan 是 Dashboard 的聚合層，整合今日熱量預算、體重目標
 | `PROTEIN_REMINDER` | 今天已記錄餐點，但蛋白質達標率 < 40% | info |
 | `STREAK_RISK` | 連續紀錄 ≥ 2 天且今天還沒任何活動 | warning |
 | `WEIGHT_REMINDER` | 距上次量體重 ≥ 7 天 | info |
+| `REPORT_REMINDER` | 上週的 AI 健康報告尚未生成 | info |
 
 未讀判定：成就項 `unlockedAt > lastReadAt` 即未讀;提醒項在「今天尚未開啟過通知中心」時為未讀。
 

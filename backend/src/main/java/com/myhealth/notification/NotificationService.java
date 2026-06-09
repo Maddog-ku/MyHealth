@@ -3,6 +3,7 @@ package com.myhealth.notification;
 import com.myhealth.meal.MealRepository;
 import com.myhealth.notification.NotificationDtos.NotificationFeed;
 import com.myhealth.notification.NotificationDtos.NotificationItem;
+import com.myhealth.report.WeeklyReportRepository;
 import com.myhealth.streak.Achievement;
 import com.myhealth.streak.AchievementCatalog;
 import com.myhealth.streak.AchievementRepository;
@@ -12,10 +13,12 @@ import com.myhealth.streak.StreakService;
 import com.myhealth.user.AppUser;
 import com.myhealth.user.BodyMeasurement;
 import com.myhealth.user.BodyMeasurementRepository;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -48,19 +51,21 @@ public class NotificationService {
     private final MealRepository meals;
     private final BodyMeasurementRepository bodyMeasurements;
     private final StatsService stats;
+    private final WeeklyReportRepository weeklyReports;
     private final NotificationReadRepository reads;
     private final TransactionTemplate transactionTemplate;
     private final ZoneId zoneId = ZoneId.systemDefault();
 
     public NotificationService(AchievementRepository achievements, StreakService streakService,
                                MealRepository meals, BodyMeasurementRepository bodyMeasurements,
-                               StatsService stats, NotificationReadRepository reads,
-                               TransactionTemplate transactionTemplate) {
+                               StatsService stats, WeeklyReportRepository weeklyReports,
+                               NotificationReadRepository reads, TransactionTemplate transactionTemplate) {
         this.achievements = achievements;
         this.streakService = streakService;
         this.meals = meals;
         this.bodyMeasurements = bodyMeasurements;
         this.stats = stats;
+        this.weeklyReports = weeklyReports;
         this.reads = reads;
         this.transactionTemplate = transactionTemplate;
     }
@@ -150,6 +155,14 @@ public class NotificationService {
                         "該量體重了", "距離上次紀錄已 " + days + " 天，量一下追蹤趨勢吧。",
                         "⚖️", "info", startOfToday, "/", readToday));
             }
+        }
+
+        // Nudge to generate last week's AI report until it's been produced.
+        LocalDate lastWeekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks(1);
+        if (weeklyReports.findByUserIdAndWeekStart(user.getId(), lastWeekStart).isEmpty()) {
+            items.add(new NotificationItem("report:" + lastWeekStart, "REPORT_REMINDER",
+                    "上週回顧待生成", "上週的數據已整理好，生成一份 AI 健康報告回顧一下吧。",
+                    "📊", "info", startOfToday, "/", readToday));
         }
     }
 
