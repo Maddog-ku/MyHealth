@@ -1,31 +1,62 @@
 # MyHealth — AI 健身與飲食管理平台
 
-一個把「每日運動規劃」與「三餐飲食紀錄」放在一起的個人健康 Web 應用。AI 在本機跑，照片、餐點描述、體重資料都不離開你的電腦。
+一個把「每日運動規劃」與「三餐飲食紀錄」整合在一起的個人健康 Web 應用。AI 預設在本機跑，照片、餐點描述、體重資料都不離開你的電腦。
 
-> ⚠️ **免責聲明**：MyHealth 提供的運動建議、熱量估算、飲食建議是 AI 模型基於你輸入的資料產生的，**僅供一般健康參考**，不構成醫療診斷、營養處方或運動處方，也無法取代合格醫師、營養師、運動專業人員的判斷。詳見文末「隱私與風險」。
+> ⚠️ **免責聲明**：MyHealth 的運動建議、熱量估算與飲食建議是 AI 依你輸入的資料產生的，**僅供一般健康參考**，不構成醫療診斷、營養處方或運動處方，也無法取代醫師、營養師或運動專業人員的判斷。詳見文末「隱私與風險」。
 
 ---
 
-## 它能幫你做什麼
+## 功能總覽
 
-### 運動規劃
-- 選擇分類（腹肌 / 腰腹 / 練腿 / 練胸 / 練背 / 手臂 / 臀 / 有氧 / 全身）、訓練時長、強度
-- AI 產生 3–6 個動作，每個動作包含組數、次數、休息秒數、預估卡路里、動作要點與替代方案
-- 完成後一鍵打卡，自動累進當日消耗
+### 帳號與資料
+- Email + 密碼註冊登入，JWT 與 refresh token 自動輪替
+- 多裝置登入管理：查看登入中的裝置、登出單一或其他所有裝置
+- 登入狀態下修改密碼（會自動登出其他裝置）
+- 一鍵匯出個人資料：完整 JSON（含個人檔案、體重、運動、餐點、習慣、成就徽章、目標），於本機下載
+- 一鍵刪除帳號，連動清除所有資料
 
-### 飲食紀錄
-- 用**文字描述**（「雞胸肉沙拉 150g 配半碗糙米飯」）或**拍照上傳**記錄餐點
-- AI 估算每樣食物的份量、熱量、蛋白／脂肪／碳水，並給一句飲食建議
-- 估算誤差約 ±20–30%，UI 上會顯示「估算」標籤，可手動修正
+### 運動
+- 9 種分類（腹肌 / 腰腹 / 練腿 / 練胸 / 練背 / 手臂 / 臀 / 有氧 / 全身），選時長與強度
+- AI 產生菜單：每個動作含組數、次數、休息秒數、預估卡路里、動作要點與替代方案
+- 完成一鍵打卡，自動累進當日消耗
+- **AI 週期課表**：規劃一週訓練分配，會依你的目標、訓練經驗與每週訓練目標調整，可重複數週、一鍵套用到當天
+- **訓練量分析**：近 4 / 8 / 12 週的訓練量、各部位頻率、每週趨勢，並提示這段期間較少練到的部位
+- **每週訓練目標**：設定每週次數，追蹤本週進度與達標
 
-### 儀表板
-- 今日攝取、消耗、淨熱量
-- 體重歷史趨勢（自動讀取每次量測紀錄）
-- AI 引擎狀態（是否已載入、何時釋放）
+### 飲食
+- 用**文字描述**或**拍照上傳**記錄餐點
+- AI 估算每樣食物的份量、熱量、蛋白／脂肪／碳水，並給一句建議
+- **食物資料庫校準**：AI 辨識出的食物若命中內建資料庫，營養素會改用資料庫基準（更可靠），未命中則維持 AI 估值
+- **預覽確認流程**：寫入前可在清單中調整食物、克數與營養素，避免辨識錯誤直接落地
+- **依今日缺口推薦**：根據剩餘熱量與蛋白質缺口推薦具體食物，點一下即可帶入記錄
+- 常用餐點與最近餐點可快速複製到今日
 
-### 設定
-- 深淺色主題、隨系統切換
-- 個人生理資料隨時更新，新數據自動加入趨勢
+### 健康計畫與儀表板
+- 今日攝取、消耗、淨熱量與熱量預算環
+- 體重歷史趨勢（自動讀取每次量測）
+- **今日健康計畫**：就緒分數與依優先順序排列的下一步建議
+- **體重目標**：進度、預估達成日、是否如期，以及「要如期達標，每週需要的速率」
+- 每週訓練目標進度與整體連續紀錄（streak）
+
+### AI 助理
+- 對話式教練，可直接幫你記餐、排訓練菜單、記體重
+- 回答「我今天該做什麼」時，依你的健康計畫與優先事項回應（與儀表板同一份計畫）
+
+### 每週 AI 健康報告
+- 一週飲食、運動與體重的智慧回顧
+- **達標率**：熱量控制、蛋白質、訓練次數、記錄天數
+- **趨勢偵測**：蛋白質偏低、記錄天數不足、訓練量下降、體重停滯、肌肉量上升、體脂下降
+
+### 成就、習慣與通知
+- 成就徽章：連續紀錄、累計餐點 / 訓練、首次量體重、照片記餐、達成每週訓練目標
+- 每日習慣 checklist（喝水 / 伸展 / 蛋白質 / 睡眠），顯示每項的連續達成天數
+- 通知中心：成就解鎖、今天還沒記餐、蛋白質偏低、連續紀錄即將中斷、該量體重了
+
+### 搜尋與體驗
+- 集中搜尋：跨餐點與運動的關鍵字搜尋，並附上食物資料庫的營養基準
+- 深淺色主題、可隨系統切換
+- 繁體中文 / 英文介面（導覽與設定已完成，其餘頁面持續翻譯中）
+- 響應式設計；PWA：可安裝到桌面／手機，離線時顯示離線頁
 
 ---
 
@@ -39,170 +70,46 @@ cd MyHealth
 scripts/dev.sh
 ```
 
-`scripts/dev.sh` 會自動：
-1. `docker compose up -d postgres redis`（Postgres 在 5433 避開本機 brew Postgres；Redis 在 6379 供限流使用）
-2. 等 Postgres / Redis 健康檢查通過才繼續（避免「DB 還沒起來→後端連線逾時→500」）
-3. 用 `./mvnw spring-boot:run` 啟動後端到 8080（Flyway 自動套用 migration）
-4. 用 `npm run dev` 啟動前端到 5173（首次會自動 `npm install`）
+`scripts/dev.sh` 會自動啟動 Postgres（5433）、Redis（6379），等它們健康檢查通過後啟動後端（8080，Flyway 自動套用 migration）與前端（5173，首次會自動 `npm install`）。
 
-打開 http://localhost:5173 ，註冊一個帳號開始用。按 `Ctrl+C` 會停掉 backend / frontend，但保留 Postgres / Redis 繼續執行。
+打開 **http://localhost:5173**，註冊一個帳號就能開始用。按 `Ctrl+C` 會停掉前後端，但保留 Postgres / Redis 繼續執行。
 
 ### 常用參數
 ```bash
 scripts/dev.sh            # Postgres + Redis + backend + frontend
-scripts/dev.sh --ai       # 額外啟動 Ollama（AI 端點可用，見下節）
-scripts/dev.sh --restart  # 啟動前先收掉殘留在 8080 / 5173 的舊 backend / frontend（乾淨重啟）
-scripts/dev.sh --infra    # 只起依賴服務（Postgres / Redis），不跑 backend / frontend
-scripts/dev.sh --reset    # 重置資料庫後再啟動（見「疑難排解」）
-scripts/dev.sh --seed     # 後端就緒後建立 demo 帳號（demo@example.com / Secret123）
+scripts/dev.sh --ai       # 額外啟動 Ollama（讓 AI 端點可用）
+scripts/dev.sh --restart  # 先收掉殘留在 8080 / 5173 的舊程序再啟動（乾淨重啟）
+scripts/dev.sh --infra    # 只起依賴服務（Postgres / Redis）
+scripts/dev.sh --seed     # 建立 demo 帳號（demo@example.com / Secret123）
+scripts/dev.sh --reset    # 重置資料庫後再啟動（會清空所有資料，加 -y 跳過確認）
 scripts/dev.sh --stop     # 停止並移除 docker compose 服務
-scripts/dev.sh --help     # 顯示說明
-
-> 方便測試的一鍵指令：`scripts/dev.sh --restart --seed --ai`（乾淨重啟 + 建好 demo 帳號 + 啟用本機 AI）。
+scripts/dev.sh --help     # 顯示完整說明
 ```
 
-啟動時 `scripts/dev.sh` 會輪詢 `GET /actuator/health` 等後端真正就緒（DB 連得上才回 `UP`），不再只是固定等 30 秒。健康檢查與錯誤排查見 [`docs/ERROR_CODES.md`](docs/ERROR_CODES.md)。
+> 方便測試的一鍵指令：`scripts/dev.sh --restart --seed --ai`（乾淨重啟 + 建好 demo 帳號 + 啟用本機 AI）。
 
-### 要讓 AI 真的跑起來
+### 讓 AI 真的跑起來
 本機需要先裝 [Ollama](https://ollama.ai) 並 pull 一個模型（預設 `gemma4:e4b`）：
 
 ```bash
 ollama pull gemma4:e4b
 ```
 
-或者用 docker-compose 啟動 Ollama 容器：
-
-```bash
-scripts/dev.sh --ai   # 同時啟動 Ollama profile
-docker compose exec ollama ollama pull gemma4:e4b
-```
-
-不裝 Ollama 也能跑：AI 端點會自動回退到內建模板（運動可用、餐點會請你重輸入）。
-
-### 收工
-```bash
-scripts/dev.sh --stop   # 停 docker-compose 服務
-```
-
-### 疑難排解
-
-**後端啟動就崩、或 API 一直回 500** — 多半是資料庫狀態出問題，先看後端日誌：
-```bash
-tail -f .dev-logs/backend.log
-```
-
-常見兩種情況：
-
-- **`Connection refused` / HikariPool timeout**：Postgres 容器沒在跑（例如先前跑過 `docker compose down`）。重新啟動依賴服務即可：`scripts/dev.sh --infra`。
-- **Flyway `relation "users" already exists`**：`flyway_schema_history` 與實際資料表不同步（歷史被清空但資料表還在），後端一重啟就會崩。用 `--reset` 重建：
-
-```bash
-scripts/dev.sh --reset      # 互動模式會先問 y/N 確認
-scripts/dev.sh --reset -y   # 跳過確認（非互動／CI 環境必須加）
-```
-
-> ⚠️ `--reset` 會 `DROP SCHEMA public CASCADE`，**清空所有資料（含使用者帳號）**，再讓 Flyway 從 migration 從頭重建。僅適用本機開發。
-
-**提醒**：同一時間只用一個工具操作這個專案。若多個 agent / 終端同時對 docker 或資料庫下指令（如 `docker compose down -v`、清 schema），容器與 Flyway 歷史會被反覆破壞，導致上述 500。
+不裝 Ollama 也能跑：AI 端點會自動回退到內建模板（運動可用、餐點會請你重新輸入或手動補上）。
 
 ---
 
-## Production Docker 部署
+## 如何使用
 
-專案提供 production 容器骨架：
-- `backend/Dockerfile`：Spring Boot jar，prod profile，uploads 掛載到 volume
-- `frontend/Dockerfile`：Vite build + nginx 靜態服務
-- `frontend/nginx.conf`：同源反向代理 `/api/*` 到 backend
-- `docker-compose.prod.yml`：Postgres + Redis + backend + frontend
+1. **建立個人檔案**：在「設定 / 個人資料」填入性別、年齡、身高、體重與目標（減脂 / 增肌 / 維持），AI 與熱量預算都會依此調整。
+2. **記錄飲食**：到「飲食」頁用文字或照片新增餐點 → 在預覽清單確認 / 調整 → 寫入。也可從「下一餐建議」點選推薦食物快速記錄。
+3. **安排運動**：到「運動」頁選分類與強度讓 AI 產生菜單，完成後打卡；或用「週期課表」規劃一整週並套用到當天。
+4. **設定目標**：在儀表板設定體重目標與每週訓練目標，追蹤進度、預估達成日與所需速率。
+5. **看儀表板**：掌握今日熱量收支、體重趨勢、健康計畫的下一步建議與連續紀錄。
+6. **產生每週報告**：在週報卡按「產生報告」，讓本機 AI 依當週數字與達標率寫一份回顧。
+7. **跟 AI 助理對話**：直接問「我今天該做什麼」「幫我記午餐吃了雞胸肉沙拉」「幫我排一個練腿的菜單」。
 
-首次部署：
-
-```bash
-cp .env.prod.example .env.prod
-# 編輯 .env.prod：務必替換 POSTGRES_PASSWORD、SPRING_DATASOURCE_PASSWORD、JWT_SECRET、CORS_ALLOWED_ORIGINS
-
-scripts/prod-check.sh
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
-scripts/prod-check.sh --url http://localhost:8088
-```
-
-預設只對外開 `http://localhost:8088`，前端會以同源 `/api/v1` 呼叫後端；backend、Postgres、Redis 留在 compose network 內。production compose 會等待 Postgres、Redis、backend readiness 都健康後再啟動 frontend；部署後的 `prod-check.sh --url` 會同時檢查 `/healthz` 與 API proxy。若放到正式網域，將 `CORS_ALLOWED_ORIGINS` 改成你的 `https://...` 網域，並在反向代理或防火牆上只開 frontend/HTTPS 入口。
-
-本機 Ollama 若跑在宿主機，`.env.prod.example` 預設使用：
-
-```env
-OLLAMA_BASE_URL=http://host.docker.internal:11434
-```
-
-Linux server 若沒有 `host.docker.internal`，可改成實際宿主機 IP、內網 DNS，或把 Ollama 也納入部署環境。正式環境建議保留 `RATE_LIMIT_BACKEND=redis`，讓多個 backend replica 共用限流狀態。
-
-更新映像：
-
-```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
-```
-
-停止服務但保留資料 volume：
-
-```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml down
-```
-
-> ⚠️ 不要在 production 使用 `down -v`，那會刪除 Postgres、Redis 與 uploads volume。
-
----
-
-## 技術概覽
-
-- **前端**：React + Vite + TypeScript、Tailwind、shadcn 風格元件（Radix）、TanStack Query、React Router、Recharts
-- **後端**：Java 21 + Spring Boot 3、Spring Security + JWT、Spring Data JPA + Hibernate、Flyway、Bucket4j 限流
-- **資料庫**：PostgreSQL 16（schema 由 Flyway 管理，見 `backend/src/main/resources/db/migration/`）
-- **AI**：本地 Ollama；以 `AiProvider` 介面抽象，未來可切 OpenAI / Anthropic
-- **部署**：本機 `docker compose`（Postgres + 可選 Redis + 可選 Ollama）
-
-### 隱私架構亮點
-- AI 預設只跑本機，照片與餐點描述**不離開你的電腦**
-- 每次 AI 推論完模型立即從記憶體釋放（gemma4:e4b 約 10 GB），不會永遠常駐
-- 密碼用 BCrypt，JWT secret 在 prod profile 啟動時會驗證強度
-- `DELETE /me` 連動刪除使用者所有資料（運動、餐點、體重、refresh token）
-
-完整 REST API 參考：[`docs/API.md`](docs/API.md)
-錯誤代碼與崩潰排查手冊：[`docs/ERROR_CODES.md`](docs/ERROR_CODES.md)
-後端啟動後的互動 API 文件（非 prod）：http://localhost:8080/swagger-ui.html
-
----
-
-## MVP 範圍
-
-### v1.0 包含什麼
-- Email + 密碼帳號系統、JWT、refresh token rotation
-- 多裝置登入管理（裝置清單、登出單一／其他所有裝置）
-- 登入中修改密碼（自動登出其他裝置）
-- 一鍵匯出個人資料（完整 JSON，於本機下載）
-- 9 種運動分類、AI 產生菜單、完成打卡
-- AI 週期課表規劃（一週訓練分配，可重複數週，一鍵套用到當天）
-- 訓練量分析（近 4/8/12 週訓練量、各部位頻率、每週趨勢）
-- 每週訓練目標（設定每週次數，追蹤本週進度與達標）
-- 文字 + 照片飲食紀錄、AI 熱量與營養估算
-- 儀表板（當日收支 + 7 天體重趨勢）
-- 本地 Ollama 整合 + 自動釋放記憶體
-- 深淺色模式、繁中／英文介面、響應式
-- PWA：可安裝到桌面／手機，離線時顯示離線頁
-- 限流（auth 端點 + AI 端點）
-
-### Phase 2 計畫
-- Google OAuth2 / 密碼重設（忘記密碼，需 email 寄送）
-- 雲端 AI Provider（OpenAI / Anthropic）切換
-- 常用餐點收藏、條碼掃描
-- 穿戴裝置匯入（Apple Health / Google Fit）
-- 行動 App（原生）
-- 英文介面 i18n（框架與導覽／設定頁已完成，其餘頁面陸續翻譯中）
-- PWA 進階離線（目前提供可安裝 + 離線殼，完整離線快取為後續）
-
-### 明確不做
-- 醫療診斷、處方藥物建議、疾病評估
-- 兒童（< 13 歲）與孕期專用菜單
-- 付費／訂閱、社群動態牆
+> 沒有資料時，可先用 `scripts/dev.sh --seed` 建立的 demo 帳號（`demo@example.com` / `Secret123`）登入體驗。
 
 ---
 
@@ -210,34 +117,41 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml down
 
 ### 你的資料去哪了
 - **預設全部留在本機**：Postgres、Ollama、上傳照片都跑在你自己的機器
-- **切換雲端 AI 時 UI 會明確警示**：往 OpenAI / Anthropic 送請求等於把餐點描述 / 照片送出去
+- **切換雲端 AI 時 UI 會明確警示**：往雲端送請求等於把餐點描述／照片送出去
 - **不寫敏感欄位到 log**：密碼、token、照片內容都被排除；錯誤訊息只遮罩 Email
-- **可一鍵清空**：`DELETE /me` 或從設定頁刪除帳號，schema 設 `ON DELETE CASCADE`
-- **可一鍵帶走**：`GET /me/export` 或從設定頁「匯出我的資料」，下載完整 JSON（在本機產生，不經第三方）
+- **可一鍵帶走 / 清空**：從設定頁匯出完整 JSON，或刪除帳號連動清除所有資料
 
 ### AI 結果有多準
-- 熱量估算誤差通常在 **±20–30%**；UI 上會顯示「估算」標籤
-- AI 不知道你的傷病、藥物、過敏；任何建議都該以你身體實際感受為主
-- 模型升級後同樣輸入可能給不同結果；歷史紀錄不會被改寫
-- AI 不可用時可以手動輸入熱量與菜單
+- 熱量估算誤差通常在 **±20–30%**；UI 會顯示「估算」標籤，可手動修正
+- 命中食物資料庫的項目會以資料庫營養基準校準，較單純 AI 估算可靠
+- AI 不知道你的傷病、藥物、過敏；任何建議都該以身體實際感受為主
+- AI 不可用時可手動輸入熱量與菜單
 
 ### 非醫療建議聲明
-> MyHealth 提供的運動菜單、熱量估算與飲食建議由 AI 模型基於你輸入的資料產生，**僅供一般健康與健身參考**，不構成醫療診斷、營養處方或運動處方。
+> MyHealth 的運動菜單、熱量估算與飲食建議由 AI 依你輸入的資料產生，**僅供一般健康與健身參考**，不構成醫療診斷、營養處方或運動處方。
 >
-> 若你有以下任一情況，請先諮詢專業人員：心血管疾病、糖尿病、慢性病、孕期或哺乳期、傷後復健、飲食障礙、未滿 18 歲。
->
-> 因採信本平台建議所致之任何健康、人身或財產損失，開發者不負法律責任。
+> 若你有心血管疾病、糖尿病、慢性病、孕期或哺乳期、傷後復健、飲食障礙，或未滿 18 歲，請先諮詢專業人員。因採信本平台建議所致之任何健康、人身或財產損失，開發者不負法律責任。
 
 ---
 
-## 想參與開發
+## 技術概覽
+
+- **前端**：React + Vite + TypeScript、Tailwind、shadcn 風格元件、TanStack Query、Recharts
+- **後端**：Java 21 + Spring Boot 3、Spring Security + JWT、Spring Data JPA、Flyway、Bucket4j 限流
+- **資料庫**：PostgreSQL 16（schema 由 Flyway 管理）
+- **AI**：本地 Ollama，以介面抽象，未來可切換雲端 Provider；每次推論完即釋放模型記憶體
+- **部署**：本機 `docker compose`；另提供 production 容器骨架（見 `docker-compose.prod.yml`）
+
+完整 REST API 參考見 [`docs/API.md`](docs/API.md)，功能藍圖見 [`docs/FEATURE_ROADMAP.md`](docs/FEATURE_ROADMAP.md)。後端啟動後（非 prod）可開 http://localhost:8080/swagger-ui.html 看互動式 API 文件。
+
+---
+
+## 參與開發
 
 ```bash
-cd backend && ./mvnw test        # 後端測試
-cd frontend && npm run build     # 前端型別檢查 + 構建
-cd frontend && npx playwright test   # 前端 e2e
+cd backend && ./mvnw test          # 後端測試
+cd frontend && npm run build       # 前端型別檢查 + 構建
+cd frontend && npx playwright test # 前端 e2e
 ```
 
-CI（GitHub Actions）會在每次 push / PR 上自動跑這三件事，狀態在 [Actions 頁面](https://github.com/Maddog-ku/MyHealth/actions)。
-
-PR / Issue 歡迎。
+CI（GitHub Actions）會在每次 push / PR 自動跑這三件事。歡迎開 PR / Issue。
