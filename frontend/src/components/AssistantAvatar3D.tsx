@@ -115,7 +115,8 @@ export function AssistantAvatar3D({
       renderer = new THREE.WebGLRenderer({
         alpha: true,
         antialias: true,
-        powerPreference: "high-performance",
+        // Decorative avatar — prefer the integrated GPU to cut battery/thermal load.
+        powerPreference: "low-power",
         preserveDrawingBuffer: true,
       });
     } catch {
@@ -124,7 +125,8 @@ export function AssistantAvatar3D({
     }
 
     renderer.setClearColor(0x000000, 0);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    // Cap pixel ratio (1.5 instead of 2) to cut fragment work on hi-DPI screens.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.domElement.style.display = "block";
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
@@ -289,9 +291,16 @@ export function AssistantAvatar3D({
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const clock = new THREE.Clock();
 
+    // Cap the render rate (~30 FPS) to roughly halve the GPU/CPU cost of the always-on avatar.
+    const minInterval = 1 / 30;
+    let last = -minInterval;
+
     const animate = () => {
       if (disposed) return;
+      frame = window.requestAnimationFrame(animate);
       const t = clock.getElapsedTime();
+      if (t - last < minInterval) return;
+      last = t;
       const currentMood = moodRef.current;
       const energy = currentMood === "thinking" ? 1.75 : currentMood === "active" ? 1.2 : 0.82;
       const still = reduced ? 0 : 1;
@@ -366,15 +375,31 @@ export function AssistantAvatar3D({
       });
 
       renderer.render(scene, camera);
-      frame = window.requestAnimationFrame(animate);
     };
 
+    // Always paint one frame. When the user prefers reduced motion the pose is static, so we
+    // skip the rAF loop entirely; otherwise run the throttled loop while the tab is visible.
     renderer.render(scene, camera);
-    frame = window.requestAnimationFrame(animate);
+    if (!reduced) frame = window.requestAnimationFrame(animate);
+
+    // Pause the loop while the tab is hidden; resume on return. Saves work in background tabs.
+    const onVisibility = () => {
+      if (document.hidden) {
+        if (frame) {
+          window.cancelAnimationFrame(frame);
+          frame = 0;
+        }
+      } else if (!disposed && !reduced && !frame) {
+        last = -minInterval;
+        frame = window.requestAnimationFrame(animate);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       disposed = true;
       window.cancelAnimationFrame(frame);
+      document.removeEventListener("visibilitychange", onVisibility);
       observer.disconnect();
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh) {
