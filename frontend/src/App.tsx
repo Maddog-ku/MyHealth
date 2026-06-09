@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -17,6 +17,16 @@ const WorkoutsPage = lazy(() => import("@/pages/WorkoutsPage").then((m) => ({ de
 export function App() {
   useTheme();
   useFontScale();
+
+  // Block dragging images out of the app (e.g. into a new tab). CSS user-drag covers
+  // WebKit/Chromium; this guard also covers Firefox, which ignores that property.
+  useEffect(() => {
+    const blockImageDrag = (e: DragEvent) => {
+      if (e.target instanceof HTMLImageElement) e.preventDefault();
+    };
+    document.addEventListener("dragstart", blockImageDrag);
+    return () => document.removeEventListener("dragstart", blockImageDrag);
+  }, []);
 
   return (
     <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">載入中…</div>}>
