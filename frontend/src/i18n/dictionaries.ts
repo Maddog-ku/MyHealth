@@ -14,6 +14,7 @@ const zhTW: Dict = {
   "nav.dashboard": "儀表板",
   "nav.workouts": "運動菜單",
   "nav.meals": "飲食追蹤",
+  "nav.progress": "進度回顧",
   "nav.profile": "生理指標",
   "nav.settings": "系統設定",
 
@@ -74,6 +75,7 @@ const en: Dict = {
   "nav.dashboard": "Dashboard",
   "nav.workouts": "Workouts",
   "nav.meals": "Meals",
+  "nav.progress": "Progress",
   "nav.profile": "Body Metrics",
   "nav.settings": "Settings",
 

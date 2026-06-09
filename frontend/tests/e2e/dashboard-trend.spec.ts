@@ -34,16 +34,21 @@ test("the trend chart switches metric, and shows an empty state for one without 
   await page.route("**/api/v1/stats/range**", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ from: "", to: "", series }) }));
   await page.route("**/api/v1/ai/status**", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ provider: "local", textModel: "x", visionModel: "x", loaded: false, idleTimeoutSec: 60 }) }));
   await page.route("**/api/v1/habits/daily**", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ date: today(), completed: 0, total: 4, items: [] }) }));
+  // Other Progress-page cards: empty/minimal so they don't hit the network.
+  await page.route("**/api/v1/weight-goal**", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ progress: null }) }));
+  await page.route("**/api/v1/workout-goal**", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ progress: null }) }));
+  await page.route("**/api/v1/streak**", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ mealStreak: { current: 0, longest: 0, lastActiveDate: null }, workoutStreak: { current: 0, longest: 0, lastActiveDate: null }, overallStreak: { current: 0, longest: 0, lastActiveDate: null }, achievements: [], newlyUnlocked: [] }) }));
+  await page.route("**/api/v1/reports/weekly**", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ weekStart: today(), weekEnd: today(), summary: { totalIntakeKcal: 0, avgIntakeKcal: 0, totalBurnKcal: 0, netKcal: 0, goalKcal: 1700, weightStart: null, weightEnd: null, weightDelta: null, workoutsDone: 0, mealsLogged: 0, daysCovered: 0 }, adherence: { caloriePct: 0, proteinPct: 0, workoutPct: 0, workoutTarget: null, loggingPct: 0, daysLogged: 0, daysCovered: 0 }, trends: [], narrative: null, generatedAt: null }) }));
 
-  await page.goto("/");
+  await page.goto("/progress");
 
-  // Default metric = 體重, default range = 7 days: data present → no empty state.
-  await expect(page.getByText("近 7 日身體量測趨勢")).toBeVisible();
+  // Default metric = 體重, default range = 30 days: data present → no empty state.
+  await expect(page.getByText("近 30 日身體量測趨勢")).toBeVisible();
   await expect(page.getByText(/目前尚無/)).toBeHidden();
 
-  // Switch the range to 30 days → the title reflects the new window.
-  await page.getByRole("button", { name: "30 天", exact: true }).click();
-  await expect(page.getByText("近 30 日身體量測趨勢")).toBeVisible();
+  // Switch the range to 7 days → the title reflects the new window.
+  await page.getByRole("button", { name: "7 天", exact: true }).click();
+  await expect(page.getByText("近 7 日身體量測趨勢")).toBeVisible();
 
   // Switch to 體脂率 (no data) → empty state names that metric.
   await page.getByRole("button", { name: "體脂率", exact: true }).click();

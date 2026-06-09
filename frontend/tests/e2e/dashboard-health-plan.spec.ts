@@ -217,7 +217,7 @@ test("dashboard health plan settings saves an integrated goal payload", async ({
     }),
   );
 
-  await page.goto("/");
+  await page.goto("/settings");
 
   await page.getByText("健康計畫設定").waitFor();
   await page.getByRole("combobox").first().click();

@@ -1,4 +1,4 @@
-import { Activity, Dumbbell, LogOut, Salad, Settings as SettingsIcon, UserRound, Sparkles } from "lucide-react";
+import { Activity, Dumbbell, LineChart, LogOut, Salad, Settings as SettingsIcon, UserRound, Sparkles } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ const navItems = [
   { to: "/", key: "nav.dashboard", icon: Activity, end: true },
   { to: "/workouts", key: "nav.workouts", icon: Dumbbell },
   { to: "/meals", key: "nav.meals", icon: Salad },
+  { to: "/progress", key: "nav.progress", icon: LineChart },
   { to: "/profile", key: "nav.profile", icon: UserRound },
   { to: "/settings", key: "nav.settings", icon: SettingsIcon },
 ];

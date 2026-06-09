@@ -150,6 +150,6 @@ test("check-in does not auto-prompt again once dismissed today", async ({ page }
   await page.goto("/");
 
   // Dashboard content is up, but the dialog stays closed.
-  await expect(page.getByText("AI 核心智能引擎")).toBeVisible();
+  await expect(page.getByText("今日攝取")).toBeVisible();
   await expect(page.getByText("今日身體狀況記錄")).toBeHidden();
 });

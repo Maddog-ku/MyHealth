@@ -15,6 +15,8 @@ import { ChangePasswordCard } from "@/components/ChangePasswordCard";
 import { SessionsCard } from "@/components/SessionsCard";
 import { DataExportCard } from "@/components/DataExportCard";
 import { SystemStatusCard } from "@/components/SystemStatusCard";
+import { HealthPlanSettingsCard } from "@/components/HealthPlanSettingsCard";
+import { AiEngineCard } from "@/components/AiEngineCard";
 
 const AVATAR_OPTIONS = [
   { value: "male" as const, labelKey: "settings.avatar.male", descKey: "settings.avatar.maleDesc", src: "/assistant/coach-male.png" },
@@ -223,6 +225,9 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Health plan settings (primary goal, weight & training targets) */}
+      <HealthPlanSettingsCard />
+
       {/* Change password */}
       <ChangePasswordCard />
 
@@ -231,6 +236,9 @@ export function SettingsPage() {
 
       {/* Export my data */}
       <DataExportCard />
+
+      {/* Local AI engine status */}
+      <AiEngineCard />
 
       {/* System diagnostics */}
       <SystemStatusCard />

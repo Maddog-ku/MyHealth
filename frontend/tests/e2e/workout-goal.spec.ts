@@ -48,6 +48,19 @@ async function seed(page: Page, getGoal: () => Record<string, unknown>) {
   await page.route("**/api/v1/workout-goal", (r) =>
     r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(getGoal()) }),
   );
+  // Other cards on the Progress page — empty/minimal so they don't hit the network.
+  await page.route("**/api/v1/stats/range**", (r) =>
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ from: "", to: "", series: [] }) }),
+  );
+  await page.route("**/api/v1/weight-goal**", (r) =>
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ progress: null }) }),
+  );
+  await page.route("**/api/v1/streak**", (r) =>
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ mealStreak: { current: 0, longest: 0, lastActiveDate: null }, workoutStreak: { current: 0, longest: 0, lastActiveDate: null }, overallStreak: { current: 0, longest: 0, lastActiveDate: null }, achievements: [], newlyUnlocked: [] }) }),
+  );
+  await page.route("**/api/v1/reports/weekly**", (r) =>
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ weekStart: "2026-06-01", weekEnd: "2026-06-07", summary: { totalIntakeKcal: 0, avgIntakeKcal: 0, totalBurnKcal: 0, netKcal: 0, goalKcal: 1700, weightStart: null, weightEnd: null, weightDelta: null, workoutsDone: 0, mealsLogged: 0, daysCovered: 0 }, adherence: { caloriePct: 0, proteinPct: 0, workoutPct: 0, workoutTarget: null, loggingPct: 0, daysLogged: 0, daysCovered: 0 }, trends: [], narrative: null, generatedAt: null }) }),
+  );
 }
 
 test("sets a weekly workout goal and shows live progress", async ({ page }) => {
@@ -66,7 +79,7 @@ test("sets a weekly workout goal and shows live progress", async ({ page }) => {
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(goal) });
   });
 
-  await page.goto("/workouts");
+  await page.goto("/progress");
 
   await expect(page.getByText("每週訓練目標")).toBeVisible();
 
@@ -84,7 +97,7 @@ test("sets a weekly workout goal and shows live progress", async ({ page }) => {
 
 test("shows an achieved badge when the weekly target is met", async ({ page }) => {
   await seed(page, () => progress(3, 3));
-  await page.goto("/workouts");
+  await page.goto("/progress");
 
   await expect(page.getByText("每週訓練目標")).toBeVisible();
   await expect(page.getByText("本週達標")).toBeVisible();
