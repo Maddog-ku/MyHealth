@@ -251,7 +251,7 @@ class AuthServiceTest {
         existing.setTokenHash(Hashing.sha256(raw));
         existing.setExpiresAt(Instant.now().plusSeconds(3600));
 
-        when(refreshTokens.findByTokenHash(Hashing.sha256(raw))).thenReturn(Optional.of(existing));
+        when(refreshTokens.findByTokenHashForUpdate(Hashing.sha256(raw))).thenReturn(Optional.of(existing));
         when(jwtService.issueAccessToken(any(UserPrincipal.class))).thenReturn("new-access");
         when(jwtService.expiresInSeconds()).thenReturn(900L);
 
@@ -273,7 +273,7 @@ class AuthServiceTest {
         existing.setExpiresAt(Instant.now().plusSeconds(3600));
         existing.revoke();
 
-        when(refreshTokens.findByTokenHash(Hashing.sha256(raw))).thenReturn(Optional.of(existing));
+        when(refreshTokens.findByTokenHashForUpdate(Hashing.sha256(raw))).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> service.refresh(new RefreshRequest(raw)))
                 .isInstanceOf(ApiException.class)
@@ -292,7 +292,7 @@ class AuthServiceTest {
         existing.setTokenHash(Hashing.sha256(raw));
         existing.setExpiresAt(Instant.now().minusSeconds(1));
 
-        when(refreshTokens.findByTokenHash(Hashing.sha256(raw))).thenReturn(Optional.of(existing));
+        when(refreshTokens.findByTokenHashForUpdate(Hashing.sha256(raw))).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> service.refresh(new RefreshRequest(raw)))
                 .isInstanceOf(ApiException.class)
@@ -305,7 +305,7 @@ class AuthServiceTest {
 
     @Test
     void refresh_throws_whenTokenUnknown() {
-        when(refreshTokens.findByTokenHash(any())).thenReturn(Optional.empty());
+        when(refreshTokens.findByTokenHashForUpdate(any())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.refresh(new RefreshRequest("missing")))
                 .isInstanceOf(ApiException.class)

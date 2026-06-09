@@ -95,7 +95,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 
 ## 3. 錯誤格式
 
-所有非 2xx 回應採用統一錯誤結構：
+所有非 2xx 回應採用統一錯誤結構。完整的錯誤代碼原因與處理方式請看 [錯誤代碼與解決方式](ERROR_CODES.md)。
 
 ```json
 {
@@ -123,7 +123,8 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 | `PAYLOAD_TOO_LARGE` | 413 | 檔案超過上限 |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | Content-Type 不支援 |
 | `RATE_LIMITED` | 429 | 請求過於頻繁 |
-| `AI_UNAVAILABLE` | 503 | AI Provider 不可用或載入中 |
+| `AI_UNAVAILABLE` | — | 目前多數 AI 失敗會回退到內建模板，代碼保留但通常不直接回傳 |
+| `SERVICE_UNAVAILABLE` | 503 | 資料庫、Redis 限流後端或依賴服務暫時不可用 |
 | `INTERNAL_ERROR` | 500 | 伺服器錯誤 |
 
 ---

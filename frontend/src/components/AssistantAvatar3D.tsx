@@ -114,10 +114,12 @@ export function AssistantAvatar3D({
     try {
       renderer = new THREE.WebGLRenderer({
         alpha: true,
-        antialias: true,
+        antialias: false,
         // Decorative avatar — prefer the integrated GPU to cut battery/thermal load.
         powerPreference: "low-power",
-        preserveDrawingBuffer: true,
+        // Playwright reads canvas pixels for regression tests; keep production on the
+        // cheaper default buffer path.
+        preserveDrawingBuffer: navigator.webdriver === true,
       });
     } catch {
       setFallback(true);
@@ -125,8 +127,8 @@ export function AssistantAvatar3D({
     }
 
     renderer.setClearColor(0x000000, 0);
-    // Cap pixel ratio (1.5 instead of 2) to cut fragment work on hi-DPI screens.
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    // Cap pixel ratio to cut fragment work on hi-DPI screens while keeping the small avatar crisp.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
     renderer.domElement.style.display = "block";
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
@@ -231,8 +233,9 @@ export function AssistantAvatar3D({
       (loaded) => {
         if (disposed) return;
         loaded.colorSpace = THREE.SRGBColorSpace;
-        loaded.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+        loaded.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
         buildRig(loaded);
+        renderer.render(scene, camera);
       },
       undefined,
       () => {
@@ -247,13 +250,13 @@ export function AssistantAvatar3D({
       opacity: 0.6,
       depthWrite: false,
     });
-    const ringA = new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.014, 10, 100), ringMat);
+    const ringA = new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.014, 8, 64), ringMat);
     ringA.position.y = -0.08;
     ringA.position.z = -0.2;
     ringA.rotation.x = Math.PI / 2.35;
     root.add(ringA);
 
-    const ringB = new THREE.Mesh(new THREE.TorusGeometry(0.88, 0.01, 10, 100), ringMat.clone());
+    const ringB = new THREE.Mesh(new THREE.TorusGeometry(0.88, 0.01, 8, 64), ringMat.clone());
     ringB.position.y = -0.12;
     ringB.position.z = -0.28;
     ringB.rotation.x = Math.PI / 2.18;
@@ -268,7 +271,7 @@ export function AssistantAvatar3D({
     });
     const sparkles: THREE.Mesh[] = [];
     for (let i = 0; i < 18; i += 1) {
-      const sparkle = new THREE.Mesh(new THREE.SphereGeometry(0.024 + (i % 3) * 0.006, 10, 8), sparkleMat.clone());
+      const sparkle = new THREE.Mesh(new THREE.SphereGeometry(0.024 + (i % 3) * 0.006, 6, 5), sparkleMat.clone());
       sparkle.userData.phase = (i / 18) * Math.PI * 2;
       sparkle.userData.radius = 1 + (i % 4) * 0.08;
       sparkle.userData.lift = -0.04 + (i % 5) * 0.04;
@@ -288,19 +291,14 @@ export function AssistantAvatar3D({
     observer.observe(mount);
     resize();
 
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reduced = motionQuery.matches;
+    let inViewport = true;
     const clock = new THREE.Clock();
 
-    // Cap the render rate (~30 FPS) to roughly halve the GPU/CPU cost of the always-on avatar.
-    const minInterval = 1 / 30;
-    let last = -minInterval;
-
-    const animate = () => {
+    const paint = () => {
       if (disposed) return;
-      frame = window.requestAnimationFrame(animate);
       const t = clock.getElapsedTime();
-      if (t - last < minInterval) return;
-      last = t;
       const currentMood = moodRef.current;
       const energy = currentMood === "thinking" ? 1.75 : currentMood === "active" ? 1.2 : 0.82;
       const still = reduced ? 0 : 1;
@@ -377,30 +375,76 @@ export function AssistantAvatar3D({
       renderer.render(scene, camera);
     };
 
+    let loopTimer = 0;
+    const shouldAnimate = () => !disposed && !reduced && !document.hidden && inViewport;
+    const targetFps = () => (moodRef.current === "idle" ? 18 : 30);
+
+    const stopLoop = () => {
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+        frame = 0;
+      }
+      if (loopTimer) {
+        window.clearTimeout(loopTimer);
+        loopTimer = 0;
+      }
+    };
+
+    const scheduleNext = () => {
+      if (!shouldAnimate() || frame || loopTimer) return;
+      loopTimer = window.setTimeout(() => {
+        loopTimer = 0;
+        if (!shouldAnimate()) return;
+        frame = window.requestAnimationFrame(() => {
+          frame = 0;
+          paint();
+          scheduleNext();
+        });
+      }, 1000 / targetFps());
+    };
+
+    const startLoop = () => {
+      if (!shouldAnimate()) return;
+      scheduleNext();
+    };
+
     // Always paint one frame. When the user prefers reduced motion the pose is static, so we
-    // skip the rAF loop entirely; otherwise run the throttled loop while the tab is visible.
-    renderer.render(scene, camera);
-    if (!reduced) frame = window.requestAnimationFrame(animate);
+    // skip the loop entirely; otherwise run an adaptive low-rate loop while visible.
+    paint();
+    startLoop();
+
+    const visibilityObserver = new IntersectionObserver(([entry]) => {
+      inViewport = entry.isIntersecting;
+      if (inViewport) {
+        paint();
+        startLoop();
+      } else {
+        stopLoop();
+      }
+    }, { threshold: 0.01 });
+    visibilityObserver.observe(mount);
 
     // Pause the loop while the tab is hidden; resume on return. Saves work in background tabs.
     const onVisibility = () => {
-      if (document.hidden) {
-        if (frame) {
-          window.cancelAnimationFrame(frame);
-          frame = 0;
-        }
-      } else if (!disposed && !reduced && !frame) {
-        last = -minInterval;
-        frame = window.requestAnimationFrame(animate);
-      }
+      if (document.hidden) stopLoop();
+      else startLoop();
+    };
+    const onMotionChange = () => {
+      reduced = motionQuery.matches;
+      stopLoop();
+      paint();
+      startLoop();
     };
     document.addEventListener("visibilitychange", onVisibility);
+    motionQuery.addEventListener("change", onMotionChange);
 
     return () => {
       disposed = true;
-      window.cancelAnimationFrame(frame);
+      stopLoop();
       document.removeEventListener("visibilitychange", onVisibility);
+      motionQuery.removeEventListener("change", onMotionChange);
       observer.disconnect();
+      visibilityObserver.disconnect();
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh) {
           object.geometry.dispose();

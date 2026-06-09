@@ -21,6 +21,8 @@ import com.myhealth.meal.MealDtos.MealResponse;
 import com.myhealth.meal.MealDtos.UpdateMealRequest;
 import com.myhealth.user.AppUser;
 import com.myhealth.user.Role;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
 import java.util.List;
@@ -46,6 +48,7 @@ class MealServiceTest {
     @Mock FileStorageService fileStorage;
 
     final ObjectMapper objectMapper = new ObjectMapper();
+    final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
     TransactionTemplate transactionTemplate;
     MealService service;
     AppUser owner;
@@ -61,7 +64,7 @@ class MealServiceTest {
         });
         // Real FoodService: stateless catalog, so preview grounding runs against real data.
         service = new MealService(meals, favoriteMeals, aiProvider, new com.myhealth.food.FoodService(),
-                fileStorage, objectMapper, transactionTemplate);
+                fileStorage, objectMapper, transactionTemplate, validator);
         owner = userWithId(1L);
     }
 
@@ -280,6 +283,25 @@ class MealServiceTest {
     void confirm_throwsBadRequest_whenItemsJsonIsInvalid() {
         assertThatThrownBy(() -> service.confirm(owner, null, "雞胸肉沙拉", "lunch",
                 LocalDate.of(2026, 5, 30), "{not-json", "good"))
+                .isInstanceOf(ApiException.class)
+                .satisfies(e -> {
+                    ApiException ae = (ApiException) e;
+                    assertThat(ae.status()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(ae.errorCode()).isEqualTo(ErrorCode.BAD_REQUEST);
+                });
+
+        verify(fileStorage, never()).storeMealImage(any(), any());
+        verify(meals, never()).save(any());
+    }
+
+    @Test
+    void confirm_throwsBadRequest_whenFoodItemViolatesBounds() {
+        String invalidItems = """
+                [{"name":"","grams":-1,"kcal":-10,"protein":0,"fat":0,"carb":0,"confidence":1}]
+                """;
+
+        assertThatThrownBy(() -> service.confirm(owner, null, "雞胸肉沙拉", "lunch",
+                LocalDate.of(2026, 5, 30), invalidItems, "good"))
                 .isInstanceOf(ApiException.class)
                 .satisfies(e -> {
                     ApiException ae = (ApiException) e;

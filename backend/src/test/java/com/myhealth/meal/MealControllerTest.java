@@ -164,6 +164,8 @@ class MealControllerTest {
                         .param("aiSuggestion", "good"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(3));
+
+        verify(rateLimiter).checkMealCreate(any());
     }
 
     @Test

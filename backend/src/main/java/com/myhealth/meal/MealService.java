@@ -18,9 +18,12 @@ import com.myhealth.meal.MealDtos.MealResponse;
 import com.myhealth.meal.MealDtos.MealPreviewResponse;
 import com.myhealth.meal.MealDtos.RecentMealResponse;
 import com.myhealth.meal.MealDtos.UpdateMealRequest;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.slf4j.Logger;
@@ -43,10 +46,11 @@ public class MealService {
     private final FileStorageService fileStorage;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    private final Validator validator;
 
     public MealService(MealRepository meals, FavoriteMealRepository favoriteMeals,
                        AiProvider aiProvider, FoodService foodService, FileStorageService fileStorage,
-                       ObjectMapper objectMapper, TransactionTemplate transactionTemplate) {
+                       ObjectMapper objectMapper, TransactionTemplate transactionTemplate, Validator validator) {
         this.meals = meals;
         this.favoriteMeals = favoriteMeals;
         this.aiProvider = aiProvider;
@@ -54,6 +58,7 @@ public class MealService {
         this.fileStorage = fileStorage;
         this.objectMapper = objectMapper;
         this.transactionTemplate = transactionTemplate;
+        this.validator = validator;
     }
 
     public MealResponse create(AppUser user, MultipartFile image, String description, String slot, LocalDate date) {
@@ -127,6 +132,7 @@ public class MealService {
         String normalizedDescription = validateMealInput(image, description, true);
         LocalDate mealDate = date == null ? LocalDate.now() : date;
         List<FoodItem> items = readConfirmedItems(itemsJson);
+        validateConfirmedItems(items);
         if (items.size() > 5) {
             throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "items must contain 5 entries or fewer");
         }
@@ -422,6 +428,21 @@ public class MealService {
             return readItems(json);
         } catch (RuntimeException ex) {
             throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "items must be valid food item JSON");
+        }
+    }
+
+    private void validateConfirmedItems(List<FoodItem> items) {
+        if (items == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "items must be an array");
+        }
+        for (FoodItem item : items) {
+            if (item == null) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "items contain invalid food values");
+            }
+            Set<ConstraintViolation<FoodItem>> violations = validator.validate(item);
+            if (!violations.isEmpty()) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "items contain invalid food values");
+            }
         }
     }
 

@@ -38,7 +38,8 @@ export function SettingsPage() {
     const id = location.hash.replace("#", "");
     if (!id) return;
     const timer = setTimeout(() => {
-      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      document.getElementById(id)?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
     }, 80);
     return () => clearTimeout(timer);
   }, [location.hash]);

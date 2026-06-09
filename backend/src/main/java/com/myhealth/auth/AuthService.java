@@ -95,7 +95,7 @@ public class AuthService {
 
     @Transactional
     public AuthResponse refresh(RefreshRequest request, String deviceInfo) {
-        RefreshToken token = refreshTokens.findByTokenHash(Hashing.sha256(request.refreshToken()))
+        RefreshToken token = refreshTokens.findByTokenHashForUpdate(Hashing.sha256(request.refreshToken()))
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, ErrorCode.INVALID_REFRESH_TOKEN, "Invalid refresh token"));
 
         if (token.isRevoked()) {

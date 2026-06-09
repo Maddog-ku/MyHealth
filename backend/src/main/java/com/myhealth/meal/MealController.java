@@ -78,6 +78,7 @@ public class MealController {
             @RequestParam String items,
             @RequestParam(required = false) String aiSuggestion) {
         AppUser user = currentUser.require();
+        rateLimiter.checkMealCreate(user);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(mealService.confirm(user, image, description, slot.name(), date, items, aiSuggestion));
     }

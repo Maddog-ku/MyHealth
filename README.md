@@ -96,6 +96,19 @@ scripts/dev.sh --help     # 顯示完整說明
 
 > 方便測試的一鍵指令：`scripts/dev.sh --restart --seed --ai`（乾淨重啟 + 建好 demo 帳號 + 啟用本機 AI）。
 
+### 真實後端 Smoke Test
+後端啟動後可跑一次真實 API smoke test，驗證註冊 / 登入、refresh token 旋轉、舊 refresh token 重放防護，以及餐點確認的輸入驗證：
+
+```bash
+scripts/smoke-api.sh
+```
+
+如果後端跑在其他 port：
+
+```bash
+API_BASE_URL=http://127.0.0.1:18080/api/v1 scripts/smoke-api.sh
+```
+
 ### 讓 AI 真的跑起來
 本機需要先裝 [Ollama](https://ollama.ai) 並 pull 一個模型（預設 `gemma4:e4b`）：
 
@@ -150,4 +163,4 @@ ollama pull gemma4:e4b
 - **AI**：本地 Ollama，以介面抽象，未來可切換雲端 Provider；每次推論完即釋放模型記憶體
 - **部署**：本機 `docker compose`；另提供 production 容器骨架（見 `docker-compose.prod.yml`）
 
-完整 REST API 參考見 [`docs/API.md`](docs/API.md)，功能藍圖見 [`docs/FEATURE_ROADMAP.md`](docs/FEATURE_ROADMAP.md)。後端啟動後（非 prod）可開 http://localhost:8080/swagger-ui.html 看互動式 API 文件。
+完整 REST API 參考見 [`docs/API.md`](docs/API.md)，錯誤代碼與解決方式見 [`docs/ERROR_CODES.md`](docs/ERROR_CODES.md)，功能藍圖見 [`docs/FEATURE_ROADMAP.md`](docs/FEATURE_ROADMAP.md)。後端啟動後（非 prod）可開 http://localhost:8080/swagger-ui.html 看互動式 API 文件。

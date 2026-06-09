@@ -11,7 +11,8 @@ export function useNotifications() {
     enabled: Boolean(getAccessToken()),
     // Reminders only change a few times a day; refetch on a relaxed interval.
     staleTime: 60_000,
-    refetchInterval: 5 * 60_000,
+    refetchInterval: () => (document.visibilityState === "visible" ? 5 * 60_000 : false),
+    refetchIntervalInBackground: false,
   });
 }
 
