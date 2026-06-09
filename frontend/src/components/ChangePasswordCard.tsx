@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { KeyRound, Check } from "lucide-react";
+import { KeyRound, Check, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -71,25 +71,21 @@ export function ChangePasswordCard() {
         >
           <div className="grid gap-1.5">
             <Label htmlFor="current-password" className="text-xs font-semibold text-slate-500">目前密碼</Label>
-            <Input
+            <PasswordInput
               id="current-password"
-              type="password"
               autoComplete="current-password"
               value={current}
               onChange={(e) => setCurrent(e.target.value)}
-              className="rounded-2xl"
             />
           </div>
 
           <div className="grid gap-1.5">
             <Label htmlFor="new-password" className="text-xs font-semibold text-slate-500">新密碼</Label>
-            <Input
+            <PasswordInput
               id="new-password"
-              type="password"
               autoComplete="new-password"
               value={next}
               onChange={(e) => setNext(e.target.value)}
-              className="rounded-2xl"
             />
             <p className={`text-[10px] ${policyError ? "text-rose-500" : "text-muted-foreground"}`}>
               {policyError ?? "至少 8 碼，需同時包含大寫與小寫英文字母。"}
@@ -98,13 +94,11 @@ export function ChangePasswordCard() {
 
           <div className="grid gap-1.5">
             <Label htmlFor="confirm-password" className="text-xs font-semibold text-slate-500">確認新密碼</Label>
-            <Input
+            <PasswordInput
               id="confirm-password"
-              type="password"
               autoComplete="new-password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className="rounded-2xl"
             />
             {mismatch && <p className="text-[10px] text-rose-500">兩次輸入的新密碼不一致</p>}
           </div>
@@ -144,5 +138,42 @@ export function ChangePasswordCard() {
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+/** Password input with a show/hide eye toggle. */
+function PasswordInput({
+  id,
+  value,
+  onChange,
+  autoComplete,
+}: {
+  id: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  autoComplete: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type={show ? "text" : "password"}
+        autoComplete={autoComplete}
+        value={value}
+        onChange={onChange}
+        className="rounded-2xl pr-10"
+      />
+      <button
+        type="button"
+        onClick={() => setShow((s) => !s)}
+        aria-label={show ? "隱藏密碼" : "顯示密碼"}
+        title={show ? "隱藏密碼" : "顯示密碼"}
+        tabIndex={-1}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+      >
+        {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+      </button>
+    </div>
   );
 }
