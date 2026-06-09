@@ -140,13 +140,18 @@ export function AppShell() {
             <GlobalSearch />
             <NotificationBell />
 
-            {/* Quick profile info badge */}
-            <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-slate-100 dark:border-slate-900 bg-slate-50/50 dark:bg-slate-900/20 text-xs font-semibold">
+            {/* AI engine status badge — jumps to the engine card in Settings */}
+            <button
+              type="button"
+              onClick={() => navigate("/settings#ai-engine")}
+              title={t("shell.aiOnlineTitle")}
+              className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-slate-100 dark:border-slate-900 bg-slate-50/50 dark:bg-slate-900/20 text-xs font-semibold transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/5 cursor-pointer"
+            >
               <span className="relative flex h-2 w-2">
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
               <span className="text-muted-foreground">{t("shell.aiOnline")}</span>
-            </div>
+            </button>
 
             <Button
               variant="ghost"

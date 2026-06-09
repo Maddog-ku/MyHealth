@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { Moon, Sun, SunMoon, Palette, Bot, Check, Type, Languages } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -28,6 +30,18 @@ export function SettingsPage() {
   const { lang, setLang, t } = useI18n();
   const { data: user } = useMe();
   const updateProfile = useUpdateProfile();
+  const location = useLocation();
+
+  // Deep-link support: e.g. the header AI badge navigates to /settings#ai-engine and we
+  // scroll that card into view. A short delay lets lazily-rendered cards mount first.
+  useEffect(() => {
+    const id = location.hash.replace("#", "");
+    if (!id) return;
+    const timer = setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [location.hash]);
 
   function chooseLang(next: Lang) {
     if (next === lang) return;

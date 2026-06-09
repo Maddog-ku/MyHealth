@@ -9,7 +9,7 @@ export function AiEngineCard() {
   const ai = useAiStatus();
 
   return (
-    <Card className="border border-slate-100/80 dark:border-slate-900/60 bg-white/70 dark:bg-slate-950/40 backdrop-blur-xl shadow-xl shadow-slate-100/50 dark:shadow-none rounded-3xl overflow-hidden card-hover-effect flex flex-col justify-between">
+    <Card id="ai-engine" className="scroll-mt-24 border border-slate-100/80 dark:border-slate-900/60 bg-white/70 dark:bg-slate-950/40 backdrop-blur-xl shadow-xl shadow-slate-100/50 dark:shadow-none rounded-3xl overflow-hidden card-hover-effect flex flex-col justify-between">
       <div>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg font-bold flex items-center gap-2">
