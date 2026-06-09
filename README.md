@@ -84,14 +84,14 @@ scripts/dev.sh
 
 ### 環境變數檔案
 
-專案提供兩個範例檔作為建立設定檔的模板。請**複製成自己的環境檔後再修改**，不要直接把真實密碼或正式設定寫進 `*.example` 檔。
+請新增自己的環境設定檔：本機開發使用 `.env`，正式 / staging 部署使用 `.env.prod`。範例檔只作為複製來源，真實密碼、正式網域與 secret 都要寫在新增出來的檔案內。
 
 ```bash
 # 本機開發：通常 scripts/dev.sh 的預設值已可直接使用；
-# 只有需要覆寫 DB、JWT、AI、CORS、上傳路徑等設定時才建立。
+# 只有需要覆寫 DB、JWT、AI、CORS、上傳路徑等設定時才新增 .env。
 cp .env.example .env
 
-# 正式 / staging 部署：必須建立並替換所有 replace-with... 佔位值。
+# 正式 / staging 部署：必須新增 .env.prod，並替換所有 replace-with... 佔位值。
 cp .env.prod.example .env.prod
 ```
 
@@ -100,7 +100,7 @@ cp .env.prod.example .env.prod
 | `.env` | 本機開發需要客製化時 | 由 `.env.example` 複製而來，適合 localhost、Docker dev infra 與本機 AI 設定。 |
 | `.env.prod` | 正式或 staging 部署前 | 由 `.env.prod.example` 複製而來，需填入正式 DB 密碼、`JWT_SECRET`、正式網域與 Redis 設定。 |
 
-`.env` 與 `.env.prod` 會被 `.gitignore` 排除；`*.example` 只保留安全的範例值，讓團隊知道需要哪些 key。
+`.env` 與 `.env.prod` 會被 `.gitignore` 排除；請不要把真實密碼或正式設定提交到 git。
 
 ### 常用參數
 ```bash
