@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Search, Salad, Dumbbell, Loader2 } from "lucide-react";
+import { Search, Salad, Dumbbell, Loader2, Apple } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ export function GlobalSearch() {
   const { data, isFetching } = useSearch(debounced);
   const term = debounced.trim();
   const results = data?.results ?? [];
+  const foods = data?.foods ?? [];
 
   function go(r: SearchResult) {
     setOpen(false);
@@ -64,7 +65,7 @@ export function GlobalSearch() {
           <div className="max-h-[60vh] overflow-y-auto">
             {term.length === 0 ? (
               <p className="px-4 py-8 text-center text-xs text-muted-foreground">輸入關鍵字搜尋你的飲食與運動紀錄</p>
-            ) : results.length === 0 && !isFetching ? (
+            ) : results.length === 0 && foods.length === 0 && !isFetching ? (
               <p className="px-4 py-8 text-center text-xs text-muted-foreground">找不到「{term}」的相關紀錄</p>
             ) : (
               <ul className="divide-y divide-slate-50 dark:divide-slate-900/60">
@@ -93,6 +94,32 @@ export function GlobalSearch() {
                     </button>
                   </li>
                 ))}
+                {foods.length > 0 && (
+                  <li className="bg-slate-50/40 dark:bg-slate-900/20">
+                    <p className="px-4 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      食物資料庫（每份營養基準）
+                    </p>
+                    <ul>
+                      {foods.map((f) => (
+                        <li
+                          key={f.id}
+                          className="flex items-center gap-3 px-4 py-2.5 border-t border-slate-50 dark:border-slate-900/60"
+                        >
+                          <span className="flex size-9 items-center justify-center rounded-xl shrink-0 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                            <Apple className="size-4.5" />
+                          </span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{f.name}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              {f.category} · 每 {f.servingGrams}g · 蛋白 {f.protein}g
+                            </span>
+                          </span>
+                          <span className="text-xs font-bold text-muted-foreground shrink-0">{f.kcal} kcal</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                )}
               </ul>
             )}
           </div>

@@ -1,5 +1,6 @@
 package com.myhealth.search;
 
+import com.myhealth.food.FoodService;
 import com.myhealth.meal.Meal;
 import com.myhealth.meal.MealRepository;
 import com.myhealth.search.SearchDtos.SearchResponse;
@@ -23,19 +24,23 @@ import org.springframework.stereotype.Service;
 public class SearchService {
     private static final int DEFAULT_LIMIT = 20;
     private static final int MAX_LIMIT = 50;
+    /** How many food-database baselines to surface alongside the user's own logs. */
+    private static final int FOOD_LIMIT = 5;
 
     private final MealRepository meals;
     private final WorkoutPlanRepository workouts;
+    private final FoodService foodService;
 
-    public SearchService(MealRepository meals, WorkoutPlanRepository workouts) {
+    public SearchService(MealRepository meals, WorkoutPlanRepository workouts, FoodService foodService) {
         this.meals = meals;
         this.workouts = workouts;
+        this.foodService = foodService;
     }
 
     public SearchResponse search(AppUser user, String query, Integer limit) {
         String q = query == null ? "" : query.trim();
         if (q.isEmpty()) {
-            return new SearchResponse("", List.of());
+            return new SearchResponse("", List.of(), List.of());
         }
         int cap = Math.min(limit == null ? DEFAULT_LIMIT : Math.max(limit, 1), MAX_LIMIT);
         String like = "%" + q.toLowerCase() + "%";
@@ -45,8 +50,10 @@ public class SearchService {
         meals.search(user.getId(), like, page).forEach(m -> results.add(mealResult(m)));
         workouts.search(user.getId(), like, page).forEach(w -> results.add(workoutResult(w)));
         results.sort(Comparator.comparing(SearchResult::date).reversed());
+        List<SearchResult> capped = results.size() > cap ? List.copyOf(results.subList(0, cap)) : results;
 
-        return new SearchResponse(q, results.size() > cap ? List.copyOf(results.subList(0, cap)) : results);
+        // Food-database baselines for the same keyword (reference data, kept separate from logs).
+        return new SearchResponse(q, capped, foodService.search(q, FOOD_LIMIT));
     }
 
     private SearchResult mealResult(Meal m) {

@@ -1,5 +1,6 @@
 package com.myhealth.search;
 
+import com.myhealth.food.FoodDtos.FoodResponse;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -16,6 +17,10 @@ public final class SearchDtos {
     public record SearchResult(String type, Long id, String title, String subtitle, LocalDate date, int kcal) {
     }
 
-    public record SearchResponse(String query, List<SearchResult> results) {
+    /**
+     * @param results the user's matching meals/workouts (date-sorted)
+     * @param foods   matching food-database entries (nutrition baselines), separate from logged data
+     */
+    public record SearchResponse(String query, List<SearchResult> results, List<FoodResponse> foods) {
     }
 }

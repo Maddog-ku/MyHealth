@@ -36,7 +36,7 @@ class SearchServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SearchService(meals, workouts);
+        service = new SearchService(meals, workouts, new com.myhealth.food.FoodService());
         user = new AppUser();
         user.setEmail("a@b.c");
         user.setRole(Role.USER);
@@ -49,7 +49,20 @@ class SearchServiceTest {
 
         assertThat(res.query()).isEmpty();
         assertThat(res.results()).isEmpty();
+        assertThat(res.foods()).isEmpty();
         verifyNoInteractions(meals, workouts);
+    }
+
+    @Test
+    void search_surfacesFoodDatabaseBaselines_forKeyword() {
+        when(meals.search(eq(1L), any(), any())).thenReturn(List.of());
+        when(workouts.search(eq(1L), any(), any())).thenReturn(List.of());
+
+        SearchResponse res = service.search(user, "雞", null);
+
+        // The food catalog (real FoodService) returns 雞胸肉 as a nutrition baseline.
+        assertThat(res.foods()).isNotEmpty();
+        assertThat(res.foods().get(0).name()).isEqualTo("雞胸肉");
     }
 
     @Test

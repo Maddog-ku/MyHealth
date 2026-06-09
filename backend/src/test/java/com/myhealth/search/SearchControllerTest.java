@@ -51,20 +51,24 @@ class SearchControllerTest {
         AppUser user = stubUser();
         when(currentUser.require()).thenReturn(user);
         when(searchService.search(eq(user), eq("雞"), isNull())).thenReturn(new SearchResponse("雞",
-                List.of(new SearchResult("MEAL", 11L, "雞胸肉沙拉", "午餐", LocalDate.of(2026, 6, 5), 420))));
+                List.of(new SearchResult("MEAL", 11L, "雞胸肉沙拉", "午餐", LocalDate.of(2026, 6, 5), 420)),
+                List.of(new com.myhealth.food.FoodDtos.FoodResponse("chicken-breast", "雞胸肉", "蛋白質",
+                        150, 248, new java.math.BigDecimal("46.50"), new java.math.BigDecimal("5.40"),
+                        java.math.BigDecimal.ZERO, List.of("雞肉")))));
 
         mockMvc.perform(get("/api/v1/search").param("q", "雞"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.query").value("雞"))
                 .andExpect(jsonPath("$.results[0].type").value("MEAL"))
                 .andExpect(jsonPath("$.results[0].title").value("雞胸肉沙拉"))
-                .andExpect(jsonPath("$.results[0].kcal").value(420));
+                .andExpect(jsonPath("$.results[0].kcal").value(420))
+                .andExpect(jsonPath("$.foods[0].name").value("雞胸肉"));
     }
 
     @Test
     void search_returns200_whenQueryOmitted() throws Exception {
         when(currentUser.require()).thenReturn(stubUser());
-        when(searchService.search(any(), isNull(), isNull())).thenReturn(new SearchResponse("", List.of()));
+        when(searchService.search(any(), isNull(), isNull())).thenReturn(new SearchResponse("", List.of(), List.of()));
 
         mockMvc.perform(get("/api/v1/search"))
                 .andExpect(status().isOk())

@@ -1466,6 +1466,7 @@ Health Plan 是 Dashboard 的聚合層，整合今日熱量預算、體重目標
 - `q` 空白回傳空結果;`limit` 選填(預設 20,上限 50)。
 - 比對範圍:餐點的描述／食物項目／時段、運動的分類／動作項目(皆不分大小寫)。
 - 結果合併後依日期新到舊排序並截斷;`title`/`subtitle` 已在地化(時段、運動分類);`type` 為 `MEAL` 或 `WORKOUT`,前端據此跳到對應頁。
+- `foods` 另外回傳食物資料庫(catalog)中符合關鍵字的營養基準(最多 5 筆,形狀同 `GET /foods`),與使用者自己的紀錄分開呈現,供查營養參考。
 
 **Response 200**
 ```json
@@ -1474,6 +1475,10 @@ Health Plan 是 Dashboard 的聚合層，整合今日熱量預算、體重目標
   "results": [
     { "type": "WORKOUT", "id": 22, "title": "腹肌核心", "subtitle": "已完成", "date": "2026-06-06", "kcal": 120 },
     { "type": "MEAL", "id": 11, "title": "雞胸肉沙拉", "subtitle": "午餐", "date": "2026-06-05", "kcal": 420 }
+  ],
+  "foods": [
+    { "id": "chicken-breast", "name": "雞胸肉", "category": "蛋白質", "servingGrams": 150,
+      "kcal": 248, "protein": 46.5, "fat": 5.4, "carb": 0, "aliases": ["雞肉", "chicken"] }
   ]
 }
 ```

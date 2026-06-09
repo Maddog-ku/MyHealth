@@ -343,6 +343,8 @@ export interface SearchResult {
 export interface SearchResponse {
   query: string;
   results: SearchResult[];
+  /** Matching food-database baselines (nutrition reference), separate from the user's logs. */
+  foods: FoodCatalogItem[];
 }
 
 export interface MacroBudget {
