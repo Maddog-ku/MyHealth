@@ -7,9 +7,10 @@ package com.myhealth.streak;
  * @param mealCount      total meals ever logged
  * @param workoutCount   total workouts ever completed (done = true)
  * @param weightCount    total body-weight measurements ever recorded
- * @param photoMealCount total meals logged with a photo
- * @param weeklyGoalHits number of weeks (in the lookback window) that met the weekly workout goal
+ * @param photoMealCount     total meals logged with a photo
+ * @param weeklyGoalHits     number of weeks (in the lookback window) that met the weekly workout goal
+ * @param longestHabitStreak longest consecutive-day completion run for any single daily habit
  */
 public record StreakMetrics(int longestStreak, long mealCount, long workoutCount, long weightCount,
-                            long photoMealCount, int weeklyGoalHits) {
+                            long photoMealCount, int weeklyGoalHits, int longestHabitStreak) {
 }

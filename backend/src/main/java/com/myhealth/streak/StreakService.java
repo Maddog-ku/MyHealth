@@ -1,5 +1,8 @@
 package com.myhealth.streak;
 
+import com.myhealth.habit.HabitLog;
+import com.myhealth.habit.HabitLogRepository;
+import com.myhealth.habit.HabitType;
 import com.myhealth.meal.MealRepository;
 import com.myhealth.streak.StreakDtos.StreakInfo;
 import com.myhealth.streak.StreakDtos.StreakSummaryResponse;
@@ -13,6 +16,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,16 +40,18 @@ public class StreakService {
     private final WorkoutPlanRepository workouts;
     private final WorkoutGoalRepository workoutGoals;
     private final BodyMeasurementRepository bodyMeasurements;
+    private final HabitLogRepository habitLogs;
     private final AchievementService achievements;
     private final ZoneId zoneId = ZoneId.systemDefault();
 
     public StreakService(MealRepository meals, WorkoutPlanRepository workouts,
                          WorkoutGoalRepository workoutGoals, BodyMeasurementRepository bodyMeasurements,
-                         AchievementService achievements) {
+                         HabitLogRepository habitLogs, AchievementService achievements) {
         this.meals = meals;
         this.workouts = workouts;
         this.workoutGoals = workoutGoals;
         this.bodyMeasurements = bodyMeasurements;
+        this.habitLogs = habitLogs;
         this.achievements = achievements;
     }
 
@@ -75,6 +81,7 @@ public class StreakService {
                 .map(WorkoutGoal::getTargetSessionsPerWeek)
                 .orElse(0);
         int weeklyGoalHits = weeklyGoalHits(workouts.findDoneWorkoutDates(userId, from, today), weeklyTarget);
+        int longestHabitStreak = longestHabitStreak(habitLogs.findByUserIdAndDateBetween(userId, from, today), today);
 
         StreakMetrics metrics = new StreakMetrics(
                 overallStreak.longest(),
@@ -82,7 +89,8 @@ public class StreakService {
                 workouts.countByUserIdAndDoneTrue(userId),
                 bodyMeasurements.countByUserId(userId),
                 meals.countPhotoMeals(userId),
-                weeklyGoalHits);
+                weeklyGoalHits,
+                longestHabitStreak);
 
         AchievementService.ReconcileResult rc = achievements.reconcile(user, metrics);
         return new StreakSummaryResponse(mealStreak, workoutStreak, overallStreak, rc.views(), rc.newlyUnlocked());
@@ -146,6 +154,21 @@ public class StreakService {
             sessionsPerWeek.merge(monday, 1, Integer::sum);
         }
         return (int) sessionsPerWeek.values().stream().filter(count -> count >= target).count();
+    }
+
+    /**
+     * Longest consecutive-day completion run for any single habit within the window — the
+     * basis for habit-consistency badges. 0 when no habits were ever completed.
+     */
+    static int longestHabitStreak(List<HabitLog> logs, LocalDate today) {
+        Map<HabitType, Set<LocalDate>> byType = new EnumMap<>(HabitType.class);
+        for (HabitLog log : logs) {
+            byType.computeIfAbsent(log.getType(), type -> new TreeSet<>()).add(log.getDate());
+        }
+        return byType.values().stream()
+                .mapToInt(days -> streakOf(days, today).longest())
+                .max()
+                .orElse(0);
     }
 
     private Instant startOfDay(LocalDate date) {

@@ -41,6 +41,7 @@ class StreakServiceTest {
     @Mock WorkoutPlanRepository workouts;
     @Mock WorkoutGoalRepository workoutGoals;
     @Mock BodyMeasurementRepository bodyMeasurements;
+    @Mock com.myhealth.habit.HabitLogRepository habitLogs;
     @Mock AchievementService achievements;
 
     StreakService service;
@@ -50,7 +51,7 @@ class StreakServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new StreakService(meals, workouts, workoutGoals, bodyMeasurements, achievements);
+        service = new StreakService(meals, workouts, workoutGoals, bodyMeasurements, habitLogs, achievements);
         user = new AppUser();
         user.setEmail("a@b.c");
         user.setRole(Role.USER);
@@ -157,6 +158,28 @@ class StreakServiceTest {
         assertThat(StreakService.weeklyGoalHits(done, 2)).isEqualTo(1);
         assertThat(StreakService.weeklyGoalHits(done, 1)).isEqualTo(2);
         assertThat(StreakService.weeklyGoalHits(done, 0)).isZero(); // no goal set
+    }
+
+    @Test
+    void longestHabitStreak_takesLongestRunAcrossAnySingleHabit() {
+        // WATER: 4 consecutive days; STRETCH: a separate 2-day run → longest = 4.
+        List<com.myhealth.habit.HabitLog> logs = List.of(
+                habitLog(com.myhealth.habit.HabitType.WATER, TODAY),
+                habitLog(com.myhealth.habit.HabitType.WATER, TODAY.minusDays(1)),
+                habitLog(com.myhealth.habit.HabitType.WATER, TODAY.minusDays(2)),
+                habitLog(com.myhealth.habit.HabitType.WATER, TODAY.minusDays(3)),
+                habitLog(com.myhealth.habit.HabitType.STRETCH, TODAY),
+                habitLog(com.myhealth.habit.HabitType.STRETCH, TODAY.minusDays(1)));
+
+        assertThat(StreakService.longestHabitStreak(logs, TODAY)).isEqualTo(4);
+        assertThat(StreakService.longestHabitStreak(List.of(), TODAY)).isZero();
+    }
+
+    private static com.myhealth.habit.HabitLog habitLog(com.myhealth.habit.HabitType type, LocalDate date) {
+        com.myhealth.habit.HabitLog log = new com.myhealth.habit.HabitLog();
+        log.setType(type);
+        log.setDate(date);
+        return log;
     }
 
     private static Set<LocalDate> days(LocalDate... d) {

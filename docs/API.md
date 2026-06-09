@@ -1377,7 +1377,7 @@ Health Plan 是 Dashboard 的聚合層，整合今日熱量預算、體重目標
 }
 ```
 
-徽章目錄(寫死於 `AchievementCatalog`)：`STREAK_3/7/30`、`MEALS_50/100`、`WORKOUTS_10/50`、`FIRST_WEIGHT`、`PHOTO_5/25`(照片記餐筆數)、`WEEKLY_GOAL_1/4`(達成每週訓練目標的週數；未設定每週訓練目標時恆為 0)。
+徽章目錄(寫死於 `AchievementCatalog`)：`STREAK_3/7/30`、`MEALS_50/100`、`WORKOUTS_10/50`、`FIRST_WEIGHT`、`PHOTO_5/25`(照片記餐筆數)、`WEEKLY_GOAL_1/4`(達成每週訓練目標的週數；未設定每週訓練目標時恆為 0)、`HABIT_7/30`(同一項每日習慣連續完成天數)。
 
 ---
 
