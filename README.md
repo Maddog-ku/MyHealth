@@ -143,15 +143,3 @@ ollama pull gemma4:e4b
 - **部署**：本機 `docker compose`；另提供 production 容器骨架（見 `docker-compose.prod.yml`）
 
 完整 REST API 參考見 [`docs/API.md`](docs/API.md)，功能藍圖見 [`docs/FEATURE_ROADMAP.md`](docs/FEATURE_ROADMAP.md)。後端啟動後（非 prod）可開 http://localhost:8080/swagger-ui.html 看互動式 API 文件。
-
----
-
-## 參與開發
-
-```bash
-cd backend && ./mvnw test          # 後端測試
-cd frontend && npm run build       # 前端型別檢查 + 構建
-cd frontend && npx playwright test # 前端 e2e
-```
-
-CI（GitHub Actions）會在每次 push / PR 自動跑這三件事。歡迎開 PR / Issue。
