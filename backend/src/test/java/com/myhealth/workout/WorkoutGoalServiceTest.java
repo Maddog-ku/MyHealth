@@ -13,6 +13,7 @@ import com.myhealth.workout.WorkoutGoalDtos.SetWorkoutGoalRequest;
 import com.myhealth.workout.WorkoutGoalDtos.WorkoutGoalResponse;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -114,6 +115,38 @@ class WorkoutGoalServiceTest {
         service.delete(user);
 
         verify(goals).delete(existing);
+    }
+
+    @Test
+    void streakWeeks_countsConsecutiveOnTargetWeeks_withCurrentWeekGrace() {
+        LocalDate thisMon = LocalDate.of(2026, 6, 8);   // a Monday
+        LocalDate lastMon = thisMon.minusWeeks(1);
+        LocalDate twoAgo = thisMon.minusWeeks(2);
+        // this week: 2 sessions, last week: 2, two weeks ago: 1.
+        List<LocalDate> done = List.of(
+                thisMon, thisMon.plusDays(2),
+                lastMon, lastMon.plusDays(3),
+                twoAgo);
+
+        // target 2: this+last meet it, two-weeks-ago (1) breaks → streak 2.
+        assertThat(WorkoutGoalService.streakWeeks(done, thisMon, 2)).isEqualTo(2);
+        // no goal → 0.
+        assertThat(WorkoutGoalService.streakWeeks(done, thisMon, 0)).isZero();
+    }
+
+    @Test
+    void streakWeeks_graceWhenCurrentWeekNotYetMet() {
+        LocalDate thisMon = LocalDate.of(2026, 6, 8);
+        LocalDate lastMon = thisMon.minusWeeks(1);
+        LocalDate twoAgo = thisMon.minusWeeks(2);
+        // this week: only 1 session (below target 2), but prior two weeks met it.
+        List<LocalDate> done = List.of(
+                thisMon,
+                lastMon, lastMon.plusDays(2),
+                twoAgo, twoAgo.plusDays(2));
+
+        // current week not met yet → counts back from last week → streak 2 (not 0).
+        assertThat(WorkoutGoalService.streakWeeks(done, thisMon, 2)).isEqualTo(2);
     }
 
     private static void setId(AppUser user, Long id) {

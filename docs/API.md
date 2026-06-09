@@ -588,7 +588,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 
 ### 6.8 每週訓練目標
 
-使用者每週想完成的訓練次數（每人一個）；`progress` 對照「本週（週一至今天）已完成的訓練數」即時計算，未設定時為 `null`。
+使用者每週想完成的訓練次數（每人一個）；`progress` 對照「本週（週一至今天）已完成的訓練數」即時計算，未設定時為 `null`。`streakWeeks` 為連續達標週數（截至本週；本週尚未達標時從上週起算，不會因本週還沒練完就歸零）。
 
 `GET /workout-goal`
 
@@ -602,6 +602,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
     "progressPct": 50,
     "weekStart": "2026-06-01",
     "achieved": false,
+    "streakWeeks": 3,
     "createdAt": "2026-06-01T00:00:00Z"
   }
 }

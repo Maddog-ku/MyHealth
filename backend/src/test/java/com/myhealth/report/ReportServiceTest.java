@@ -104,7 +104,7 @@ class ReportServiceTest {
 
     private WorkoutGoalResponse workoutGoal(int targetPerWeek) {
         return new WorkoutGoalResponse(new WorkoutGoalProgress(
-                targetPerWeek, 0, 0, 0, LocalDate.now(), false, null));
+                targetPerWeek, 0, 0, 0, LocalDate.now(), false, 0, null));
     }
 
     private DailyStatsResponse daily(int goal) {

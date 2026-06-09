@@ -117,7 +117,17 @@ export function WorkoutGoalCard() {
                 style={{ width: `${Math.max(4, progress.progressPct)}%` }}
               />
             </div>
-            <p className="text-[10px] text-muted-foreground">本週（{progress.weekStart.slice(5)} 起）已完成 {progress.completedThisWeek} 次訓練</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] text-muted-foreground">本週（{progress.weekStart.slice(5)} 起）已完成 {progress.completedThisWeek} 次訓練</p>
+              {progress.streakWeeks >= 2 && (
+                <span
+                  title={`連續 ${progress.streakWeeks} 週達標`}
+                  className="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400"
+                >
+                  🔥 連續 {progress.streakWeeks} 週
+                </span>
+              )}
+            </div>
           </div>
         ) : null}
       </CardContent>

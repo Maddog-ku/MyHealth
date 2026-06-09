@@ -83,7 +83,7 @@ class HealthPlanServiceTest {
                 new BigDecimal("-2.0"), 25, -0.5, -2.1, date.plusDays(84),
                 false, false, Instant.parse("2026-05-09T00:00:00Z"))));
         when(workoutGoals.get(user)).thenReturn(new WorkoutGoalResponse(new WorkoutGoalProgress(
-                4, 2, 2, 50, date.minusDays(0), false,
+                4, 2, 2, 50, date.minusDays(0), false, 0,
                 Instant.parse("2026-05-09T00:00:00Z"))));
         when(streaks.overallStreak(user)).thenReturn(new StreakInfo(3, 8, date));
 
@@ -108,7 +108,7 @@ class HealthPlanServiceTest {
                         BigDecimal.ZERO, 0, null, null, null, null, false,
                         Instant.parse("2026-06-08T00:00:00Z"))));
         when(workoutGoals.set(user, new com.myhealth.workout.WorkoutGoalDtos.SetWorkoutGoalRequest(4)))
-                .thenReturn(new WorkoutGoalResponse(new WorkoutGoalProgress(4, 0, 4, 0, date, false,
+                .thenReturn(new WorkoutGoalResponse(new WorkoutGoalProgress(4, 0, 4, 0, date, false, 0,
                         Instant.parse("2026-06-08T00:00:00Z"))));
         when(weightGoals.get(user)).thenReturn(new WeightGoalResponse(null));
         when(workoutGoals.get(user)).thenReturn(new WorkoutGoalResponse(null));

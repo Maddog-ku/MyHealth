@@ -142,6 +142,8 @@ export interface WorkoutGoalProgress {
   progressPct: number;
   weekStart: string;
   achieved: boolean;
+  /** Consecutive weeks meeting the target, ending at the current week (grace for an unmet current week). */
+  streakWeeks: number;
   createdAt: string;
 }
 

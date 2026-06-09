@@ -51,13 +51,14 @@ class WorkoutGoalControllerTest {
     void get_returnsProgress_whenGoalSet() throws Exception {
         when(currentUser.require()).thenReturn(stubUser());
         when(goalService.get(any())).thenReturn(new WorkoutGoalResponse(new WorkoutGoalProgress(
-                4, 2, 2, 50, LocalDate.of(2026, 6, 1), false, Instant.parse("2026-06-01T00:00:00Z"))));
+                4, 2, 2, 50, LocalDate.of(2026, 6, 1), false, 3, Instant.parse("2026-06-01T00:00:00Z"))));
 
         mockMvc.perform(get("/api/v1/workout-goal"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.progress.targetSessionsPerWeek").value(4))
                 .andExpect(jsonPath("$.progress.completedThisWeek").value(2))
-                .andExpect(jsonPath("$.progress.progressPct").value(50));
+                .andExpect(jsonPath("$.progress.progressPct").value(50))
+                .andExpect(jsonPath("$.progress.streakWeeks").value(3));
     }
 
     @Test
@@ -74,7 +75,7 @@ class WorkoutGoalControllerTest {
     void set_returns200_andDelegates() throws Exception {
         when(currentUser.require()).thenReturn(stubUser());
         when(goalService.set(any(), any())).thenReturn(new WorkoutGoalResponse(new WorkoutGoalProgress(
-                3, 0, 3, 0, LocalDate.of(2026, 6, 1), false, Instant.parse("2026-06-01T00:00:00Z"))));
+                3, 0, 3, 0, LocalDate.of(2026, 6, 1), false, 0, Instant.parse("2026-06-01T00:00:00Z"))));
 
         mockMvc.perform(put("/api/v1/workout-goal")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"targetSessionsPerWeek\":3}"))

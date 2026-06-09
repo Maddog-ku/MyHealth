@@ -22,6 +22,8 @@ public final class WorkoutGoalDtos {
      * @param remaining         max(0, target − completed)
      * @param progressPct       0–100, clamped
      * @param achieved          completed ≥ target
+     * @param streakWeeks       consecutive weeks meeting the target, ending at the current week
+     *                          (an as-yet-unmet current week doesn't break it — counts from last week)
      */
     public record WorkoutGoalProgress(
             int targetSessionsPerWeek,
@@ -30,6 +32,7 @@ public final class WorkoutGoalDtos {
             int progressPct,
             LocalDate weekStart,
             boolean achieved,
+            int streakWeeks,
             Instant createdAt
     ) {
     }
