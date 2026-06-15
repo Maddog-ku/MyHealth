@@ -18,12 +18,15 @@ public enum AchievementCatalog {
     PHOTO_25(Metric.PHOTO_MEAL_COUNT, 25, "美食攝影師", "📷", "用照片記錄 25 筆餐點"),
     WEEKLY_GOAL_1(Metric.WEEKLY_GOAL_HITS, 1, "達標起步", "🎯", "達成 1 週的訓練目標"),
     WEEKLY_GOAL_4(Metric.WEEKLY_GOAL_HITS, 4, "週週達標", "🏅", "累計達成 4 週的訓練目標"),
+    SCHEDULE_3(Metric.SCHEDULE_COMPLETIONS, 3, "課表起跑", "📅", "完成 3 天已排定的週期課表訓練"),
+    SCHEDULE_12(Metric.SCHEDULE_COMPLETIONS, 12, "課表執行者", "🗓️", "完成 12 天已排定的週期課表訓練"),
     HABIT_7(Metric.HABIT_STREAK, 7, "七日好習慣", "🌱", "同一項每日習慣連續完成 7 天"),
     HABIT_30(Metric.HABIT_STREAK, 30, "習慣養成", "🌳", "同一項每日習慣連續完成 30 天");
 
     /** Which cumulative number this badge is measured against. */
     public enum Metric {
-        LONGEST_STREAK, MEAL_COUNT, WORKOUT_COUNT, WEIGHT_LOGGED, PHOTO_MEAL_COUNT, WEEKLY_GOAL_HITS, HABIT_STREAK
+        LONGEST_STREAK, MEAL_COUNT, WORKOUT_COUNT, WEIGHT_LOGGED, PHOTO_MEAL_COUNT, WEEKLY_GOAL_HITS,
+        SCHEDULE_COMPLETIONS, HABIT_STREAK
     }
 
     private final Metric metric;
@@ -69,6 +72,7 @@ public enum AchievementCatalog {
             case WEIGHT_LOGGED -> metrics.weightCount();
             case PHOTO_MEAL_COUNT -> metrics.photoMealCount();
             case WEEKLY_GOAL_HITS -> metrics.weeklyGoalHits();
+            case SCHEDULE_COMPLETIONS -> metrics.scheduleCompletions();
             case HABIT_STREAK -> metrics.longestHabitStreak();
         };
         return (int) Math.min(value, threshold);

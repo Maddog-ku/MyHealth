@@ -7,6 +7,8 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.myhealth.ai.AiProvider.ScheduleDay;
 import com.myhealth.meal.MealRepository;
 import com.myhealth.streak.StreakDtos.AchievementView;
 import com.myhealth.streak.StreakDtos.StreakInfo;
@@ -16,7 +18,10 @@ import com.myhealth.user.BodyMeasurementRepository;
 import com.myhealth.user.Role;
 import com.myhealth.workout.WorkoutGoal;
 import com.myhealth.workout.WorkoutGoalRepository;
+import com.myhealth.workout.WorkoutPlan;
 import com.myhealth.workout.WorkoutPlanRepository;
+import com.myhealth.workout.WorkoutSchedule;
+import com.myhealth.workout.WorkoutScheduleRepository;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -40,9 +45,11 @@ class StreakServiceTest {
     @Mock MealRepository meals;
     @Mock WorkoutPlanRepository workouts;
     @Mock WorkoutGoalRepository workoutGoals;
+    @Mock WorkoutScheduleRepository workoutSchedules;
     @Mock BodyMeasurementRepository bodyMeasurements;
     @Mock com.myhealth.habit.HabitLogRepository habitLogs;
     @Mock AchievementService achievements;
+    ObjectMapper objectMapper;
 
     StreakService service;
     AppUser user;
@@ -51,13 +58,17 @@ class StreakServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new StreakService(meals, workouts, workoutGoals, bodyMeasurements, habitLogs, achievements);
+        objectMapper = new ObjectMapper();
+        service = new StreakService(meals, workouts, workoutGoals, workoutSchedules, bodyMeasurements, habitLogs,
+                achievements, objectMapper);
         user = new AppUser();
         user.setEmail("a@b.c");
         user.setRole(Role.USER);
         setId(user, 1L);
         lenient().when(achievements.reconcile(any(), any()))
                 .thenReturn(new AchievementService.ReconcileResult(List.of(), List.of()));
+        lenient().when(workouts.findDoneWorkouts(eq(1L), any(), any())).thenReturn(List.of());
+        lenient().when(workoutSchedules.findByUserIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
     }
 
     // ---- core algorithm (streakOf) ----
@@ -125,6 +136,13 @@ class StreakServiceTest {
         // Three sessions this week against a target of 2 → one weekly-goal hit.
         when(workouts.findDoneWorkoutDates(eq(1L), any(), any()))
                 .thenReturn(List.of(TODAY, TODAY, TODAY));
+        when(workouts.findDoneWorkouts(eq(1L), any(), any()))
+                .thenReturn(List.of(workout(TODAY, "legs"), workout(TODAY.minusDays(1), "arms")));
+        when(workoutSchedules.findByUserIdOrderByCreatedAtDesc(1L))
+                .thenReturn(List.of(schedule(TODAY.minusDays(6), 2,
+                        List.of(
+                                new ScheduleDay(TODAY.getDayOfWeek().getValue(), false, "legs", 45, "下肢力量"),
+                                new ScheduleDay(TODAY.minusDays(1).getDayOfWeek().getValue(), false, "chest", 30, "胸推")))));
         when(workoutGoals.findByUserId(1L)).thenReturn(Optional.of(new WorkoutGoal(user, 2)));
 
         AchievementView view = new AchievementView("STREAK_3", "三日連勝", "🔥", "x", 3, 3, true, null);
@@ -147,6 +165,7 @@ class StreakServiceTest {
         assertThat(metrics.getValue().longestStreak()).isEqualTo(3); // overall longest
         assertThat(metrics.getValue().photoMealCount()).isEqualTo(7L);
         assertThat(metrics.getValue().weeklyGoalHits()).isEqualTo(1); // 3 sessions ≥ target 2 in one week
+        assertThat(metrics.getValue().scheduleCompletions()).isEqualTo(1); // only today's legs workout matched
     }
 
     @Test
@@ -180,6 +199,33 @@ class StreakServiceTest {
         log.setType(type);
         log.setDate(date);
         return log;
+    }
+
+    private WorkoutPlan workout(LocalDate date, String category) {
+        WorkoutPlan plan = new WorkoutPlan();
+        plan.setUser(user);
+        plan.setDate(date);
+        plan.setCategory(category);
+        plan.setDone(true);
+        plan.setTotalKcal(120);
+        plan.setItemsJson("[]");
+        return plan;
+    }
+
+    private WorkoutSchedule schedule(LocalDate startDate, int weeks, List<ScheduleDay> days) {
+        try {
+            WorkoutSchedule schedule = new WorkoutSchedule();
+            schedule.setUser(user);
+            schedule.setGoal("減脂");
+            schedule.setStartDate(startDate);
+            schedule.setWeeks(weeks);
+            schedule.setDaysPerWeek(3);
+            schedule.setIntensity("medium");
+            schedule.setDaysJson(objectMapper.writeValueAsString(days));
+            return schedule;
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     private static Set<LocalDate> days(LocalDate... d) {

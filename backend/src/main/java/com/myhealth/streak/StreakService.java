@@ -1,16 +1,23 @@
 package com.myhealth.streak;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.myhealth.ai.AiProvider.ScheduleDay;
 import com.myhealth.habit.HabitLog;
 import com.myhealth.habit.HabitLogRepository;
 import com.myhealth.habit.HabitType;
+import com.myhealth.common.JsonColumns;
 import com.myhealth.meal.MealRepository;
 import com.myhealth.streak.StreakDtos.StreakInfo;
 import com.myhealth.streak.StreakDtos.StreakSummaryResponse;
 import com.myhealth.user.AppUser;
 import com.myhealth.user.BodyMeasurementRepository;
+import com.myhealth.workout.WorkoutPlan;
 import com.myhealth.workout.WorkoutGoal;
 import com.myhealth.workout.WorkoutGoalRepository;
 import com.myhealth.workout.WorkoutPlanRepository;
+import com.myhealth.workout.WorkoutSchedule;
+import com.myhealth.workout.WorkoutScheduleRepository;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -39,20 +46,25 @@ public class StreakService {
     private final MealRepository meals;
     private final WorkoutPlanRepository workouts;
     private final WorkoutGoalRepository workoutGoals;
+    private final WorkoutScheduleRepository workoutSchedules;
     private final BodyMeasurementRepository bodyMeasurements;
     private final HabitLogRepository habitLogs;
     private final AchievementService achievements;
+    private final ObjectMapper objectMapper;
     private final ZoneId zoneId = ZoneId.systemDefault();
 
     public StreakService(MealRepository meals, WorkoutPlanRepository workouts,
-                         WorkoutGoalRepository workoutGoals, BodyMeasurementRepository bodyMeasurements,
-                         HabitLogRepository habitLogs, AchievementService achievements) {
+                         WorkoutGoalRepository workoutGoals, WorkoutScheduleRepository workoutSchedules,
+                         BodyMeasurementRepository bodyMeasurements, HabitLogRepository habitLogs,
+                         AchievementService achievements, ObjectMapper objectMapper) {
         this.meals = meals;
         this.workouts = workouts;
         this.workoutGoals = workoutGoals;
+        this.workoutSchedules = workoutSchedules;
         this.bodyMeasurements = bodyMeasurements;
         this.habitLogs = habitLogs;
         this.achievements = achievements;
+        this.objectMapper = objectMapper;
     }
 
     public StreakSummaryResponse getSummary(AppUser user) {
@@ -80,7 +92,11 @@ public class StreakService {
         int weeklyTarget = workoutGoals.findByUserId(userId)
                 .map(WorkoutGoal::getTargetSessionsPerWeek)
                 .orElse(0);
-        int weeklyGoalHits = weeklyGoalHits(workouts.findDoneWorkoutDates(userId, from, today), weeklyTarget);
+        List<LocalDate> doneWorkoutDates = workouts.findDoneWorkoutDates(userId, from, today);
+        int weeklyGoalHits = weeklyGoalHits(doneWorkoutDates, weeklyTarget);
+        int scheduleCompletions = scheduleCompletions(
+                workouts.findDoneWorkouts(userId, from, today),
+                workoutSchedules.findByUserIdOrderByCreatedAtDesc(userId));
         int longestHabitStreak = longestHabitStreak(habitLogs.findByUserIdAndDateBetween(userId, from, today), today);
 
         StreakMetrics metrics = new StreakMetrics(
@@ -90,6 +106,7 @@ public class StreakService {
                 bodyMeasurements.countByUserId(userId),
                 meals.countPhotoMeals(userId),
                 weeklyGoalHits,
+                scheduleCompletions,
                 longestHabitStreak);
 
         AchievementService.ReconcileResult rc = achievements.reconcile(user, metrics);
@@ -154,6 +171,53 @@ public class StreakService {
             sessionsPerWeek.merge(monday, 1, Integer::sum);
         }
         return (int) sessionsPerWeek.values().stream().filter(count -> count >= target).count();
+    }
+
+    /**
+     * Counts distinct workout dates where a completed workout matches the user's latest
+     * active schedule for that date. If schedules overlap, repository order (newest first)
+     * wins, matching the UI's "latest plan" behavior.
+     */
+    int scheduleCompletions(List<WorkoutPlan> doneWorkouts, List<WorkoutSchedule> schedules) {
+        if (doneWorkouts.isEmpty() || schedules.isEmpty()) {
+            return 0;
+        }
+        Set<LocalDate> matchedDates = new TreeSet<>();
+        Map<Long, List<ScheduleDay>> daysByScheduleId = new HashMap<>();
+        for (WorkoutPlan workout : doneWorkouts) {
+            WorkoutSchedule schedule = activeScheduleFor(workout.getDate(), schedules);
+            if (schedule == null) {
+                continue;
+            }
+            List<ScheduleDay> days = daysByScheduleId.computeIfAbsent(schedule.getId(), id -> readScheduleDays(schedule));
+            int weekday = workout.getDate().getDayOfWeek().getValue();
+            boolean matches = days.stream().anyMatch(day ->
+                    day.weekday() == weekday
+                            && !day.rest()
+                            && day.category() != null
+                            && day.category().equals(workout.getCategory()));
+            if (matches) {
+                matchedDates.add(workout.getDate());
+            }
+        }
+        return matchedDates.size();
+    }
+
+    private WorkoutSchedule activeScheduleFor(LocalDate date, List<WorkoutSchedule> schedules) {
+        return schedules.stream()
+                .filter(schedule -> !date.isBefore(schedule.getStartDate()))
+                .filter(schedule -> date.isBefore(schedule.getStartDate().plusWeeks(schedule.getWeeks())))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private List<ScheduleDay> readScheduleDays(WorkoutSchedule schedule) {
+        try {
+            return JsonColumns.read(objectMapper, schedule.getDaysJson(), new TypeReference<List<ScheduleDay>>() {
+            });
+        } catch (RuntimeException ex) {
+            return List.of();
+        }
     }
 
     /**

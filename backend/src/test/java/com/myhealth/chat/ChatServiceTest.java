@@ -10,13 +10,18 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.myhealth.ai.AiProvider;
 import com.myhealth.ai.AiProvider.ExerciseItem;
+import com.myhealth.ai.AiProvider.FoodItem;
 import com.myhealth.ai.AiProvider.ChatIntent;
+import com.myhealth.ai.AiProvider.ScheduleDay;
+import com.myhealth.chat.ChatDtos.ChatMealConfirmRequest;
 import com.myhealth.chat.ChatDtos.ChatReplyResponse;
 import com.myhealth.healthplan.HealthPlanDtos.HealthPlanResponse;
 import com.myhealth.healthplan.HealthPlanDtos.PlanAction;
 import com.myhealth.meal.MealDtos.MealResponse;
+import com.myhealth.meal.MealDtos.MealPreviewResponse;
 import com.myhealth.meal.MealRepository;
 import com.myhealth.meal.MealService;
 import com.myhealth.stats.StatsDtos.DailyStatsResponse;
@@ -28,6 +33,8 @@ import com.myhealth.user.Role;
 import com.myhealth.meal.Meal;
 import com.myhealth.workout.WorkoutDtos.WorkoutPlanResponse;
 import com.myhealth.workout.WorkoutPlan;
+import com.myhealth.workout.WorkoutSchedule;
+import com.myhealth.workout.WorkoutScheduleRepository;
 import com.myhealth.workout.WorkoutService;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
@@ -52,18 +59,21 @@ class ChatServiceTest {
     @Mock StatsService stats;
     @Mock MealRepository meals;
     @Mock com.myhealth.workout.WorkoutPlanRepository workouts;
+    @Mock WorkoutScheduleRepository workoutSchedules;
     @Mock MealService mealService;
     @Mock WorkoutService workoutService;
     @Mock com.myhealth.user.UserService userService;
     @Mock com.myhealth.healthplan.HealthPlanService healthPlan;
+    ObjectMapper objectMapper;
 
     ChatService service;
     AppUser user;
 
     @BeforeEach
     void setUp() {
+        objectMapper = new ObjectMapper();
         service = new ChatService(messages, provider, stats, meals, workouts, mealService, workoutService,
-                userService, healthPlan);
+                userService, healthPlan, workoutSchedules, objectMapper);
         user = new AppUser();
         user.setEmail("bob@example.com");
         user.setName("Bob");
@@ -79,24 +89,45 @@ class ChatServiceTest {
         when(messages.findByUserIdOrderByCreatedAtDesc(anyLong(), any())).thenReturn(List.of());
         when(meals.findByUserIdAndDateOrderByCreatedAtDesc(anyLong(), any())).thenReturn(List.of());
         when(workouts.findByUserIdAndDateOrderByCreatedAtDesc(anyLong(), any())).thenReturn(List.of());
+        when(workoutSchedules.findByUserIdOrderByCreatedAtDesc(anyLong())).thenReturn(List.of());
         when(stats.daily(any(), any())).thenReturn(dailyStats());
         // Default: no actionable intent — individual tests override as needed.
         when(provider.detectIntent(any())).thenReturn(ChatIntent.none());
     }
 
     @Test
-    void mealLogIntent_recordsMeal_andSkipsChat() {
+    void mealLogIntent_returnsMealPreview_andSkipsPersistUntilConfirmed() {
         when(provider.detectIntent(any())).thenReturn(new ChatIntent("log_meal", "lunch", "雞胸肉沙拉", "", 30, "medium", 0));
-        when(mealService.create(eq(user), isNull(), eq("雞胸肉沙拉"), eq("lunch"), any(), eq(false)))
-                .thenReturn(meal("雞胸肉沙拉", 300));
+        when(mealService.preview(eq(user), isNull(), eq("雞胸肉沙拉"), eq("lunch"), any(), eq(false)))
+                .thenReturn(mealPreview("雞胸肉沙拉", 300));
 
         ChatReplyResponse res = service.send(user, "我午餐吃了雞胸肉沙拉");
 
-        assertThat(res.mealLogged()).isTrue();
-        assertThat(res.loggedDate()).isEqualTo(LocalDate.now().toString());
+        assertThat(res.mealLogged()).isFalse();
+        assertThat(res.loggedDate()).isNull();
+        assertThat(res.mealPreview()).isNotNull();
+        assertThat(res.mealPreview().description()).isEqualTo("雞胸肉沙拉");
         assertThat(res.reply().content()).contains("午餐");
-        verify(mealService).create(eq(user), isNull(), eq("雞胸肉沙拉"), eq("lunch"), any(), eq(false));
+        verify(mealService).preview(eq(user), isNull(), eq("雞胸肉沙拉"), eq("lunch"), any(), eq(false));
+        verify(mealService, never()).create(any(), any(), any(), any(), any(), anyBoolean());
         verify(provider, never()).chat(any(), any(), any());
+    }
+
+    @Test
+    void confirmMealPreview_persistsMealAndAddsAssistantConfirmation() {
+        List<FoodItem> items = List.of(new FoodItem("芒果", 120, 75, 0.8, 0.5, 18.0, 0.9));
+        when(mealService.confirmFromItems(eq(user), eq("芒果"), eq("dinner"), eq(LocalDate.of(2026, 6, 13)),
+                eq(items), eq("水果可以搭配蛋白質。"), eq(false)))
+                .thenReturn(meal("芒果", 75));
+
+        var res = service.confirmMealPreview(user, new ChatMealConfirmRequest(
+                LocalDate.of(2026, 6, 13), "dinner", "芒果", items, "水果可以搭配蛋白質。"));
+
+        assertThat(res.loggedDate()).isEqualTo("2026-06-13");
+        assertThat(res.meal().totalKcal()).isEqualTo(75);
+        assertThat(res.reply().content()).contains("晚餐").contains("75");
+        verify(mealService).confirmFromItems(eq(user), eq("芒果"), eq("dinner"), eq(LocalDate.of(2026, 6, 13)),
+                eq(items), eq("水果可以搭配蛋白質。"), eq(false));
     }
 
     @Test
@@ -150,13 +181,14 @@ class ChatServiceTest {
     @Test
     void mealLoggingFailure_returnsGracefulReply() {
         when(provider.detectIntent(any())).thenReturn(new ChatIntent("log_meal", "dinner", "芒果", "", 30, "medium", 0));
-        when(mealService.create(any(), any(), any(), any(), any(), eq(false)))
+        when(mealService.preview(any(), any(), any(), any(), any(), eq(false)))
                 .thenThrow(new RuntimeException("boom"));
 
         ChatReplyResponse res = service.send(user, "我晚餐吃芒果");
 
         assertThat(res.mealLogged()).isFalse();
-        assertThat(res.reply().content()).contains("沒記成功");
+        assertThat(res.mealPreview()).isNull();
+        assertThat(res.reply().content()).contains("預覽").contains("沒成功");
     }
 
     @Test
@@ -270,6 +302,25 @@ class ChatServiceTest {
         assertThat(ctx.getValue()).contains("今日運動紀錄").contains("練腿").contains("已完成");
     }
 
+    @Test
+    void chat_includesTodaysActiveWorkoutSchedule_inContext() throws Exception {
+        when(provider.chat(any(), any(), any())).thenReturn("好的");
+        LocalDate today = LocalDate.now();
+        WorkoutSchedule schedule = schedule(today.minusDays(today.getDayOfWeek().getValue() - 1),
+                List.of(new ScheduleDay(today.getDayOfWeek().getValue(), false, "legs", 45, "下肢力量")));
+        when(workoutSchedules.findByUserIdOrderByCreatedAtDesc(user.getId())).thenReturn(List.of(schedule));
+        ArgumentCaptor<String> ctx = ArgumentCaptor.forClass(String.class);
+
+        service.send(user, "你好");
+
+        verify(provider).chat(ctx.capture(), any(), any());
+        assertThat(ctx.getValue())
+                .contains("今日週期課表")
+                .contains("練腿")
+                .contains("45 分鐘")
+                .contains("下肢力量");
+    }
+
     private WorkoutPlanResponse plan(String category, int kcal) {
         ExerciseItem item = new ExerciseItem("深蹲", 4, "12", 60, 40, 70, "膝蓋朝腳尖", List.of());
         return new WorkoutPlanResponse(1L, LocalDate.now(), category, List.of(item), kcal, null, false, Instant.now());
@@ -278,6 +329,24 @@ class ChatServiceTest {
     private MealResponse meal(String desc, int kcal) {
         return new MealResponse(1L, LocalDate.now(), "lunch", desc, null, List.of(), kcal,
                 new BigDecimal("40"), new BigDecimal("5"), new BigDecimal("10"), "不錯的選擇", Instant.now());
+    }
+
+    private MealPreviewResponse mealPreview(String desc, int kcal) {
+        return new MealPreviewResponse(LocalDate.now(), "lunch", desc,
+                List.of(new FoodItem(desc, 150, kcal, 40.0, 5.0, 10.0, 0.9)),
+                kcal, new BigDecimal("40"), new BigDecimal("5"), new BigDecimal("10"), "不錯的選擇");
+    }
+
+    private WorkoutSchedule schedule(LocalDate startDate, List<ScheduleDay> days) throws Exception {
+        WorkoutSchedule schedule = new WorkoutSchedule();
+        schedule.setUser(user);
+        schedule.setGoal("減脂");
+        schedule.setStartDate(startDate);
+        schedule.setWeeks(4);
+        schedule.setDaysPerWeek(3);
+        schedule.setIntensity("medium");
+        schedule.setDaysJson(objectMapper.writeValueAsString(days));
+        return schedule;
     }
 
     private DailyStatsResponse dailyStats() {

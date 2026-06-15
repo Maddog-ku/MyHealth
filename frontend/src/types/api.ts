@@ -220,6 +220,30 @@ export interface MealPreview {
   aiSuggestion?: string;
 }
 
+export interface ChatReply {
+  userMessage: ChatMessage;
+  reply: ChatMessage;
+  mealLogged: boolean;
+  workoutLogged: boolean;
+  weightLogged: boolean;
+  loggedDate: string | null;
+  mealPreview: MealPreview | null;
+}
+
+export interface ChatMealConfirmRequest {
+  date: string;
+  slot: string;
+  description?: string;
+  items: FoodItem[];
+  aiSuggestion?: string;
+}
+
+export interface ChatMealConfirmResponse {
+  meal: Meal;
+  reply: ChatMessage;
+  loggedDate: string;
+}
+
 export interface FavoriteMeal {
   id: number;
   name: string;

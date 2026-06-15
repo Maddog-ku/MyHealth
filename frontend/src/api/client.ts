@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosRequestConfig } from "axios";
-import type { AuthResponse, CalorieBudget, ChatMessage, DailyHabits, DailyStats, FavoriteMeal, FoodCatalogItem, FoodItem, FoodSuggestions, HabitType, HealthPlan, HealthPlanSettings, HealthPlanSettingsRequest, Meal, MealPreview, NotificationFeed, PageEnvelope, Profile, RecentMeal, SearchResponse, SessionList, StreakSummary, SystemStatus, User, WeeklyReport, WeightGoalResponse, WorkoutGoalResponse, WorkoutPlan, WorkoutSchedule, WorkoutVolume } from "@/types/api";
+import type { AuthResponse, CalorieBudget, ChatMealConfirmRequest, ChatMealConfirmResponse, ChatMessage, ChatReply, DailyHabits, DailyStats, FavoriteMeal, FoodCatalogItem, FoodItem, FoodSuggestions, HabitType, HealthPlan, HealthPlanSettings, HealthPlanSettingsRequest, Meal, MealPreview, NotificationFeed, PageEnvelope, Profile, RecentMeal, SearchResponse, SessionList, StreakSummary, SystemStatus, User, WeeklyReport, WeightGoalResponse, WorkoutGoalResponse, WorkoutPlan, WorkoutSchedule, WorkoutVolume } from "@/types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
@@ -205,16 +205,9 @@ export const api = {
   chatHistory: () =>
     http.get<{ messages: ChatMessage[] }>("/ai/chat/history").then((r) => r.data.messages),
   sendChat: (message: string) =>
-    http
-      .post<{
-        userMessage: ChatMessage;
-        reply: ChatMessage;
-        mealLogged: boolean;
-        workoutLogged: boolean;
-        weightLogged: boolean;
-        loggedDate: string | null;
-      }>("/ai/chat", { message })
-      .then((r) => r.data),
+    http.post<ChatReply>("/ai/chat", { message }).then((r) => r.data),
+  confirmChatMeal: (body: ChatMealConfirmRequest) =>
+    http.post<ChatMealConfirmResponse>("/ai/chat/meal/confirm", body).then((r) => r.data),
   clearChat: () => http.delete<void>("/ai/chat/history").then(() => undefined),
 
   weeklyReport: (weekStart?: string) =>

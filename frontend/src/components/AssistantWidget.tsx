@@ -1,10 +1,13 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Send, X, Trash2, Sparkles, MessageCircle } from "lucide-react";
+import { Check, Send, X, Trash2, Sparkles, MessageCircle, UtensilsCrossed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ApiError } from "@/api/client";
 import { useMe } from "@/hooks/useAuth";
-import { useChatHistory, useClearChat, useSendChat } from "@/hooks/useChat";
+import { useChatHistory, useClearChat, useConfirmChatMeal, useSendChat } from "@/hooks/useChat";
+import { summarizeItems } from "@/components/EditableFoodRows";
+import { mealSlotLabel } from "@/lib/mealSlots";
+import type { MealPreview } from "@/types/api";
 
 const ASSISTANT_NAME = "AI 小助手";
 const AssistantAvatar3D = lazy(() =>
@@ -26,16 +29,18 @@ export function AssistantWidget() {
   const { data: user } = useMe();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
+  const [pendingMealPreview, setPendingMealPreview] = useState<MealPreview | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: messages = [], isSuccess } = useChatHistory();
   const send = useSendChat();
+  const confirmMeal = useConfirmChatMeal();
   const clear = useClearChat();
 
   const persona = useMemo(() => user?.profile?.assistantAvatar ?? "male", [user?.profile?.assistantAvatar]);
   const avatar = useMemo(() => avatarSrc(persona), [persona]);
-  const pending = send.isPending;
+  const pending = send.isPending || confirmMeal.isPending;
   const avatarMood = pending ? "thinking" : open ? "active" : "idle";
 
   // Assistant messages already revealed (loaded from history, or finished typing).
@@ -70,8 +75,31 @@ export function AssistantWidget() {
     if (!trimmed || pending) return;
     setDraft("");
     send.reset();
+    confirmMeal.reset();
+    setPendingMealPreview(null);
     // Restore the draft if the send fails so the user doesn't lose their message.
-    send.mutate(trimmed, { onError: () => setDraft(trimmed) });
+    send.mutate(trimmed, {
+      onSuccess: (result) => {
+        if (result.mealPreview) setPendingMealPreview(result.mealPreview);
+      },
+      onError: () => setDraft(trimmed),
+    });
+  }
+
+  async function confirmMealPreview() {
+    if (!pendingMealPreview || pending) return;
+    try {
+      await confirmMeal.mutateAsync({
+        date: pendingMealPreview.date,
+        slot: pendingMealPreview.slot,
+        description: pendingMealPreview.description,
+        items: pendingMealPreview.items,
+        aiSuggestion: pendingMealPreview.aiSuggestion,
+      });
+      setPendingMealPreview(null);
+    } catch {
+      // Shown below the preview card.
+    }
   }
 
   return (
@@ -110,7 +138,10 @@ export function AssistantWidget() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => clear.mutate()}
+                onClick={() => {
+                  setPendingMealPreview(null);
+                  clear.mutate();
+                }}
                 disabled={clear.isPending}
                 title="清除對話"
                 className="rounded-full text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10"
@@ -187,6 +218,18 @@ export function AssistantWidget() {
               </div>
             ))}
 
+            {pendingMealPreview && (
+              <ChatMealPreviewCard
+                preview={pendingMealPreview}
+                pending={confirmMeal.isPending}
+                onConfirm={confirmMealPreview}
+                onCancel={() => {
+                  confirmMeal.reset();
+                  setPendingMealPreview(null);
+                }}
+              />
+            )}
+
             {pending && (
               <div className="flex items-end gap-2 justify-start">
                 <div className="size-9 shrink-0 overflow-hidden rounded-full bg-white/70 ring-1 ring-emerald-500/20 dark:bg-slate-950/50">
@@ -207,6 +250,11 @@ export function AssistantWidget() {
           {send.isError && (
             <div className="px-4 pt-2 text-[11px] text-rose-500 dark:text-rose-400">
               {send.error instanceof ApiError ? send.error.message : "傳送失敗，請再試一次"}
+            </div>
+          )}
+          {confirmMeal.isError && (
+            <div className="px-4 pt-2 text-[11px] text-rose-500 dark:text-rose-400">
+              {confirmMeal.error instanceof ApiError ? confirmMeal.error.message : "餐點確認失敗，請再試一次"}
             </div>
           )}
 
@@ -238,6 +286,81 @@ export function AssistantWidget() {
         </div>
       )}
     </>
+  );
+}
+
+function ChatMealPreviewCard({
+  preview,
+  pending,
+  onConfirm,
+  onCancel,
+}: {
+  preview: MealPreview;
+  pending: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const totals = summarizeItems(preview.items);
+  return (
+    <div className="ml-9 max-w-[82%] rounded-2xl rounded-bl-md border border-emerald-500/15 bg-emerald-500/5 p-3 text-xs shadow-sm dark:bg-emerald-950/10">
+      <div className="flex items-start gap-2">
+        <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+          <UtensilsCrossed className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1 space-y-2">
+          <div>
+            <p className="font-bold text-slate-800 dark:text-slate-100">
+              確認{mealSlotLabel(preview.slot)}餐點
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {preview.description || "AI 餐點預覽"} · 約 {totals.kcal} kcal
+            </p>
+          </div>
+
+          {preview.items.length > 0 ? (
+            <div className="space-y-1">
+              {preview.items.slice(0, 5).map((item, idx) => (
+                <div key={`${item.name}-${idx}`} className="flex items-center justify-between gap-2 rounded-xl bg-white/55 px-2.5 py-1.5 dark:bg-slate-950/30">
+                  <span className="truncate font-semibold text-slate-700 dark:text-slate-200">{item.name}</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">
+                    {Math.round(item.grams)}g · {item.kcal} kcal
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-xl border border-dashed border-emerald-500/20 px-3 py-2 text-[11px] text-muted-foreground">
+              AI 沒有產生可靠明細。取消後換個說法，或到飲食頁手動新增。
+            </p>
+          )}
+
+          <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] font-semibold">
+            <span className="rounded-full bg-rose-500/10 px-2 py-1 text-rose-600 dark:text-rose-300">蛋白 {totals.protein}g</span>
+            <span className="rounded-full bg-amber-500/10 px-2 py-1 text-amber-600 dark:text-amber-300">脂肪 {totals.fat}g</span>
+            <span className="rounded-full bg-sky-500/10 px-2 py-1 text-sky-600 dark:text-sky-300">碳水 {totals.carb}g</span>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="ghost" disabled={pending} onClick={onCancel} className="h-8 rounded-xl px-3 text-xs">
+              取消
+            </Button>
+            <Button
+              type="button"
+              disabled={pending}
+              onClick={onConfirm}
+              className="h-8 rounded-xl bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-500"
+            >
+              {pending ? (
+                <MessageCircle className="mr-1.5 size-3.5 animate-pulse" />
+              ) : (
+                <Check className="mr-1.5 size-3.5" />
+              )}
+              確認寫入
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

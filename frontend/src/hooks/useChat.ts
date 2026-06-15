@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, getAccessToken } from "@/api/client";
 import { qk } from "@/lib/queryClient";
-import type { ChatMessage } from "@/types/api";
+import type { ChatMealConfirmRequest, ChatMessage } from "@/types/api";
 
 export function useChatHistory() {
   return useQuery({
@@ -32,7 +32,7 @@ export function useSendChat() {
     onError: (_err, _message, context) => {
       if (context) qc.setQueryData(qk.chat, context.previous);
     },
-    onSuccess: ({ userMessage, reply, mealLogged, workoutLogged, weightLogged }) => {
+    onSuccess: ({ userMessage, reply, mealLogged, workoutLogged, weightLogged, loggedDate }) => {
       qc.setQueryData<ChatMessage[]>(qk.chat, (current) => {
         // Drop the optimistic temp (negative id) and append the persisted pair.
         const committed = (current ?? []).filter((m) => m.id >= 0);
@@ -40,8 +40,7 @@ export function useSendChat() {
       });
       // The assistant just recorded a meal — refresh 飲食追蹤 and dashboard totals.
       if (mealLogged) {
-        qc.invalidateQueries({ queryKey: ["meals"] });
-        qc.invalidateQueries({ queryKey: ["stats", "daily"] });
+        invalidateMealDerivedQueries(qc, loggedDate);
       }
       // ...or generated a workout plan — refresh 運動菜單 and dashboard totals.
       if (workoutLogged) {
@@ -58,10 +57,35 @@ export function useSendChat() {
   });
 }
 
+export function useConfirmChatMeal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ChatMealConfirmRequest) => api.confirmChatMeal(body),
+    onSuccess: ({ reply, loggedDate }) => {
+      qc.setQueryData<ChatMessage[]>(qk.chat, (current) => [...(current ?? []), reply]);
+      invalidateMealDerivedQueries(qc, loggedDate);
+    },
+  });
+}
+
 export function useClearChat() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => api.clearChat(),
     onSuccess: () => qc.setQueryData(qk.chat, []),
   });
+}
+
+function invalidateMealDerivedQueries(qc: ReturnType<typeof useQueryClient>, date: string | null) {
+  if (!date) {
+    qc.invalidateQueries({ queryKey: ["meals"] });
+    qc.invalidateQueries({ queryKey: ["stats", "daily"] });
+    return;
+  }
+  qc.invalidateQueries({ queryKey: qk.meals(date) });
+  qc.invalidateQueries({ queryKey: qk.dailyStats(date) });
+  qc.invalidateQueries({ queryKey: qk.healthPlan(date) });
+  qc.invalidateQueries({ queryKey: qk.calorieBudget(date) });
+  qc.invalidateQueries({ queryKey: qk.foodSuggestions(date) });
+  qc.invalidateQueries({ queryKey: qk.recentMeals(date) });
 }

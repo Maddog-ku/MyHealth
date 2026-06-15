@@ -1,18 +1,25 @@
 package com.myhealth.chat;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.myhealth.ai.AiProvider;
 import com.myhealth.ai.AiProvider.ChatIntent;
 import com.myhealth.ai.AiProvider.ChatTurn;
 import com.myhealth.ai.AiProvider.MealLog;
+import com.myhealth.ai.AiProvider.ScheduleDay;
 import com.myhealth.ai.AiProvider.WeightLog;
 import com.myhealth.ai.AiProvider.WorkoutRequest;
 import com.myhealth.chat.ChatDtos.ChatMessageResponse;
+import com.myhealth.chat.ChatDtos.ChatMealConfirmRequest;
+import com.myhealth.chat.ChatDtos.ChatMealConfirmResponse;
 import com.myhealth.chat.ChatDtos.ChatReplyResponse;
+import com.myhealth.common.JsonColumns;
 import com.myhealth.healthplan.HealthPlanDtos.HealthPlanResponse;
 import com.myhealth.healthplan.HealthPlanDtos.PlanAction;
 import com.myhealth.healthplan.HealthPlanService;
 import com.myhealth.meal.Meal;
 import com.myhealth.meal.MealDtos.MealResponse;
+import com.myhealth.meal.MealDtos.MealPreviewResponse;
 import com.myhealth.meal.MealRepository;
 import com.myhealth.meal.MealService;
 import com.myhealth.stats.StatsDtos.DailyStatsResponse;
@@ -26,10 +33,13 @@ import com.myhealth.workout.WorkoutDtos.GenerateWorkoutRequest;
 import com.myhealth.workout.WorkoutDtos.WorkoutPlanResponse;
 import com.myhealth.workout.WorkoutPlan;
 import com.myhealth.workout.WorkoutPlanRepository;
+import com.myhealth.workout.WorkoutSchedule;
+import com.myhealth.workout.WorkoutScheduleRepository;
 import com.myhealth.workout.WorkoutService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -68,23 +78,28 @@ public class ChatService {
     private final StatsService stats;
     private final MealRepository meals;
     private final WorkoutPlanRepository workouts;
+    private final WorkoutScheduleRepository workoutSchedules;
     private final MealService mealService;
     private final WorkoutService workoutService;
     private final UserService userService;
     private final HealthPlanService healthPlan;
+    private final ObjectMapper objectMapper;
 
     public ChatService(ChatMessageRepository messages, AiProvider provider, StatsService stats,
                        MealRepository meals, WorkoutPlanRepository workouts, MealService mealService,
-                       WorkoutService workoutService, UserService userService, HealthPlanService healthPlan) {
+                       WorkoutService workoutService, UserService userService, HealthPlanService healthPlan,
+                       WorkoutScheduleRepository workoutSchedules, ObjectMapper objectMapper) {
         this.messages = messages;
         this.provider = provider;
         this.stats = stats;
         this.meals = meals;
         this.workouts = workouts;
+        this.workoutSchedules = workoutSchedules;
         this.mealService = mealService;
         this.workoutService = workoutService;
         this.userService = userService;
         this.healthPlan = healthPlan;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional(readOnly = true)
@@ -129,18 +144,18 @@ public class ChatService {
         boolean mealLogged = false;
         boolean workoutLogged = false;
         boolean weightLogged = false;
+        MealPreviewResponse mealPreview = null;
         LocalDate today = LocalDate.now();
         if (mealLog.isMeal()) {
             try {
                 String slot = resolveSlot(mealLog.slot());
                 // requireFoodHint=false: the model already classified this as a meal; the
                 // keyword whitelist would wrongly reject valid foods like 芒果.
-                MealResponse meal = mealService.create(user, null, mealLog.food(), slot, today, false);
-                reply = buildMealLoggedReply(user, slot, meal, today);
-                mealLogged = true;
+                mealPreview = mealService.preview(user, null, mealLog.food(), slot, today, false);
+                reply = buildMealPreviewReply(slot, mealPreview);
             } catch (RuntimeException ex) {
-                log.warn("Chat meal logging failed: {}", ex.getMessage());
-                reply = "我想幫你記下這一餐，但這次沒記成功 😣 你可以到「飲食追蹤」再記一次，或換個說法告訴我吃了什麼。";
+                log.warn("Chat meal preview failed: {}", ex.getMessage());
+                reply = "我想先幫你整理這一餐的預覽，但這次沒成功 😣 你可以到「飲食追蹤」再記一次，或換個說法告訴我吃了什麼。";
             }
         } else if (workoutReq.isWorkout()) {
             try {
@@ -178,7 +193,22 @@ public class ChatService {
                 mealLogged,
                 workoutLogged,
                 weightLogged,
-                (mealLogged || workoutLogged || weightLogged) ? today.toString() : null);
+                (mealLogged || workoutLogged || weightLogged) ? today.toString() : null,
+                mealPreview);
+    }
+
+    public ChatMealConfirmResponse confirmMealPreview(AppUser user, ChatMealConfirmRequest request) {
+        MealResponse meal = mealService.confirmFromItems(
+                user,
+                request.description(),
+                request.slot(),
+                request.date(),
+                request.items(),
+                request.aiSuggestion(),
+                false);
+        String reply = buildMealLoggedReply(user, request.slot(), meal, request.date());
+        ChatMessage assistantMessage = messages.save(new ChatMessage(user, "assistant", reply));
+        return new ChatMealConfirmResponse(meal, ChatMessageResponse.from(assistantMessage), request.date().toString());
     }
 
     private boolean mightBeMealLog(String text) {
@@ -234,6 +264,23 @@ public class ChatService {
                 r.append("・").append(item.name()).append(" ").append(item.sets()).append(" 組 × ")
                         .append(item.reps()).append('\n'));
         r.append("預估消耗約 ").append(plan.totalKcal()).append(" 大卡。完成後記得到「運動菜單」打卡喔！");
+        return r.toString().strip();
+    }
+
+    private String buildMealPreviewReply(String slot, MealPreviewResponse preview) {
+        StringBuilder r = new StringBuilder();
+        r.append("我先幫你整理成").append(slotLabel(slot)).append("預覽，確認後才會寫入飲食追蹤。\n");
+        if (preview.items() == null || preview.items().isEmpty()) {
+            r.append("這次 AI 沒有抓到可靠的食物明細；你可以取消後換個說法，或到「飲食追蹤」手動新增。");
+            return r.toString().strip();
+        }
+        preview.items().forEach(item -> r.append("・").append(item.name())
+                .append(" ").append(plain(BigDecimal.valueOf(item.grams()))).append("g")
+                .append("，約 ").append(item.kcal()).append(" 大卡\n"));
+        r.append("合計約 ").append(preview.totalKcal()).append(" 大卡")
+                .append("（蛋白 ").append(plain(preview.totalProtein()))
+                .append("g／脂肪 ").append(plain(preview.totalFat()))
+                .append("g／碳水 ").append(plain(preview.totalCarb())).append("g）。");
         return r.toString().strip();
     }
 
@@ -332,6 +379,7 @@ public class ChatService {
 
         appendTodayMeals(sb, user, today);
         appendTodayWorkouts(sb, user, today);
+        appendWorkoutSchedule(sb, user, today);
         appendHealthPlan(sb, user, today);
         return sb.toString();
     }
@@ -399,6 +447,50 @@ public class ChatService {
         }
     }
 
+    /**
+     * Adds today's entry from the latest active repeating workout schedule. This lets the
+     * coach answer "today's training" from a saved schedule before it has been applied
+     * into a concrete WorkoutPlan.
+     */
+    private void appendWorkoutSchedule(StringBuilder sb, AppUser user, LocalDate today) {
+        try {
+            WorkoutSchedule schedule = workoutSchedules.findByUserIdOrderByCreatedAtDesc(user.getId()).stream()
+                    .filter(s -> !today.isBefore(s.getStartDate()))
+                    .filter(s -> today.isBefore(s.getStartDate().plusWeeks(s.getWeeks())))
+                    .findFirst()
+                    .orElse(null);
+            if (schedule == null) {
+                sb.append("目前週期課表: 尚無有效課表\n");
+                return;
+            }
+
+            List<ScheduleDay> days = JsonColumns.read(
+                    objectMapper, schedule.getDaysJson(), new TypeReference<List<ScheduleDay>>() {
+                    });
+            int weekday = today.getDayOfWeek().getValue();
+            int week = (int) ChronoUnit.WEEKS.between(schedule.getStartDate(), today) + 1;
+            ScheduleDay day = days.stream()
+                    .filter(d -> d.weekday() == weekday)
+                    .findFirst()
+                    .orElse(null);
+
+            if (day == null) {
+                sb.append("今日週期課表: 未設定\n");
+            } else if (day.rest()) {
+                sb.append("今日週期課表: 休息與恢復")
+                        .append("（第 ").append(week).append(" / ").append(schedule.getWeeks()).append(" 週）\n");
+            } else {
+                sb.append("今日週期課表: ").append(categoryLabel(day.category()))
+                        .append("，").append(day.durationMin()).append(" 分鐘")
+                        .append("，重點: ").append(day.focus() == null || day.focus().isBlank() ? "未提供" : day.focus())
+                        .append("（第 ").append(week).append(" / ").append(schedule.getWeeks()).append(" 週，強度 ")
+                        .append(intensityLabel(schedule.getIntensity())).append("）\n");
+            }
+        } catch (RuntimeException ex) {
+            // best-effort
+        }
+    }
+
     private void appendNumber(StringBuilder sb, String label, BigDecimal value, String unit) {
         sb.append(label).append(": ");
         if (value != null) {
@@ -437,6 +529,18 @@ public class ChatService {
             case "cardio" -> "有氧";
             case "full_body" -> "全身";
             default -> category;
+        };
+    }
+
+    private String intensityLabel(String intensity) {
+        if (intensity == null) {
+            return "未提供";
+        }
+        return switch (intensity) {
+            case "low" -> "低";
+            case "medium" -> "中";
+            case "high" -> "高";
+            default -> intensity;
         };
     }
 

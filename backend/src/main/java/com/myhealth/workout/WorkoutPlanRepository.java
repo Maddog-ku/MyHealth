@@ -33,6 +33,13 @@ public interface WorkoutPlanRepository extends JpaRepository<WorkoutPlan, Long> 
     List<LocalDate> findDoneWorkoutDates(@Param("userId") Long userId,
                                          @Param("from") LocalDate from, @Param("to") LocalDate to);
 
+    /** Completed workout plans in the lookback window, used for schedule-adherence achievements. */
+    @Query("select w from WorkoutPlan w "
+            + "where w.user.id = :userId and w.done = true and w.date between :from and :to "
+            + "order by w.date asc, w.createdAt asc")
+    List<WorkoutPlan> findDoneWorkouts(@Param("userId") Long userId,
+                                       @Param("from") LocalDate from, @Param("to") LocalDate to);
+
     int countByUserIdAndDateAndDoneTrue(Long userId, LocalDate date);
 
     int countByUserIdAndDateBetweenAndDoneTrue(Long userId, LocalDate from, LocalDate to);

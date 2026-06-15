@@ -34,13 +34,13 @@
 
 - 週報已加入達標率：熱量控制、蛋白質、訓練次數、記錄天數（`GET /reports/weekly` 回傳 `adherence`，並注入 AI grounded context；Dashboard 週報卡以進度條呈現）。
 - 週報已加入趨勢偵測：蛋白質偏低、記錄天數不足（本週數字）、訓練量下降、體重停滯（與上週比較，跨週訊號僅在兩週皆完整時觸發）、肌肉量上升／體脂下降（本週體組成正向變化，有量測時）；結果回傳於 `trends`，並注入 AI grounded context 讓建議優先回應這些重點。
-- 成就系統已新增照片記餐（PHOTO_5 / PHOTO_25）、週訓練目標達成（WEEKLY_GOAL_1 / WEEKLY_GOAL_4）與每日習慣連續達成（HABIT_7 / HABIT_30）徽章；徽章牆由 `StreakCard` 動態渲染含進度條。訓練課表完成徽章待後續（需課表完成定義）。
+- 成就系統已新增照片記餐（PHOTO_5 / PHOTO_25）、週訓練目標達成（WEEKLY_GOAL_1 / WEEKLY_GOAL_4）、週期課表完成（SCHEDULE_3 / SCHEDULE_12）與每日習慣連續達成（HABIT_7 / HABIT_30）徽章；徽章牆由 `StreakCard` 動態渲染含進度條。
 
 ## Phase 5：AI Coach 整合
 
 目標：讓 AI 回答基於同一份健康計畫。
 
-- AI 助理（Chat）已注入 Health Plan context：在系統 prompt 帶入就緒分數與 `nextActions` 優先事項，使用者問「今天該做什麼」時據此回答，與 Dashboard 同源；weekly report 已注入達標率與趨勢，workout schedule context 待後續。
+- AI 助理（Chat）已注入 Health Plan context：在系統 prompt 帶入就緒分數與 `nextActions` 優先事項，使用者問「今天該做什麼」時據此回答，與 Dashboard 同源；weekly report 已注入達標率與趨勢；Chat 也會讀取最新有效週期課表，讓今日訓練建議能對齊已排定的課表。
 - AI 已可根據 `nextActions` 解釋今日優先事項（Chat 已串接；其餘入口陸續整合）。
 - 食物資料庫已接上今日營養缺口：`GET /foods/suggestions` 依 `GET /stats/budget` 的剩餘熱量與蛋白質缺口，從 catalog 推薦具體食物（常見份量、決定性、無需 AI），Meals 頁「下一餐建議」卡會列出推薦食物。
 - Vision/文字 meal preview 已與 food database 結合：AI 負責辨識食物與克數，命中 catalog 的項目改以資料庫每 100g 基準按克數重算營養素（取最長名稱的最精確匹配），未命中維持 AI 估值；使用者仍可在確認清單調整。

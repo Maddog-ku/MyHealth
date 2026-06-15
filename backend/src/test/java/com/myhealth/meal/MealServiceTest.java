@@ -314,6 +314,26 @@ class MealServiceTest {
     }
 
     @Test
+    void confirmFromItems_allowsChatClassifiedFoodWithoutFoodHint() {
+        when(meals.save(any(Meal.class))).thenAnswer(inv -> inv.getArgument(0));
+        List<FoodItem> items = List.of(new FoodItem("芒果", 120, 75, 0.8, 0.5, 18.0, 1.0));
+
+        MealResponse response = service.confirmFromItems(owner, "芒果", "dinner",
+                LocalDate.of(2026, 6, 13), items, "水果可搭配蛋白質", false);
+
+        ArgumentCaptor<Meal> captor = ArgumentCaptor.forClass(Meal.class);
+        verify(meals).save(captor.capture());
+        Meal saved = captor.getValue();
+        assertThat(saved.getSlot()).isEqualTo("dinner");
+        assertThat(saved.getDescription()).isEqualTo("芒果");
+        assertThat(saved.getImageUrl()).isNull();
+        assertThat(saved.getTotalKcal()).isEqualTo(75);
+        assertThat(response.totalCarb()).isEqualByComparingTo("18.00");
+        verify(fileStorage, never()).storeMealImage(any(), any());
+        verify(aiProvider, never()).analyzeMeal(any(), any());
+    }
+
+    @Test
     void list_filtersByUserAndDate() {
         when(meals.findByUserIdAndDateOrderByCreatedAtDesc(1L, LocalDate.of(2026, 5, 30))).thenReturn(List.of());
         assertThat(service.list(owner, LocalDate.of(2026, 5, 30))).isEmpty();

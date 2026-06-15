@@ -119,18 +119,27 @@ port_pid() { lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | head -1; }
 # 讓 Ctrl+C 沒收乾淨、或在別的終端機殘留時也能一鍵乾淨重啟。
 if [[ $RESTART -eq 1 ]]; then
   echo "==> --restart：清掉殘留在 8080 / 5173 的舊程序"
+  killed_pids=""
   for port in 8080 5173; do
     rpid=$(port_pid "$port") || true
     if [[ -n "$rpid" ]]; then
       echo "    kill ${rpid} (port ${port}: $(ps -p "${rpid}" -o comm= 2>/dev/null))"
       kill "${rpid}" 2>/dev/null || true
+      killed_pids="${killed_pids} ${rpid}"
     fi
   done
-  # 等 8080 真的釋放（最多 10 秒），避免緊接著的前置檢查仍看到占用
+  # 等舊 listener 和 8080 真的釋放，避免緊接著的前置檢查仍看到占用。
+  # 再給 wrapper 一點時間寫完 SIGTERM/143 訊息，避免混進新一輪 log 尾端造成誤判。
   for _ in {1..10}; do
-    [[ -z "$(port_pid 8080)" ]] && break
+    ports_clear=1
+    [[ -n "$(port_pid 8080)" ]] && ports_clear=0
+    for rpid in $killed_pids; do
+      kill -0 "$rpid" 2>/dev/null && ports_clear=0
+    done
+    [[ $ports_clear -eq 1 ]] && break
     sleep 1
   done
+  [[ -n "$killed_pids" ]] && sleep 1
 fi
 
 pid=$(port_pid 8080) || true
@@ -149,6 +158,8 @@ fi
 # --- 4. backend（mvnw）、frontend（npm）並行 ---------------------------------
 LOG_DIR=".dev-logs"
 mkdir -p "$LOG_DIR"
+: >"$LOG_DIR/backend.log"
+: >"$LOG_DIR/frontend.log"
 
 echo "==> 啟動 backend (logs: $LOG_DIR/backend.log)"
 ( cd backend && ./mvnw -q spring-boot:run ) >"$LOG_DIR/backend.log" 2>&1 &

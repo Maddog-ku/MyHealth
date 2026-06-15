@@ -101,7 +101,12 @@ public class MealService {
     }
 
     public MealPreviewResponse preview(AppUser user, MultipartFile image, String description, String slot, LocalDate date) {
-        String normalizedDescription = validateMealInput(image, description, true);
+        return preview(user, image, description, slot, date, true);
+    }
+
+    public MealPreviewResponse preview(AppUser user, MultipartFile image, String description, String slot, LocalDate date,
+                                       boolean requireFoodHint) {
+        String normalizedDescription = validateMealInput(image, description, requireFoodHint);
         LocalDate mealDate = date == null ? LocalDate.now() : date;
         MealImage mealImage = toMealImage(image);
         AiProvider.MealAnalysis analysis;
@@ -129,7 +134,12 @@ public class MealService {
 
     public MealResponse confirm(AppUser user, MultipartFile image, String description, String slot, LocalDate date,
                                 String itemsJson, String aiSuggestion) {
-        String normalizedDescription = validateMealInput(image, description, true);
+        return confirm(user, image, description, slot, date, itemsJson, aiSuggestion, true);
+    }
+
+    public MealResponse confirm(AppUser user, MultipartFile image, String description, String slot, LocalDate date,
+                                String itemsJson, String aiSuggestion, boolean requireFoodHint) {
+        String normalizedDescription = validateMealInput(image, description, requireFoodHint);
         LocalDate mealDate = date == null ? LocalDate.now() : date;
         List<FoodItem> items = readConfirmedItems(itemsJson);
         validateConfirmedItems(items);
@@ -144,6 +154,18 @@ public class MealService {
             fileStorage.delete(imageUrl);
             throw ex;
         }
+    }
+
+    public MealResponse confirmFromItems(AppUser user, String description, String slot, LocalDate date,
+                                         List<FoodItem> items, String aiSuggestion, boolean requireFoodHint) {
+        String normalizedDescription = validateMealInput(null, description, requireFoodHint);
+        LocalDate mealDate = date == null ? LocalDate.now() : date;
+        validateConfirmedItems(items);
+        if (items.size() > 5) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "items must contain 5 entries or fewer");
+        }
+        AiProvider.MealAnalysis analysis = new AiProvider.MealAnalysis(items, aiSuggestion);
+        return transactionTemplate.execute(status -> persist(user, mealDate, slot, normalizedDescription, null, analysis));
     }
 
     private String validateMealInput(MultipartFile image, String description, boolean requireFoodHint) {
